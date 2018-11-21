@@ -7,7 +7,7 @@
 
 namespace gui {
 
-class Plant : public QGraphicsPathItem {
+class Plant : public QGraphicsItem {
   const simu::Plant &_plant;
   QRectF _boundingRect;
 

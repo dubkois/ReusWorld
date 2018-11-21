@@ -1,0 +1,11 @@
+*backup
+*log
+*.png
+*.scenario
+*.tmp
+*.user
+
+configs/
+scenarii/
+snapshots/
+build*/

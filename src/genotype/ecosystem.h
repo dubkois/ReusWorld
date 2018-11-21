@@ -8,10 +8,13 @@ namespace genotype {
 class Environment : public SelfAwareGenome<Environment> {
   APT_SAG()
 public:
-  uint seed;
+  uint rngSeed;
+  float width, depth;
 };
 
-DECLARE_GENOME_FIELD(Environment, uint, seed)
+DECLARE_GENOME_FIELD(Environment, uint, rngSeed)
+DECLARE_GENOME_FIELD(Environment, float, width)
+DECLARE_GENOME_FIELD(Environment, float, depth)
 
 class Ecosystem : public SelfAwareGenome<Ecosystem> {
   APT_SAG()
@@ -32,7 +35,10 @@ namespace config {
 template <>
 struct SAG_CONFIG_FILE(Environment) {
   using Bui = Bounds<uint>;
-  DECLARE_PARAMETER(Bui, seedBounds)
+  using Bf = Bounds<float>;
+  DECLARE_PARAMETER(Bui, rngSeedBounds)
+  DECLARE_PARAMETER(Bf, widthBounds)
+  DECLARE_PARAMETER(Bf, depthBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

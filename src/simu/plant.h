@@ -7,6 +7,12 @@ namespace simu {
 
 struct Point {
   float x, y;
+
+#ifndef NDEBUG
+  friend std::ostream& operator<< (std::ostream &os, const Point &p) {
+    return os << "{" << p.x << "," << p.y << "}";
+  }
+#endif
 };
 
 struct Organ {
@@ -23,6 +29,13 @@ struct Organ {
   friend bool operator< (Organ *lhs, const Ptr &rhs) {
     return lhs < rhs.get();
   }
+
+#ifndef NDEBUG
+  friend std::ostream& operator<< (std::ostream &os, const Organ &o) {
+    return os << "{ " << o.start << "->" << o.end << ", "
+              << o.rotation << ", " << o.symbol << "}";
+  }
+#endif
 };
 
 class Plant {
@@ -30,6 +43,8 @@ class Plant {
 
   Genome _genome;
   Point _pos;
+
+  uint _age;
 
   using Organ_ptr = Organ::Ptr;
   using Organs = std::set<Organ_ptr, std::less<>>;
@@ -56,6 +71,14 @@ public:
 
   const auto& organs (void) const {
     return _organs;
+  }
+
+  float age (void) const;
+
+  void step (void);
+
+  bool isDead (void) const {
+    return false;
   }
 
   void deriveRules (void);

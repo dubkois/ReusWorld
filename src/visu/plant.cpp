@@ -24,14 +24,15 @@ const QColor& color (char symbol) {
 }
 
 QPointF toQPoint (const simu::Point &p) {
-  return QPointF(p.x, p.y);
+  return QPointF(p.x, -p.y);
 }
 
 QRectF toRectF (const simu::Point &c, float l, float w) {
-  return QRectF(toQPoint(c) + QPointF(.5*w, l), QSize(l, w));
+  return QRectF(toQPoint(c) + QPointF(0, -.5*w), QSizeF(l, w));
 }
 
 Plant::Plant(const simu::Plant &p) : _plant(p) {
+  setPos(toQPoint(_plant.pos()));
   _boundingRect = QRectF();
   for (const auto &o: _plant.organs())
     _boundingRect = _boundingRect.united(QRectF(toQPoint(o->start), toQPoint(o->end)));
@@ -40,15 +41,34 @@ Plant::Plant(const simu::Plant &p) : _plant(p) {
 
 void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
   painter->save();
-  qDebug() << "Bounding rect: " << boundingRect();
-  painter->translate(toQPoint(_plant.pos()));
+  QPen pen = painter->pen();
+  pen.setCapStyle(Qt::RoundCap);
+//  qDebug() << "Bounding rect: " << boundingRect();
   for (const auto &o_ptr: _plant.organs()) {
     simu::Organ &o = *o_ptr;
-    painter->rotate(qRadiansToDegrees(o.rotation));
-    painter->fillRect(toRectF(o.start, o.length, o.width), color(o.symbol));
-    qDebug() << "painted";
+    QPointF p = toQPoint(o.start);
+    float r = -qRadiansToDegrees(o.rotation);
+//    qDebug() << "applying(" << o.symbol << p << r << ")";
+    painter->save();
+    painter->translate(p);
+    painter->rotate(r);
+    painter->fillRect(toRectF({0,0}, o.length, o.width), color(o.symbol));\
+    painter->restore();
   }
-  qDebug() << "";
+
+//  for (const auto &o_ptr: _plant.organs()) {
+//    simu::Organ &o = *o_ptr;
+//    QPointF p = toQPoint(o.start);
+//    float r = -qRadiansToDegrees(o.rotation);
+//    painter->save();
+//    painter->translate(p);
+//    painter->rotate(r);
+//    painter->fillRect(QRectF(-.5*o.width,-.5*o.width, o.width, o.width), Qt::black);
+//    painter->fillRect(QRectF(0, -.25*o.width, 4*o.width, .5*o.width), Qt::black);
+//    painter->restore();
+//  }
+
+//  qDebug() << "";
   painter->restore();
 }
 

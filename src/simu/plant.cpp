@@ -1,8 +1,11 @@
+#include "../config/simuconfig.h"
+
 #include "plant.h"
 
 namespace simu {
 
 using GConfig = genotype::Plant::config_t;
+using SConfig = config::Simulation;
 
 static const auto A = GConfig::ls_rotationAngle();
 static const auto L = GConfig::ls_segmentLength();
@@ -26,6 +29,14 @@ Plant::Plant(const Genome &g, float x, float y)
   _ntpos[rseed] = 0;
 
   deriveRules();
+
+//  std::cout << "Organs:\n";
+//  for (const auto &o: _organs)  std::cout << "\t" << *o << std::endl;
+//  std::cout << std::endl;
+}
+
+float Plant::age (void) const {
+  return _age / float(SConfig::stepsPerDay());
 }
 
 void Plant::deriveRules(void) {
@@ -40,6 +51,8 @@ void Plant::deriveRules(void) {
 
     bool valid = true; /// TODO Validity check (resources, collision)
     if (valid) {
+      std::cerr << "Applying " << o->symbol << " -> " << succ << std::endl;
+
       // Update physical phenotype
       turtleParse(succ, o->start, o->rotation, _genome.checkers(ltype));
       derivations++;
@@ -92,6 +105,8 @@ void Plant::turtleParse (const std::string &successor,
         _nonTerminals.insert(o);
         _ntpos[o] = i;
       }
+      start = end;
+      std::cerr << "Created " << *o << std::endl;
 
     } else
       utils::doThrow<std::logic_error>(
@@ -99,5 +114,11 @@ void Plant::turtleParse (const std::string &successor,
   }
 }
 
+void Plant::step (void) {
+  if (_age % SConfig::stepsPerDay())
+    deriveRules();
+
+  _age++;
+}
 
 } // end of namespace simu

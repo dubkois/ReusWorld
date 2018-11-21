@@ -3,19 +3,31 @@
 
 #include "../genotype/ecosystem.h"
 #include "../config/simuconfig.h"
+
+#include "environment.h"
 #include "plant.h"
 
 namespace simu {
 
 class Simulation {
 public:
-  Simulation (const genotype::Ecosystem &genome) : _ecosystem(genome) {}
+  Simulation (const genotype::Ecosystem &genome)
+    : _ecosystem(genome), _env(genome.env) {}
+
   virtual ~Simulation (void) {}
 
   bool init (void);
 
+  virtual void step (void);
+
+  const Environment& environment (void) const {
+    return _env;
+  }
+
 protected:
   genotype::Ecosystem _ecosystem;
+
+  Environment _env;
 
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;

@@ -99,8 +99,8 @@ DEFINE_PARAMETER(uint, ls_maxRules, 7)
 DEFINE_PARAMETER(genotype::grammar::Successor, ls_shootInitRule, InitRule<grammar::SHOOT>::rule)
 DEFINE_PARAMETER(genotype::grammar::Successor, ls_rootInitRule, InitRule<grammar::ROOT>::rule)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
-DEFINE_PARAMETER(float, ls_segmentWidth, 1.)
-DEFINE_PARAMETER(float, ls_segmentLength, 10.)
+DEFINE_PARAMETER(float, ls_segmentWidth, .01)
+DEFINE_PARAMETER(float, ls_segmentLength, .1)
 
 DEFINE_PARAMETER(Config::Bui, ls_recursivityBounds, 1u, 2u, 2u, 5u)
 DEFINE_MAP_PARAMETER(Config::MutationRates, ls_mutationRates, {

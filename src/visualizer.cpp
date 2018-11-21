@@ -2,7 +2,7 @@
 #include <QMainWindow>
 
 #include "config/visuconfig.h"
-#include "visu/graphicsimulation.h"
+#include "visu/controller.h"
 
 #include "kgd/external/cxxopts.hpp"
 
@@ -48,6 +48,8 @@ int main(int argc, char *argv[]) {
   genotype::Ecosystem e = inputFile.empty() ?
         genotype::Ecosystem::random(dice)
       : genotype::Ecosystem::fromFile(inputFile);
+  visu::GraphicSimulation s (e);
+
 
   // ===========================================================================
   // == Qt setup
@@ -56,12 +58,11 @@ int main(int argc, char *argv[]) {
   setlocale(LC_NUMERIC,"C");
 
   QMainWindow w;
-  visu::GraphicSimulation s (&w, e);
-  s.init();
+  gui::MainView *v = new gui::MainView(s.environment(), &w);
+  visu::Controller c (s, w, v);
 
-  w.setWindowTitle("ReusWorld");
-  w.setCentralWidget(s.view());
   w.show();
+  s.init();
 
   return a.exec();
 }

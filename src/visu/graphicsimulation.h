@@ -1,17 +1,24 @@
 #ifndef GRAPHICSIMULATION_H
 #define GRAPHICSIMULATION_H
 
+#include <QObject>
+
 #include "../simu/simulation.h"
-#include "mainview.h"
 
 namespace visu {
+struct Controller;
 
-class GraphicSimulation : public simu::Simulation {
-  gui::MainView *_view;
+class GraphicSimulation : public QObject, public simu::Simulation {
+  Q_OBJECT
+  Controller *_controller;
 public:
-  GraphicSimulation(QWidget *parent, const genotype::Ecosystem &e);
+  GraphicSimulation(const genotype::Ecosystem &e) : Simulation(e) {}
 
-  auto view (void) {  return _view; }
+  void setController (Controller *_controller);
+
+  void step (void) override {
+    Simulation::step();
+  }
 
 private:
   void addPlant (const genotype::Plant &p, float x) override;

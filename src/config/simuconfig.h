@@ -12,6 +12,8 @@ struct CONFIG_FILE(Simulation) {
 
   DECLARE_SUBCONFIG(genotype::Plant::config_t, plantGenotypeConfig)
   DECLARE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
+
+  DECLARE_PARAMETER(uint, stepsPerDay)
 };
 
 } // end of namespace config

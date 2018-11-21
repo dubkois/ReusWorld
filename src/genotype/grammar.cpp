@@ -66,7 +66,7 @@ void checkRule (const std::string &s, const Checkers &checkers,
   if (s[1] != ' ' || s[2] != '-' || s[3] != '>' || s[4] != ' ')
     doThrow("Invalid separator in rule '", s, "'");
 
-  rhs = s.substr(6);
+  rhs = s.substr(5);
   checkSuccessor(rhs, checkers);
 }
 
