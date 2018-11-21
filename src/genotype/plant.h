@@ -75,6 +75,24 @@ public:
 
   BOCData cdata;
 
+  grammar::Successor successor (grammar::LSystemType t, grammar::NonTerminal nt) {
+    switch (t) {
+    case grammar::SHOOT:  return shoot.successor(nt);
+    case grammar::ROOT:   return root.successor(nt);
+    default:  utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
+    }
+    return {};
+  }
+
+  static grammar::Checkers checkers (grammar::LSystemType t) {
+    switch(t) {
+    case grammar::SHOOT:  return decltype(shoot)::Rule::checkers();
+    case grammar::ROOT:   return decltype(root)::Rule::checkers();
+    default:  utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
+    }
+    return {};
+  }
+
 //  Plant();
 };
 

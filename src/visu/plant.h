@@ -9,8 +9,14 @@ namespace gui {
 
 class Plant : public QGraphicsPathItem {
   const simu::Plant &_plant;
+  QRectF _boundingRect;
+
 public:
   Plant(const simu::Plant &p);
+
+  QRectF boundingRect(void) const override {
+    return _boundingRect;
+  }
 
   void paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*);
 };

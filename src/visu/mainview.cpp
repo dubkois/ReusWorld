@@ -1,11 +1,14 @@
 #include <QGraphicsScene>
 
+#include "kgd/apt/visu/graphicsviewzoom.h"
+
 #include "mainview.h"
 
 namespace gui {
 
 MainView::MainView(QWidget *parent)
-  : QGraphicsView(parent), _scene(new QGraphicsScene) {
+  : QGraphicsView(parent), _scene(new QGraphicsScene(parent)) {
+  new Graphics_view_zoom(this);
   setScene(_scene);
 }
 

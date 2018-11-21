@@ -34,6 +34,8 @@ struct Checkers {
 using NonTerminal = char;
 using Successor = std::string;
 
+std::string extractBranch(const std::string &s, size_t start, size_t &end);
+
 void checkSuccessor (const std::string &s, const Checkers &checkers);
 void checkRule (const std::string &s, const Checkers &checkers,
                 NonTerminal &lhs, Successor &rhs);
@@ -78,14 +80,14 @@ struct Rule_t {
     return symbols.find(c) != symbols.end();
   }
 
-private:
-  static grammar::Checkers checkers (void) {
-    return {
-      isValidNonTerminal, isValidTerminal, isValidControl
-    };
+  static auto checkers (void) {
+    grammar::Checkers checkers {};
+    checkers.nonTerminal = isValidNonTerminal;
+    checkers.terminal = isValidTerminal;
+    checkers.control = isValidControl;
+    return checkers;
   }
 
-public:
   static Rule_t<T> fromString (const std::string &s) {
     Rule_t<T> r;
     checkRule(s, checkers(), r.lhs, r.rhs);

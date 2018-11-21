@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
       : genotype::Ecosystem::fromFile(inputFile);
 
   simu::Simulation s (e);
-
+  s.init();
 
   return 0;
 }

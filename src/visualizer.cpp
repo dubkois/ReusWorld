@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
 
   QMainWindow w;
   visu::GraphicSimulation s (&w, e);
+  s.init();
 
   w.setWindowTitle("ReusWorld");
   w.setCentralWidget(s.view());
