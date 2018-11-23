@@ -3,9 +3,29 @@
 namespace simu {
 
 bool Simulation::init (void) {
+  rng::FastDice dice (0);
+
+  using SRule = genotype::LSystem<genotype::grammar::SHOOT>::Rule;
+
+//  _ecosystem.plant.shoot.rules = {
+//    SRule::fromString("S -> BAf").toPair(),
+//    SRule::fromString("A -> AB[-Cl][+Dl]").toPair(),
+//    SRule::fromString("B -> BB").toPair(),
+//    SRule::fromString("C -> C-[-l]C").toPair(),
+//    SRule::fromString("D -> D+[+l]D").toPair(),
+//  };
+//  _ecosystem.plant.shoot.recursivity = 5;
+
+  uint N = _ecosystem.initSeeds;
   float dx = 3 * genotype::Plant::config_t::ls_segmentLength();
-  for (uint i=0; i</*_ecosystem.initSeeds*/1; i++)
-    addPlant(_ecosystem.plant, (i%2?-1:1) * i * dx);
+  float x0 = - dx * N / 2;
+  for (uint i=0; i<N; i++) {
+    auto pg = _ecosystem.plant.clone();
+    for (uint j=0; j<100; j++)  pg.mutate(dice);
+    if (int(pg.cdata.id) != 48)  continue;
+    addPlant(pg, x0 + i * dx);
+    std::cerr << "genome " << i << ": " << pg << std::endl;
+  }
   return true;
 }
 

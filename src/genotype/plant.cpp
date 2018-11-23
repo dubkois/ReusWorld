@@ -1,8 +1,10 @@
+#include <regex>
+
 #include "plant.h"
 
 
 using namespace genotype;
-using Config = config::SAGConfigFile<Plant>;
+using Config = config::PlantGenome;
 
 #define GENOME Plant
 
@@ -12,15 +14,143 @@ using Config = config::SAGConfigFile<Plant>;
 
 template <grammar::LSystemType T> struct InitRule;
 template <> struct InitRule<grammar::SHOOT> {
-  static constexpr auto rule = "G -> s[+l][-l]f";
+  static auto rule (void) { return Config::ls_shootInitRule(); }
 };
 template <> struct InitRule<grammar::ROOT> {
-  static constexpr auto rule = "G -> t[+h][-h]";
+  static auto rule (void) { return Config::ls_rootInitRule(); }
 };
 
+uint maxRuleCount (void) {
+  return uint(Config::ls_maxNonTerminal() - 'A' + 2);
+}
+
+void replace (std::string &s, const std::string &from, const std::string &to) {
+  std::regex_replace(s, std::regex(from), to);
+}
+
+void remove (std::string &s, const std::string &from) {
+  replace(s, from, "");
+}
+
+void remove (std::string &s, char c) {
+  remove(s, grammar::toSuccessor(c));
+}
+
+template <typename Dice>
+size_t nonBracketSymbol (const std::string &s, Dice &dice) {
+  std::vector<float> weights (s.size(), 1);
+  for (uint i=0; i<s.size(); i++)
+    if(grammar::Rule_base::isBracket(s[i]))
+      weights[i] = 0;
+
+  return dice(rng::rdist(weights.begin(), weights.end()));
+}
+
 template <typename R, typename Dice>
-void mutateLSystemRules (R &r, Dice &dice) {
-  assert(false);
+void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dice) {
+  auto sizeWCC = rule.sizeWithoutControlChars();
+
+  bool swappable = false;
+  std::vector<float> swapWeights (rule.rhs.size()-1, 0);
+  for (uint i=0; i<rule.rhs.size()-1; i++)
+    swapWeights[i] = swappable
+                   = !grammar::Rule_base::isBracket(rule.rhs[i])
+                  && !grammar::Rule_base::isBracket(rule.rhs[i+1]);
+
+  auto ruleRates = Config::ls_ruleMutationRates();
+  ruleRates["dupSymb"] *= (sizeWCC < Config::ls_maxRuleSize());
+//  ruleRates["swpSymb"] // Always true (at least should be)
+  ruleRates["swpSymb"] *= swappable;
+//  ruleRates["brkSymb"] // Idem
+  ruleRates["delSymb"] *= (sizeWCC > 1);
+
+  std::string field = dice.pickOne(ruleRates);
+
+  std::cerr << "\tMutation " << field << " on '" << rule;
+
+  if (field == "dupSymb") {
+    size_t i = nonBracketSymbol(rule.rhs, dice);
+    rule.rhs.replace(i, 1, std::string(2, rule.rhs[i]));
+
+  } else if (field == "mutSymb") {
+    size_t i = nonBracketSymbol(rule.rhs, dice);
+    char c = R::nonBracketSymbol(nonTerminals, dice);
+    rule.rhs[i] = c;
+    assert(R::isValidNonTerminal(c) || R::isValidTerminal(c) || R::isValidControl(c));
+
+  } else if (field == "swpSymb") {
+
+    size_t i = dice(rng::rdist(swapWeights.begin(), swapWeights.end()));
+    std::swap(rule.rhs[i], rule.rhs[i+1]);
+
+  } else if (field == "brkSymb") {
+    size_t i = nonBracketSymbol(rule.rhs, dice);
+    rule.rhs.insert(i, "[");
+    rule.rhs.insert(i+2, "]");
+
+  } else if (field == "delSymb") {
+    size_t i = nonBracketSymbol(rule.rhs, dice);
+    if (i > 0 && i+1 < rule.rhs.size() && rule.rhs[i-1] == '[' && rule.rhs[i+1] == ']')
+      rule.rhs.replace(i-1, 3, "");
+    else
+      rule.rhs.replace(i, 1, "");
+
+  } else
+    utils::doThrow<std::logic_error>("Unhandled field '", field,
+                                     "' for lsystem rule mutation");
+
+  std::cerr << " >> " << rule << std::endl;
+}
+
+template <typename R, typename Dice>
+void mutateLSystemRules (R &rules, Dice &dice) {
+  using Rule = typename R::mapped_type;
+
+  // First check bounds
+  auto ruleSetRates = Config::ls_ruleSetMutationRates();
+  ruleSetRates["addRule"] *= (rules.size() < maxRuleCount());
+  ruleSetRates["delRule"] *= (rules.size() > 2);
+
+  std::string field = dice.pickOne(ruleSetRates);
+  if (field == "addRule") {
+    // Pick a rule
+    Rule &r = dice(rules)->second;
+
+    // Pick a non bracket char
+    size_t i = nonBracketSymbol(r.rhs, dice);
+
+    // Find next non-terminal
+    char c = 'A';
+    while (rules.find(c) != rules.end() && c <= Config::ls_maxNonTerminal())
+      c++;
+
+    rules[c] = Rule{c, grammar::Successor(1, r.rhs[i])};
+    r.rhs[i] = c;
+
+  } else if (field == "delRule") {
+    // Pick a rule (except G)
+    auto rit = dice(rules.begin(), std::prev(rules.end()));
+    Rule r = rit->second;
+    rules.erase(rit);
+
+    assert(r.lhs != Config::ls_axiom());
+
+    // Remove all reference
+    for (auto &p: rules)
+      remove(p.second.rhs, r.lhs);
+
+  } else if (field == "mutRule") {
+    grammar::Symbols nonTerminals;
+    for (const auto &p: rules)
+      if (p.second.lhs != Config::ls_axiom())
+        nonTerminals.insert(p.second.lhs);
+
+    Rule &r = dice(rules.begin(), rules.end())->second;
+    mutateLSystemRule(r, nonTerminals, dice);
+
+  } else
+    utils::doThrow<std::logic_error>("Unhandled field '", field,
+                                     "' for lsystem rules mutation");
 }
 
 template <typename R, typename Dice>
@@ -35,7 +165,7 @@ double distanceLSystemRules (const R &lhs, const R &rhs) {
 
 template <typename R>
 bool checkLSystemRules (const R &r) {
-  assert(false);
+  return true;
 }
 
 template <typename LS, typename F>
@@ -48,7 +178,7 @@ auto lsystemFunctor (void) {
   functor.random = [&lsRBounds] (auto &dice) {
     return LS {
       lsRBounds.rand(dice),
-      {Rule::fromString(InitRule<LS::type>::rule)}
+      {Rule::fromString(InitRule<LS::type>::rule()).toPair()}
     };
   };
 
@@ -85,26 +215,54 @@ auto lsystemFunctor (void) {
   return functor;
 }
 
-//DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, recursivity, "", 1u, 2u, 2u, 5u)
-//DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem::Rules, rules, "", rulesFunctor())
+namespace nlohmann {
 
-//DEFINE_GENOME_MUTATION_RATES({
-//  MUTATION_RATE(recursivity, 1.f)
-//})
-//#undef GENOME
+template <typename T>
+using Map = std::map<char, T>;
+
+template <typename T>
+struct adl_serializer<Map<T>> {
+  static void to_json(json& j, const Map<T> &m) {
+    for (const auto &p: m)
+      j[grammar::toSuccessor(p.first)] = p.second;
+  }
+
+  static void from_json(const json& j, Map<T> &m) {
+    for (const auto &jp: j.items())
+      m[jp.key()[0]] = jp.value();
+  }
+};
+}
 
 /// Manually managed data
 #define CFILE Config
-DEFINE_PARAMETER(uint, ls_maxRules, 7)
-DEFINE_PARAMETER(genotype::grammar::Successor, ls_shootInitRule, InitRule<grammar::SHOOT>::rule)
-DEFINE_PARAMETER(genotype::grammar::Successor, ls_rootInitRule, InitRule<grammar::ROOT>::rule)
+auto initRule = [] (const std::string &rhs) {
+  return grammar::toSuccessor(Config::ls_axiom()) + " -> " + rhs;
+};
+DEFINE_PARAMETER(genotype::grammar::NonTerminal, ls_axiom, 'S')
+DEFINE_PARAMETER(genotype::grammar::Successor, ls_shootInitRule, initRule("s[+l][-l]f"))
+DEFINE_PARAMETER(genotype::grammar::Successor, ls_rootInitRule, initRule("t[+h][-h]"))
+DEFINE_PARAMETER(char, ls_maxNonTerminal, 'F')
+DEFINE_PARAMETER(uint, ls_maxRuleSize, 10)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
 DEFINE_PARAMETER(float, ls_segmentWidth, .01)
 DEFINE_PARAMETER(float, ls_segmentLength, .1)
 
 DEFINE_PARAMETER(Config::Bui, ls_recursivityBounds, 1u, 2u, 2u, 5u)
 DEFINE_MAP_PARAMETER(Config::MutationRates, ls_mutationRates, {
-  { "recursivity", 1.f }, { "rules", Config::ls_maxRules() }
+  { "recursivity", 1.f }, { "rules", maxRuleCount() }
+})
+DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates, {
+  { "addRule", 2.f },
+  { "delRule", 1.f },
+  { "mutRule", 4.f },
+})
+DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
+  { "dupSymb", 1.f },
+  { "mutSymb", 4.f },
+  { "swpSymb", 3.f },
+  { "brkSymb", .5f },
+  { "delSymb", .5f },
 })
 #undef CFILE
 

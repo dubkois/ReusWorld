@@ -5,9 +5,17 @@
 namespace genotype {
 namespace grammar {
 
+const Symbols Rule_base::controls {
+  '[', ']', '+', '-'
+};
+
 template <typename... ARGS>
 void doThrow (ARGS... args) {
   utils::doThrow<std::invalid_argument, ARGS...>(args...);
+}
+
+Successor toSuccessor (NonTerminal t) {
+  return std::string(1, t);
 }
 
 std::string extractBranch(const std::string &s, size_t start, size_t &end) {

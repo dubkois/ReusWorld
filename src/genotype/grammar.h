@@ -4,6 +4,8 @@
 #include "kgd/settings/prettyenums.hpp"
 #include "kgd/external/json.hpp"
 
+#include "config.h"
+
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(
     genotype::grammar, ShootTerminalSymbols,
     STEM,   // 's'
@@ -31,8 +33,7 @@ struct Checkers {
   Checker_f nonTerminal, terminal, control;
 };
 
-using NonTerminal = char;
-using Successor = std::string;
+Successor toSuccessor (NonTerminal t);
 
 std::string extractBranch(const std::string &s, size_t start, size_t &end);
 
@@ -40,13 +41,13 @@ void checkSuccessor (const std::string &s, const Checkers &checkers);
 void checkRule (const std::string &s, const Checkers &checkers,
                 NonTerminal &lhs, Successor &rhs);
 
-template <LSystemType T>
-struct Rule_t {
-  using NonTerminal = grammar::NonTerminal;
+struct Rule_base {
   NonTerminal lhs;
-
-  using Successor = grammar::Successor;
   Successor rhs;
+
+  static bool isBracket (char c) {
+    return c == '[' || c == ']';
+  }
 
   std::string toString (void) const {
     std::ostringstream oss;
@@ -54,30 +55,66 @@ struct Rule_t {
     return oss.str();
   }
 
-  using Symbols = std::set<char>;
-  static Symbols buildTerminalSymbolSet (void) {
-    using Enum = typename TerminalSymbolSet<T>::enum_t;
-    using EU = EnumUtils<Enum>;
+  auto size (void) const {
+    return rhs.size();
+  }
 
-    Symbols s;
-    for (Enum e: EU::iterator())
-      s.insert(std::tolower(EU::getName(e)[0]));
-    return s;
+  auto sizeWithoutControlChars (void) const {
+    size_t size = 0;
+    for (char c: rhs)
+      size += !isValidControl(c);
+    return size;
   }
 
   static bool isValidNonTerminal (char c) {
-    static const Symbols symbols {  'A', 'B', 'C', 'D', 'E', 'F', 'G'  };
-    return symbols.find(c) != symbols.end();
+    return nonTerminals().find(c) != nonTerminals().end();
   }
 
   static bool isValidControl (char c) {
-    static const Symbols symbols {  '[', ']', '+', '-'  };
-    return symbols.find(c) != symbols.end();
+    return controls.find(c) != controls.end();
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const Rule_base &r) {
+    return os << r.lhs << " -> " << r.rhs;
+  }
+
+private:
+  static const Symbols& nonTerminals (void) {
+    static const Symbols symbols = [] {
+      Symbols symbols;
+      for (char c = 'A'; c <= config::PlantGenome::ls_maxNonTerminal(); c++)
+        symbols.insert(c);
+      symbols.insert(config::PlantGenome::ls_axiom());
+      return symbols;
+    }();
+    return symbols;
+  }
+  static const Symbols controls;
+};
+
+template <LSystemType T>
+struct Rule_t : Rule_base {
+  std::pair<NonTerminal, Rule_t> toPair (void) const {
+    return std::make_pair(lhs, *this);
   }
 
   static bool isValidTerminal (char c) {
-    static const Symbols symbols = buildTerminalSymbolSet();
-    return symbols.find(c) != symbols.end();
+    return terminals.find(c) != terminals.end();
+  }
+
+  template <typename Dice>
+  static auto nonBracketSymbol (const Symbols &nonTerminals, Dice &dice) {
+    static const Symbols base = [] {
+      Symbols symbols;
+      symbols.insert(terminals.begin(), terminals.end());
+      for (char c: controls)
+        if (!isBracket(c))
+          symbols.insert(c);
+      return symbols;
+    }();
+    Symbols nonBrackets = base;
+    nonBrackets.insert(nonTerminals.begin(), nonTerminals.end());
+    return *dice(nonBrackets);
   }
 
   static auto checkers (void) {
@@ -94,22 +131,6 @@ struct Rule_t {
     return r;
   }
 
-  friend std::ostream& operator<< (std::ostream &os, const Rule_t &r) {
-    return os << r.lhs << " -> " << r.rhs;
-  }
-
-  friend bool operator< (const Rule_t &lhs, const Rule_t &rhs) {
-    return lhs.lhs < rhs.lhs;
-  }
-
-  friend bool operator< (const Rule_t &lhs, const NonTerminal &rhs) {
-    return lhs.lhs < rhs;
-  }
-
-  friend bool operator< (const NonTerminal &lhs, const Rule_t &rhs) {
-    return lhs < rhs.lhs;
-  }
-
   friend bool operator== (const Rule_t &lhs, const Rule_t &rhs) {
     return lhs.lhs == rhs.lhs && lhs.rhs == rhs.rhs;
   }
@@ -121,7 +142,21 @@ struct Rule_t {
   friend void from_json (const nlohmann::json &j, Rule_t<T> &r) {
     r = Rule_t<T>::fromString(j.get<std::string>());
   }
+
+private:
+  static const Symbols terminals;
 };
+
+template <LSystemType T>
+const Symbols Rule_t<T>::terminals = [] {
+  using Enum = typename TerminalSymbolSet<T>::enum_t;
+  using EU = EnumUtils<Enum>;
+
+  Symbols s;
+  for (Enum e: EU::iterator())
+    s.insert(std::tolower(EU::getName(e)[0]));
+  return s;
+}();
 
 } // end of namespace grammar
 } // end of namespace genotype

@@ -18,4 +18,11 @@ void GraphicSimulation::delPlant(float x) {
   Simulation::delPlant(x);
 }
 
+void GraphicSimulation::step (void) {
+  Simulation::step();
+
+  for (const auto& p: _plants)
+    _controller->view()->updatePlantItem(p.first);
+}
+
 } // end of namespace visu

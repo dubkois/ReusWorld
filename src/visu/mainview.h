@@ -32,6 +32,7 @@ public:
   void setController (visu::Controller *c);
 
   void addPlantItem(const simu::Plant &sp);
+  void updatePlantItem(float x);
   void delPlantItem(float x);
 
 private:

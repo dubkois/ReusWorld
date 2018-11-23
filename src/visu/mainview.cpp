@@ -37,6 +37,12 @@ void MainView::addPlantItem(const simu::Plant &sp) {
   viewPlant(gp);
 }
 
+void MainView::updatePlantItem(float x) {
+  Plant *p = _map.value(x);
+  assert(p);
+  p->updatePlantData();
+}
+
 void MainView::delPlantItem(float x) {
   Plant *p = _map.value(x);
   assert(p);
@@ -55,10 +61,7 @@ void MainView::resizeEvent (QResizeEvent *event) {
 }
 
 void MainView::viewPlant(Plant *p) {
-  QRectF r = p->boundingRect();
-  float xm = r.width() * .1, ym = r.height() * .1;
-  r.adjust(-xm, -ym, xm, ym);
-  fitInView(r, Qt::KeepAspectRatio);
+  fitInView(p->boundingRect(), Qt::KeepAspectRatio);
 }
 
 } // end of namespace gui

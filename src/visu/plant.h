@@ -18,6 +18,12 @@ public:
     return _boundingRect;
   }
 
+  void updateGeometry(void);
+  void updateTooltip(void);
+  void updatePlantData(void);
+
+  void mouseDoubleClickEvent(QGraphicsSceneMouseEvent*);
+
   void paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*);
 };
 

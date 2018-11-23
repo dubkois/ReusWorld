@@ -48,8 +48,8 @@ int main(int argc, char *argv[]) {
   genotype::Ecosystem e = inputFile.empty() ?
         genotype::Ecosystem::random(dice)
       : genotype::Ecosystem::fromFile(inputFile);
-  visu::GraphicSimulation s (e);
 
+  visu::GraphicSimulation s (e);
 
   // ===========================================================================
   // == Qt setup

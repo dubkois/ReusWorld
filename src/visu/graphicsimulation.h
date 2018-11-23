@@ -16,9 +16,7 @@ public:
 
   void setController (Controller *_controller);
 
-  void step (void) override {
-    Simulation::step();
-  }
+  void step (void) override;
 
 private:
   void addPlant (const genotype::Plant &p, float x) override;

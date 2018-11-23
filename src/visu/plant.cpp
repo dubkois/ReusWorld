@@ -27,32 +27,68 @@ QPointF toQPoint (const simu::Point &p) {
   return QPointF(p.x, -p.y);
 }
 
-QRectF toRectF (const simu::Point &c, float l, float w) {
+QRectF toRect (const simu::Point &c, float l, float w) {
   return QRectF(toQPoint(c) + QPointF(0, -.5*w), QSizeF(l, w));
+}
+
+QRectF toRect (const simu::Rect &r) {
+  return QRectF(toQPoint(r.ul), toQPoint(r.br));
 }
 
 Plant::Plant(const simu::Plant &p) : _plant(p) {
   setPos(toQPoint(_plant.pos()));
-  _boundingRect = QRectF();
-  for (const auto &o: _plant.organs())
-    _boundingRect = _boundingRect.united(QRectF(toQPoint(o->start), toQPoint(o->end)));
+  updateGeometry();
+  updateTooltip();
+}
+
+void Plant::updateGeometry(void) {
+  prepareGeometryChange();
+  _boundingRect = toRect(_plant.boundingRect());
+  float w = _boundingRect.width(), h = _boundingRect.height();
+//  _boundingRect.adjust(-.1 * w, -.1 * h, .1 * w, .1 * h);
   qDebug() << "Bounding rect: " << boundingRect();
+}
+
+void Plant::updateTooltip(void) {
+  std::ostringstream oss;
+  oss << _plant.genome();
+  setToolTip(QString::fromStdString(oss.str()));
+}
+
+void Plant::updatePlantData(void) {
+  updateGeometry();
+  updateTooltip();
+  update();
+}
+
+void Plant::mouseDoubleClickEvent(QGraphicsSceneMouseEvent*) {
+  std::cout << _plant << std::endl;
 }
 
 void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
   painter->save();
+
   QPen pen = painter->pen();
-  pen.setCapStyle(Qt::RoundCap);
+  pen.setWidthF(.5 * config::PlantGenome::ls_segmentWidth());
+  pen.setColor(Qt::red);
+  painter->setPen(pen);
+  painter->drawRect(boundingRect());
+  pen.setColor(Qt::blue);
+  painter->setPen(pen);
+  for (const simu::Organ *o: _plant.organs())
+    painter->drawRect(toRect(o->boundingRect()));
+
+
 //  qDebug() << "Bounding rect: " << boundingRect();
-  for (const auto &o_ptr: _plant.organs()) {
-    simu::Organ &o = *o_ptr;
-    QPointF p = toQPoint(o.start);
-    float r = -qRadiansToDegrees(o.rotation);
+  for (const simu::Organ *o: _plant.organs()) {
+    const auto &p = o->globalCoordinates();
+    QPointF p0 = toQPoint(p.start);
+    float r = -qRadiansToDegrees(p.rotation);
 //    qDebug() << "applying(" << o.symbol << p << r << ")";
     painter->save();
-    painter->translate(p);
+    painter->translate(p0);
     painter->rotate(r);
-    painter->fillRect(toRectF({0,0}, o.length, o.width), color(o.symbol));\
+    painter->fillRect(toRect({0,0}, o->length(), o->width()), color(o->symbol()));
     painter->restore();
   }
 

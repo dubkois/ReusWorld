@@ -13,57 +13,123 @@ struct Point {
     return os << "{" << p.x << "," << p.y << "}";
   }
 #endif
+
+  static Point fromPolar (float a, float r) {
+    return {  float(r * cos(a)), float(r * sin(a))  };
+  }
+
+  friend Point operator* (const Point &p, float f) {
+    return Point{ f * p.x, f * p.y };
+  }
+
+  friend Point operator* (float f, const Point &p) {
+    return p * f;
+  }
+
+  friend Point operator+ (const Point &lhs, const Point &rhs) {
+    return { lhs.x + rhs.x, lhs.y + rhs.y };
+  }
+
+  friend Point operator- (const Point &lhs, const Point &rhs) {
+    return Point { lhs.x - rhs.x, lhs.y - rhs.y };
+  }
 };
 
-struct Organ {
-  Point start, end;     // Plant coordinates
-  float width, length;  // Constant for now
-  float rotation;       // Plant coordinate
-  char symbol;          // To choose color and shape
+struct Rect {
+  Point ul, br;
 
-  using Ptr = std::unique_ptr<Organ>;
+  static Rect invalid (void) {
+    using L = std::numeric_limits<float>;
+    return { { L::max(), -L::max() }, { -L::max(), L::max() } };
+  }
 
-  friend bool operator< (const Ptr &lhs, Organ *rhs) {
-    return lhs.get() < rhs;
+  Rect& uniteWith (const Rect &that) {
+    ul.x = std::min(ul.x, that.ul.x);
+    ul.y = std::max(ul.y, that.ul.y);
+    br.x = std::max(br.x, that.br.x);
+    br.y = std::min(br.y, that.br.y);
+    return *this;
   }
-  friend bool operator< (Organ *lhs, const Ptr &rhs) {
-    return lhs < rhs.get();
+};
+
+struct Position {
+  Point start, end;
+  float rotation;
+};
+
+class Organ {
+public:
+  using LSType = genotype::grammar::LSystemType;
+
+private:
+  float _localRotation;   // Parent coordinate
+  Position _global;       // Plant coordinates
+  float _width, _length;  // Constant for now
+  char _symbol;           // To choose color and shape
+  LSType _type;           // To check altitude and symbol
+
+  Organ *_parent;
+  std::set<Organ*> _children;
+
+  Rect _boundingRect;
+
+public:
+  Organ (float w, float l, float r, char c, LSType t, Organ *p = nullptr);
+
+  void updateCache (void);
+  void updateParent (Organ *newParent);
+
+  void removeFromParent(void);
+
+  float localRotation (void) const {  return _localRotation;  }
+  const auto& globalCoordinates (void) const {  return _global; }
+
+  const auto& boundingRect (void) const { return _boundingRect; }
+
+  auto width (void) const {   return _width;  }
+  auto length (void) const {  return _length; }
+
+  auto symbol (void) const {  return _symbol; }
+  auto type (void) const {    return _type;   }
+
+  auto parent (void) {  return _parent; }
+  const auto parent (void) const {  return _parent; }
+
+  const auto& children (void) const { return _children; }
+
+  bool isNonTerminal (void) const {
+    return genotype::grammar::Rule_base::isValidNonTerminal(_symbol);
   }
+  bool isLeaf (void) const {  return _symbol == 'l'; }
+  bool isHair (void) const {  return _symbol == 'h'; }
 
 #ifndef NDEBUG
-  friend std::ostream& operator<< (std::ostream &os, const Organ &o) {
-    return os << "{ " << o.start << "->" << o.end << ", "
-              << o.rotation << ", " << o.symbol << "}";
-  }
+  friend std::ostream& operator<< (std::ostream &os, const Organ &o);
 #endif
 };
 
 class Plant {
   using Genome = genotype::Plant;
+  using LSType = Organ::LSType;
 
   Genome _genome;
   Point _pos;
 
   uint _age;
 
-  using Organ_ptr = Organ::Ptr;
-  using Organs = std::set<Organ_ptr, std::less<>>;
+  using Organs = std::set<Organ*>;
   Organs _organs;
 
   using OrgansView = std::set<Organ*>;
-  OrgansView _nonTerminals, _leaves, _hairs;
+  OrgansView _bases, _nonTerminals, _leaves, _hairs;
 
   uint _derived;  ///< Number of times derivation rules were applied
 
-  // ===========================================
-  // == String representation
-  using NonTerminalsPos = std::map<Organ*,uint>;
-  NonTerminalsPos _ntpos;
-  std::string _shoot, _root;
-  // ===========================================
+  Rect _boundingRect;
 
 public:
   Plant(const Genome &g, float x, float y);
+  ~Plant (void);
 
   const Point& pos (void) const {
     return _pos;
@@ -75,23 +141,48 @@ public:
 
   float age (void) const;
 
+  const auto& genome (void) const {
+    return _genome;
+  }
+
+  const auto& boundingRect (void) const {
+    return _boundingRect;
+  }
+
   void step (void);
 
   bool isDead (void) const {
     return false;
   }
 
-  void deriveRules (void);
+  uint deriveRules(void);
+
+  std::string toString (LSType type) const;
 
   friend std::ostream& operator<< (std::ostream &os, const Plant &p) {
     return os << "P{\n"
-              << "\tshoot: " << p._shoot << "\n"
-              << "\t root: " << p._root << "\n}";
+              << "\tshoot: " << p.toString(LSType::SHOOT) << "\n"
+              << "\t root: " << p.toString(LSType::ROOT) << "\n}";
+  }
+
+  static float initialAngle (LSType t) {
+    switch (t) {
+    case LSType::SHOOT: return  M_PI/2.;
+    case LSType::ROOT:  return -M_PI/2.;
+    }
+    utils::doThrow<std::logic_error>("Invalid lsystem type", t);
+    return 0;
   }
 
 private:
-  void turtleParse (const std::string &successor, Point start, float angle,
-                    const genotype::grammar::Checkers &checkers);
+  Organ *addOrgan (Organ *parent, float width, float length, float angle,
+                   char symbol, LSType type);
+
+  void delOrgan (Organ *o);
+
+  Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
+                      LSType type,
+                      const genotype::grammar::Checkers &checkers);
 };
 
 } // end of namespace simu

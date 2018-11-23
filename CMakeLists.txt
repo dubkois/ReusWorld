@@ -45,6 +45,7 @@ set(GNTP_SRC
     "grammar.h"
     "grammar.cpp"
     "plant.h"
+    "config.h"
     "plant.cpp"
     "ecosystem.h"
     "ecosystem.cpp"

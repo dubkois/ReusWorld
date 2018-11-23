@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QToolBar>
+#include <QMenuBar>
 #include <QAction>
 #include <QStyle>
 
@@ -18,11 +19,20 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   w.setWindowTitle("ReusWorld");
 
+  QMenuBar *menuBar = w.menuBar();
+  QMenu *menuSimulation = new QMenu("Simulation");
+
+  menuBar->addMenu(menuSimulation);
+
   QToolBar *toolbar = new QToolBar;
   QStyle *style = QApplication::style();
+
   QAction *step = new QAction(style->standardIcon(QStyle::SP_MediaSkipForward), "Step", _view);
+  step->setShortcut(QKeySequence::Forward);
 
   _window.setCentralWidget(_view);
+
+  menuSimulation->addAction(step);
 
   toolbar->setMovable(false);
   _window.addToolBar(Qt::BottomToolBarArea, toolbar);
