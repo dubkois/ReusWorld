@@ -22,8 +22,6 @@ DEFINE_NAMESPACE_PRETTY_ENUMERATION(
 namespace genotype {
 namespace grammar {
 
-enum LSystemType {  SHOOT = 0, ROOT = 1 };
-
 template <LSystemType T> struct TerminalSymbolSet;
 template <> struct TerminalSymbolSet<SHOOT> { using enum_t = ShootTerminalSymbols; };
 template <> struct TerminalSymbolSet<ROOT> { using enum_t = RootTerminalSymbols; };

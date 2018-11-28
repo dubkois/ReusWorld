@@ -64,5 +64,7 @@ int main(int argc, char *argv[]) {
   w.show();
   s.init();
 
+  c.nextPlant();
+
   return a.exec();
 }

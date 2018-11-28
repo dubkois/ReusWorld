@@ -4,13 +4,13 @@
 #include <string>
 
 #include "grammar.h"
+#include "config.h"
 
 namespace genotype {
 
-template <grammar::LSystemType T>
-class LSystem {
-public:
-  static constexpr grammar::LSystemType type = T;
+template <LSystemType T>
+struct LSystem {
+  static constexpr LSystemType type = T;
   using NonTerminal = grammar::NonTerminal;
   using Successor = grammar::Successor;
   using Rule = grammar::Rule_t<T>;
@@ -20,11 +20,22 @@ public:
 
   Rules rules;
 
-  Successor successor (NonTerminal symbol) {
+  Successor successor (NonTerminal symbol) const {
     auto it = rules.find(symbol);
     if (it == rules.end())
-      return std::string(1, symbol);
+      return "";
     return it->second.rhs;
+  }
+
+  std::string stringPhenotype (const std::string &axiom) const {
+    std::string phenotype;
+    for (char c: axiom) {
+      if (!Rule::isValidNonTerminal(c))
+        phenotype += c;
+      else
+        phenotype += successor(c);
+    }
+    return phenotype;
   }
 
   friend std::ostream& operator<< (std::ostream &os, const LSystem &ls) {
@@ -51,15 +62,23 @@ public:
 
 class Metabolism : public SelfAwareGenome<Metabolism> {
   APT_SAG()
-
+public:
+  using FloatElements = config_t::FloatElements;
+  FloatElements conversionRates; // f_c, f_w
+  FloatElements resistors;  // rho_c, rho_w
+  float growthSpeed;  // k_g
 };
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::FloatElements, conversionRates)
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::FloatElements, resistors)
+DECLARE_GENOME_FIELD(Metabolism, float, growthSpeed)
+
 
 class Plant : public SelfAwareGenome<Plant> {
   APT_SAG()
 
 public:
-  LSystem<grammar::SHOOT> shoot;
-  LSystem<grammar::ROOT> root;
+  LSystem<SHOOT> shoot;
+  LSystem<ROOT> root;
 
   uint dethklok;
 
@@ -73,28 +92,28 @@ public:
     return other;
   }
 
-  grammar::Successor successor (grammar::LSystemType t, grammar::NonTerminal nt) {
+  grammar::Successor successor (LSystemType t, grammar::NonTerminal nt) {
     switch (t) {
-    case grammar::SHOOT:  return shoot.successor(nt);
-    case grammar::ROOT:   return root.successor(nt);
+    case SHOOT:  return shoot.successor(nt);
+    case ROOT:   return root.successor(nt);
     default:  utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
     }
     return {};
   }
 
-  auto maxDerivations (grammar::LSystemType t) {
+  auto maxDerivations (LSystemType t) {
     switch (t) {
-    case grammar::SHOOT:  return shoot.recursivity;
-    case grammar::ROOT:  return root.recursivity;
+    case SHOOT:  return shoot.recursivity;
+    case ROOT:  return root.recursivity;
     default:  utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
     }
     return 0u;
   }
 
-  static grammar::Checkers checkers (grammar::LSystemType t) {
+  static grammar::Checkers checkers (LSystemType t) {
     switch(t) {
-    case grammar::SHOOT:  return decltype(shoot)::Rule::checkers();
-    case grammar::ROOT:   return decltype(root)::Rule::checkers();
+    case SHOOT:  return decltype(shoot)::Rule::checkers();
+    case ROOT:   return decltype(root)::Rule::checkers();
     default:  utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
     }
     return {};
@@ -103,8 +122,8 @@ public:
 //  Plant();
 };
 
-DECLARE_GENOME_FIELD(Plant, LSystem<grammar::SHOOT>, shoot)
-DECLARE_GENOME_FIELD(Plant, LSystem<grammar::ROOT>, root)
+DECLARE_GENOME_FIELD(Plant, LSystem<SHOOT>, shoot)
+DECLARE_GENOME_FIELD(Plant, LSystem<ROOT>, root)
 DECLARE_GENOME_FIELD(Plant, uint, dethklok)
 DECLARE_GENOME_FIELD(Plant, uint, seedsPerFruit)
 DECLARE_GENOME_FIELD(Plant, BOCData, cdata)

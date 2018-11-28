@@ -3,7 +3,12 @@
 
 #include "kgd/apt/core/crossover.h"
 
+DEFINE_NAMESPACE_PRETTY_ENUMERATION(genotype, Element, GLUCOSE = 0, WATER = 1)
+DEFINE_NAMESPACE_PRETTY_ENUMERATION(genotype, LSystemType, SHOOT = 0, ROOT = 1)
+
+
 namespace genotype {
+struct Metabolism;
 struct Plant;
 
 namespace grammar {
@@ -17,6 +22,23 @@ using Symbols = std::set<char>;
 
 
 namespace config {
+
+template <>
+struct SAG_CONFIG_FILE(Metabolism) {
+  template <typename T>
+  using Elements_array = std::array<T, EnumUtils<genotype::Element>::size()>;
+
+  using FloatElements = Elements_array<float>;
+
+  using Bfe = Bounds<FloatElements>;
+  using Bf = Bounds<float>;
+
+  DECLARE_PARAMETER(Bfe, conversionRatesBounds)
+  DECLARE_PARAMETER(Bfe, resistorsBounds)
+  DECLARE_PARAMETER(Bf, growthSpeedBounds)
+
+  DECLARE_PARAMETER(MutationRates, mutationRates)
+};
 
 template <>
 struct SAG_CONFIG_FILE(Plant) {

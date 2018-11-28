@@ -2,11 +2,53 @@
 #define CONTROLLER_H
 
 #include <QMainWindow>
+#include <QAction>
+#include <QTimer>
+#include <QStyle>
+#include <QLabel>
 
 #include "graphicsimulation.h"
 #include "mainview.h"
 
 namespace visu {
+
+class MultiAction : public QAction {
+  Q_OBJECT
+
+  uint _index;
+  struct State {
+    QIcon icon;
+    QString name;
+  };
+  QVector<State> _states;
+
+  void addState(QStyle::StandardPixmap p, const QString &name);
+  void addState(const QIcon &icon, const QString &name);
+
+  template <typename I, typename... ARGS>
+  void parseStates (const I &i, const QString &name, ARGS... args) {
+    addState(i, name);
+    parseStates(args...);
+  }
+
+  void parseStates(void) {}
+
+  State& updateState (void);
+
+public:
+  template <typename... ARGS>
+  MultiAction (QObject *parent, ARGS... args) : QAction(parent) {
+    _index = 0;
+    parseStates(args...);
+    updateState();
+    connect(this, &QAction::triggered, this, &MultiAction::signalForwarder);
+  }
+
+  void signalForwarder (void);
+
+signals:
+  void triggered (const QString &state, uint index);
+};
 
 class Controller : public QObject {
   Q_OBJECT
@@ -15,6 +57,11 @@ class Controller : public QObject {
 
   QMainWindow &_window;
   gui::MainView *_view;
+
+  QLabel *_ldisplay, *_mdisplay, *_rdisplay;
+
+  QTimer _timer;
+  float _speed;
 
 public:
   Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v);
@@ -26,6 +73,28 @@ public:
   auto* view (void) {
     return _view;
   }
+
+  void prevPlant (void) {
+    _view->selectPreviousPlant();
+  }
+
+  void nextPlant (void) {
+    _view->selectNextPlant();
+  }
+
+  void updateMousePosition (const QPointF &pos);
+
+private:
+  QAction* buildAction(QStyle::StandardPixmap pixmap, const QString &name,
+                       const QKeySequence &shortcut);
+
+  template <typename... ARGS>
+  MultiAction* buildMultiAction (const QKeySequence &shortcut, ARGS... args);
+
+  void updateDisplays (void);
+
+  void play (bool b);
+  void step (void);
 };
 
 } // end of namespace visu

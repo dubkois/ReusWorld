@@ -14,6 +14,10 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
 
   DECLARE_PARAMETER(uint, stepsPerDay)
+
+  DECLARE_PARAMETER(float, assimilationRate)
+  DECLARE_PARAMETER(float, saturationRate)
+  DECLARE_PARAMETER(float, lifeCost)
 };
 
 } // end of namespace config

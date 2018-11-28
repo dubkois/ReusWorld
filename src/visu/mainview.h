@@ -19,21 +19,26 @@ class MainView : public QGraphicsView {
   QGraphicsScene *_scene;
 
   using PlantToItemMap = QMap<float,Plant*>;
-  PlantToItemMap _map;
+  PlantToItemMap _plants;
 
   Environment *_env;
 
   /// Only used to keep the focal point in the center of the viewport when resizing
   QPointF _viewportCenter;
 
+  Plant *_selection;
+
 public:
   explicit MainView(const simu::Environment &e, QWidget *parent = nullptr);
 
   void setController (visu::Controller *c);
 
-  void addPlantItem(const simu::Plant &sp);
+  void addPlantItem(simu::Plant &sp);
   void updatePlantItem(float x);
   void delPlantItem(float x);
+
+  void mouseMoveEvent(QMouseEvent *e);
+  void mouseReleaseEvent(QMouseEvent *e);
 
 private:
   bool eventFilter (QObject*, QEvent *event) override;
@@ -42,10 +47,11 @@ private:
 signals:
 
 public slots:
-  void viewPlant (Plant *p);
-  void viewPlant (float x) {
-    viewPlant(_map.value(x));
-  }
+  void selectPreviousPlant (void);
+  void selectNextPlant (void);
+
+  void updateSelection(Plant *that);
+  void focusOnSelection(void);
 };
 
 } // end of namespace gui

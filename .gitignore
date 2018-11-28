@@ -1,9 +1,12 @@
+*aux
 *backup
 *log
+*.pdf
 *.png
 *.scenario
 *.tmp
 *.user
+*.gz
 
 configs/
 scenarii/

@@ -6,17 +6,11 @@
 using namespace genotype;
 using Config = config::PlantGenome;
 
-#define GENOME Plant
-
-#define LSYSTEM_FIELD_FUNCTOR(NAME)           \
-  lsystemFunctor<decltype(Plant::NAME), \
-                 GENOME_FIELD_FUNCTOR(decltype(Plant::NAME), NAME)>()
-
-template <grammar::LSystemType T> struct InitRule;
-template <> struct InitRule<grammar::SHOOT> {
+template <LSystemType T> struct InitRule;
+template <> struct InitRule<SHOOT> {
   static auto rule (void) { return Config::ls_shootInitRule(); }
 };
-template <> struct InitRule<grammar::ROOT> {
+template <> struct InitRule<ROOT> {
   static auto rule (void) { return Config::ls_rootInitRule(); }
 };
 
@@ -234,6 +228,37 @@ struct adl_serializer<Map<T>> {
 };
 }
 
+/// ============================================================================
+/// == Metabolism
+
+#define GENOME Metabolism
+
+using MFE = Metabolism::FloatElements;
+DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, conversionRates, "",
+                                utils::uniformStdArray<MFE>(1e-3),
+                                utils::uniformStdArray<MFE>(1))
+DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, resistors, "",
+                                utils::uniformStdArray<MFE>(0), true,
+                                utils::uniformStdArray<MFE>(1),
+                                utils::uniformStdArray<MFE>(10))
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, growthSpeed, "", 0, true, 1, 10)
+
+DEFINE_GENOME_MUTATION_RATES({
+  MUTATION_RATE(conversionRates, 1.f),
+  MUTATION_RATE(resistors, 1.f),
+  MUTATION_RATE(growthSpeed, 1.f)
+})
+#undef GENOME
+
+/// ============================================================================
+/// == Plant
+
+#define GENOME Plant
+
+#define LSYSTEM_FIELD_FUNCTOR(NAME)           \
+  lsystemFunctor<decltype(Plant::NAME), \
+                 GENOME_FIELD_FUNCTOR(decltype(Plant::NAME), NAME)>()
+
 /// Manually managed data
 #define CFILE Config
 auto initRule = [] (const std::string &rhs) {
@@ -267,8 +292,8 @@ DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
 #undef CFILE
 
 /// Auto-managed
-DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<grammar::SHOOT>, shoot, "", LSYSTEM_FIELD_FUNCTOR(shoot))
-DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<grammar::ROOT>, root, "", LSYSTEM_FIELD_FUNCTOR(root))
+DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<SHOOT>, shoot, "", LSYSTEM_FIELD_FUNCTOR(shoot))
+DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<ROOT>, root, "", LSYSTEM_FIELD_FUNCTOR(root))
 
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 100u, 100u, 1000u)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)

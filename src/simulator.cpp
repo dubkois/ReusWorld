@@ -2,6 +2,21 @@
 
 #include "kgd/external/cxxopts.hpp"
 
+/*!
+ * TODO Table of todos
+ *  TODO Metabolism
+ *  TODO Reproduction
+ *  TODO Environment
+ *    TODO Water supply
+ *    TODO Topology
+ *  TODO Temperature
+ *    TODO In the environment
+ *    TODO Effect on plants ?
+ */
+
+
+
+
 int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing

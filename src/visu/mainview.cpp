@@ -1,9 +1,11 @@
 #include <QGraphicsScene>
 #include <QEvent>
+#include <QMouseEvent>
 
 #include "kgd/apt/visu/graphicsviewzoom.h"
 
 #include "mainview.h"
+#include "controller.h"
 
 #include <QDebug>
 
@@ -11,7 +13,7 @@ namespace gui {
 
 MainView::MainView(const simu::Environment &e, QWidget *parent)
   : QGraphicsView(parent), _scene(new QGraphicsScene(parent)),
-    _env(new Environment(e)) {
+    _env(new Environment(e)), _selection(nullptr) {
 
   setScene(_scene);
   setDragMode(ScrollHandDrag);
@@ -30,23 +32,27 @@ void MainView::setController(visu::Controller *c) {
   _controller = c;
 }
 
-void MainView::addPlantItem(const simu::Plant &sp) {
+void MainView::addPlantItem(simu::Plant &sp) {
   Plant *gp = new Plant(sp);
-  _map[sp.pos().x] = gp;
+  _plants[sp.pos().x] = gp;
   _scene->addItem(gp);
-  viewPlant(gp);
+
+  connect(gp, &Plant::selected, this, &MainView::updateSelection);
 }
 
 void MainView::updatePlantItem(float x) {
-  Plant *p = _map.value(x);
+  Plant *p = _plants.value(x);
   assert(p);
   p->updatePlantData();
+  if (p == _selection && _selection->isSelected())  focusOnSelection();
 }
 
 void MainView::delPlantItem(float x) {
-  Plant *p = _map.value(x);
+  Plant *p = _plants.value(x);
   assert(p);
+  if (p == _selection)  _selection = nullptr;
   _scene->removeItem(p);
+  p->deleteLater();
 }
 
 bool MainView::eventFilter(QObject*, QEvent *event) {
@@ -60,8 +66,63 @@ void MainView::resizeEvent (QResizeEvent *event) {
   centerOn(_viewportCenter);
 }
 
-void MainView::viewPlant(Plant *p) {
-  fitInView(p->boundingRect(), Qt::KeepAspectRatio);
+void MainView::mouseMoveEvent(QMouseEvent *e) {
+  _controller->updateMousePosition(mapToScene(e->pos()));
+  QGraphicsView::mouseMoveEvent(e);
+}
+
+void MainView::mouseReleaseEvent(QMouseEvent *e) {
+  qDebug() << "Mouse event in view";
+  QGraphicsView::mouseReleaseEvent(e);
+}
+
+void MainView::selectPreviousPlant(void) {
+  if (!_plants.empty()) {
+    Plant *p = nullptr;
+    if (!_selection)  p = _plants.last();
+    else {
+      auto it = _plants.find(_selection->pos().x());
+      if (it != _plants.begin())
+        p = *(--it);
+      else
+        p = _plants.last();
+    }
+    updateSelection(p);
+  }
+}
+
+void MainView::selectNextPlant(void) {
+  if (!_plants.empty()) {
+    Plant *p = nullptr;
+    if (!_selection)  p = _plants.first();
+    else {
+      auto it = _plants.find(_selection->pos().x());
+      if (it != _plants.end()-1)
+        p = *(++it);
+      else
+        p = _plants.first();
+    }
+    updateSelection(p);
+  }
+}
+
+void MainView::updateSelection(Plant *that) {
+  if (_selection) _selection->setSelected(false);
+  _selection = that;
+  _selection->setSelected(true);
+  focusOnSelection();
+
+  const auto &p = _selection->plant();
+  std::cerr << "Genotype for plant(" << p.genome().cdata.id << "): "
+            << p.genome()
+            << "LSystem state: " << p
+            << std::endl;
+}
+
+void MainView::focusOnSelection(void) {
+  if (!_selection)  return;
+  fitInView(_selection->boundingRect().translated(_selection->pos()),
+            Qt::KeepAspectRatio);
 }
 
 } // end of namespace gui

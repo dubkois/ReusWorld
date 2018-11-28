@@ -7,24 +7,46 @@
 
 namespace gui {
 
-class Plant : public QGraphicsItem {
-  const simu::Plant &_plant;
+class Plant : public QGraphicsObject {
+  Q_OBJECT
+
+  simu::Plant &_plant;
   QRectF _boundingRect;
+  bool _selected;
 
 public:
-  Plant(const simu::Plant &p);
+  Plant(simu::Plant &p);
 
   QRectF boundingRect(void) const override {
     return _boundingRect;
+  }
+
+  const auto& plant (void) const {
+    return _plant;
+  }
+
+  void setSelected(bool selected) {
+    _selected = selected;
+  }
+  bool isSelected(void) const {
+    return _selected;
   }
 
   void updateGeometry(void);
   void updateTooltip(void);
   void updatePlantData(void);
 
-  void mouseDoubleClickEvent(QGraphicsSceneMouseEvent*);
+  void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e);
+  void contextMenuEvent(QGraphicsSceneContextMenuEvent *e);
 
   void paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*);
+
+signals:
+  void selected (Plant *me);
+
+private:
+  struct PlantMenu;
+  static PlantMenu* contextMenu (void);
 };
 
 } // end of namespace gui

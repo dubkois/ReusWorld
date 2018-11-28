@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.4)
 ####################################################################################################
 
 project("ReusWorld")
+
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic")#"-ftime-report")
 
 set(CMAKE_CXX_STANDARD 17)
@@ -53,12 +54,17 @@ set(GNTP_SRC
 PREPEND(GNTP_SRC "src/genotype" ${GNTP_SRC})
 
 set(SIMU_SRC
+    "types.h"
+    "types.cpp"
     "simulation.h"
     "simulation.cpp"
     "plant.h"
     "plant.cpp"
     "environment.h"
     "environment.cpp"
+    "tiniestphysicsengine.h"
+    "tiniestphysicsengine.cpp"
+    "linesweep.hpp"
 )
 PREPEND(SIMU_SRC "src/simu" ${SIMU_SRC})
 
@@ -81,6 +87,7 @@ set(VISU_SRC
     "environment.cpp"
     "mainview.h"
     "mainview.cpp"
+    "qtconversions.hpp"
     "graphicsimulation.h"
     "graphicsimulation.cpp"
     "controller.h"

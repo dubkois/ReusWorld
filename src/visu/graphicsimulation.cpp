@@ -18,6 +18,12 @@ void GraphicSimulation::delPlant(float x) {
   Simulation::delPlant(x);
 }
 
+bool GraphicSimulation::init(void) {
+  bool ok = Simulation::init();
+  emit initialized(ok);
+  return ok;
+}
+
 void GraphicSimulation::step (void) {
   Simulation::step();
 

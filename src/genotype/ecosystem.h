@@ -10,11 +10,13 @@ class Environment : public SelfAwareGenome<Environment> {
 public:
   uint rngSeed;
   float width, depth;
+  uint voxels;
 };
 
 DECLARE_GENOME_FIELD(Environment, uint, rngSeed)
 DECLARE_GENOME_FIELD(Environment, float, width)
 DECLARE_GENOME_FIELD(Environment, float, depth)
+DECLARE_GENOME_FIELD(Environment, uint, voxels)
 
 class Ecosystem : public SelfAwareGenome<Ecosystem> {
   APT_SAG()
@@ -39,6 +41,7 @@ struct SAG_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bui, rngSeedBounds)
   DECLARE_PARAMETER(Bf, widthBounds)
   DECLARE_PARAMETER(Bf, depthBounds)
+  DECLARE_PARAMETER(Bui, voxelsBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

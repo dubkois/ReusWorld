@@ -16,11 +16,15 @@ public:
 
   void setController (Controller *_controller);
 
+  bool init (void) override;
   void step (void) override;
 
 private:
   void addPlant (const genotype::Plant &p, float x) override;
   void delPlant (float x) override;
+
+signals:
+  void initialized (bool ok);
 };
 
 } // end of namespace visu
