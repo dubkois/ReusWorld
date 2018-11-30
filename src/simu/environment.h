@@ -2,6 +2,7 @@
 #define SIMU_ENVIRONMENT_H
 
 #include "../genotype/ecosystem.h"
+#include "physicstypes.hpp"
 #include "types.h"
 
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(simu, UndergroundLayers, SHALLOW = 0, DEEP = 1)
@@ -56,6 +57,7 @@ public:
   void step (void);
 
   float waterAt(const Position &p);
+  const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
   void addCollisionData (Plant *p);
   void updateCollisionData (Plant *p);  ///< During plant step when testing for shape validity

@@ -20,7 +20,7 @@ public:
   void step (void) override;
 
 private:
-  void addPlant (const genotype::Plant &p, float x) override;
+  void addPlant (const PGenome &p, float x, const Reserves &r) override;
   void delPlant (float x) override;
 
 signals:

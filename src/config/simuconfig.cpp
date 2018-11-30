@@ -10,9 +10,10 @@ DEFINE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
 
 DEFINE_PARAMETER(uint, stepsPerDay, 1)
 
-DEFINE_PARAMETER(float, assimilationRate, 1)
+DEFINE_PARAMETER(float, assimilationRate, .01)
 DEFINE_PARAMETER(float, saturationRate, 1)
-DEFINE_PARAMETER(float, lifeCost, 1)
+DEFINE_PARAMETER(float, lifeCost, .1)
+DEFINE_PARAMETER(float, resourceCost, .5)
 
 #undef CFILE
 

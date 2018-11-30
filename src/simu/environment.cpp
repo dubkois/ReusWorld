@@ -39,6 +39,10 @@ float Environment::waterAt(const Position &p) {
   );
 }
 
+const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {
+  return _collisionData->canopy(p);
+}
+
 void Environment::addCollisionData(Plant *p) {
   _collisionData->addCollisionData(p);
 }

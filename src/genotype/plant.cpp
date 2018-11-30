@@ -238,15 +238,18 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, conversionRates, "",
                                 utils::uniformStdArray<MFE>(1e-3),
                                 utils::uniformStdArray<MFE>(1))
 DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, resistors, "",
-                                utils::uniformStdArray<MFE>(0), true,
+                                utils::uniformStdArray<MFE>(0),
+                                utils::uniformStdArray<MFE>(1),
                                 utils::uniformStdArray<MFE>(1),
                                 utils::uniformStdArray<MFE>(10))
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float, growthSpeed, "", 0, true, 1, 10)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, growthSpeed, "", 0, 1, 1, 10)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, deltaWidth, "", 0, .1, .1, 1)
 
 DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(conversionRates, 1.f),
   MUTATION_RATE(resistors, 1.f),
-  MUTATION_RATE(growthSpeed, 1.f)
+  MUTATION_RATE(growthSpeed, 1.f),
+  MUTATION_RATE(deltaWidth, 1.f)
 })
 #undef GENOME
 
@@ -292,20 +295,23 @@ DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
 #undef CFILE
 
 /// Auto-managed
+DEFINE_GENOME_FIELD_AS_SUBGENOME(BOCData, cdata, "")
+
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<SHOOT>, shoot, "", LSYSTEM_FIELD_FUNCTOR(shoot))
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<ROOT>, root, "", LSYSTEM_FIELD_FUNCTOR(root))
 
+DEFINE_GENOME_FIELD_AS_SUBGENOME(Metabolism, metabolism, "")
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 100u, 100u, 1000u)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)
 
-DEFINE_GENOME_FIELD_AS_SUBGENOME(BOCData, cdata, "")
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(shoot, 1.f),
-  MUTATION_RATE(root, 1.f),
+  MUTATION_RATE(        cdata, 1.f),
+  MUTATION_RATE(        shoot, 1.f),
+  MUTATION_RATE(         root, 1.f),
+  MUTATION_RATE(   metabolism, 1.f),
+  MUTATION_RATE(     dethklok, 1.f),
   MUTATION_RATE(seedsPerFruit, 1.f),
-  MUTATION_RATE(dethklok, 1.f),
-  MUTATION_RATE(cdata, 1.f)
 })
 
 #undef GENOME

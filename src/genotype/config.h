@@ -36,6 +36,7 @@ struct SAG_CONFIG_FILE(Metabolism) {
   DECLARE_PARAMETER(Bfe, conversionRatesBounds)
   DECLARE_PARAMETER(Bfe, resistorsBounds)
   DECLARE_PARAMETER(Bf, growthSpeedBounds)
+  DECLARE_PARAMETER(Bf, deltaWidthBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

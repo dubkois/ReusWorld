@@ -151,6 +151,10 @@ void CollisionData::reset(void) {
   _data.clear();
 }
 
+const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
+  return _data.find(p)->layer.items;
+}
+
 void CollisionData::addCollisionData (Plant *p) {
   _data.insert(physics::CObject(p));
 }

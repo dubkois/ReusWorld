@@ -62,9 +62,9 @@ set(SIMU_SRC
     "plant.cpp"
     "environment.h"
     "environment.cpp"
+    "physicstypes.hpp"
     "tiniestphysicsengine.h"
     "tiniestphysicsengine.cpp"
-    "linesweep.hpp"
 )
 PREPEND(SIMU_SRC "src/simu" ${SIMU_SRC})
 

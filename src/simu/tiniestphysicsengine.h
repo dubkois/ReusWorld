@@ -1,25 +1,11 @@
 #ifndef TINIEST_PHYSICS_ENGINE_H
 #define TINIEST_PHYSICS_ENGINE_H
 
+#include "physicstypes.hpp"
 #include "plant.h"
 
 namespace simu {
 namespace physics {
-// =============================================================================
-
-struct UpperLayer {
-  struct Item {
-    float l, r, y;
-    Organ *organ;
-
-    Item (void);
-  };
-
-  std::vector<Item> items;
-
-  struct Sweeper;
-  void update (const Plant *p);
-};
 
 // =============================================================================
 
@@ -59,6 +45,8 @@ public:
   void reset (void);
 
   const auto& data (void) const { return _data; }
+
+  const UpperLayer::Items& canopy (const Plant *p) const;
 
   void addCollisionData (Plant *p);
   void removeCollisionData (Plant *p);

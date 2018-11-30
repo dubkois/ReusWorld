@@ -10,6 +10,9 @@
 namespace simu {
 
 class Simulation {
+protected:
+  using PGenome = genotype::Plant;
+  using Reserves = Plant::Reserves;
 public:
   Simulation (const genotype::Ecosystem &genome)
     : _ecosystem(genome), _env(genome.env), _step(0) {}
@@ -50,7 +53,7 @@ protected:
 
   uint _step;
 
-  virtual void addPlant (const genotype::Plant &p, float x);
+  virtual void addPlant (const PGenome &g, float x, const Reserves &r);
   virtual void delPlant (float x);
 };
 

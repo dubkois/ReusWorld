@@ -11,13 +11,13 @@ bool Simulation::init (void) {
   using RRule = genotype::LSystem<genotype::ROOT>::Rule;
 
   // Interesting tree
-  _ecosystem.plant.shoot.rules = {
-    SRule::fromString("S -> ABC+l").toPair(),
-    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
-    SRule::fromString("B -> Bs").toPair(),
-    SRule::fromString("C -> [f]").toPair(),
-  };
-  _ecosystem.plant.shoot.recursivity = 5;
+//  _ecosystem.plant.shoot.rules = {
+//    SRule::fromString("S -> ABC+l").toPair(),
+//    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
+//    SRule::fromString("B -> Bs").toPair(),
+//    SRule::fromString("C -> [f]").toPair(),
+//  };
+//  _ecosystem.plant.shoot.recursivity = 5;
 
   // Collision debugging genotype
 //  _ecosystem.plant.shoot.rules = {
@@ -52,7 +52,8 @@ bool Simulation::init (void) {
   for (uint i=0; i<N; i++) {
     auto pg = _ecosystem.plant.clone();
 //    for (uint j=0; j<100; j++)  pg.mutate(_env.dice());
-    addPlant(pg, x0 + i * dx);
+    Reserves initReserves = Plant::reservesForPrimordialPlant(pg);
+    addPlant(pg, x0 + i * dx, initReserves);
 //    std::cerr << "genome " << i << ": " << pg << std::endl;
   }
   return true;
@@ -69,8 +70,8 @@ bool Simulation::reset (void) {
   return init();
 }
 
-void Simulation::addPlant(const genotype::Plant &p, float x) {
-  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0));
+void Simulation::addPlant(const PGenome &p, float x, const Reserves &r) {
+  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0, r));
   if (pair.second) _env.addCollisionData(pair.first->second.get());
 }
 

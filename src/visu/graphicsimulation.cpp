@@ -8,8 +8,8 @@ void GraphicSimulation::setController(visu::Controller *c) {
   _controller = c;
 }
 
-void GraphicSimulation::addPlant(const genotype::Plant &p, float x) {
-  Simulation::addPlant(p, x);
+void GraphicSimulation::addPlant(const PGenome &p, float x, const Reserves &r) {
+  Simulation::addPlant(p, x, r);
   _controller->view()->addPlantItem(*_plants.at(x));
 }
 

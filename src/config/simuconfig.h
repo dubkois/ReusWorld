@@ -18,6 +18,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(float, assimilationRate)
   DECLARE_PARAMETER(float, saturationRate)
   DECLARE_PARAMETER(float, lifeCost)
+  DECLARE_PARAMETER(float, resourceCost)
 };
 
 } // end of namespace config

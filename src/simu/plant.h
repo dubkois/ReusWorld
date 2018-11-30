@@ -5,13 +5,13 @@
 #include "types.h"
 
 /// TODO list for plant
-/// TODO assimilation:partial
+/// TODO assimilation:check
 ///   TODO water:check
-///   TODO glucose
-/// TODO transport
+///   TODO glucose:check
+/// TODO transport:check
 /// TODO starvation
-/// TODO biomass production (?)
-/// TODO allocation
+/// TODO biomass production:FIXME (only produce what's needed)
+/// TODO allocation:check
 /// TODO reproduction
 
 namespace simu {
@@ -31,9 +31,10 @@ private:
 
   Organ *_parent;
   std::set<Organ*> _children;
+  uint _depth;
 
   float _surface;
-  float _biomass;
+  float _baseBiomass, _accumulatedBiomass;
   Rect _boundingRect;
 
 #ifndef NDEBUG
@@ -48,7 +49,12 @@ public:
 #endif
   Organ (MAYBE_ID float w, float l, float r, char c, Layer t, Organ *p = nullptr);
 
-  void updateCache (void);
+  /// surface, biomass
+  void accumulate (float biomass);
+  void updateDimensions(bool andTransformations);
+
+  /// _boundingRect
+  void updateTransformation (void);
   void updateParent (Organ *newParent);
   void updateRotation (float d_angle);
 
@@ -62,7 +68,9 @@ public:
   auto width (void) const {   return _width;    }
   auto length (void) const {  return _length;   }
   auto surface (void) const { return _surface;  }
-  auto biomass (void) const { return _biomass;  }
+  auto biomass (void) const {
+    return _baseBiomass + _accumulatedBiomass;
+  }
 
   auto symbol (void) const {  return _symbol; }
   auto layer (void) const {   return _layer;  }
@@ -73,11 +81,17 @@ public:
   auto& children (void) { return _children; }
   const auto& children (void) const { return _children; }
 
+  auto depth (void) const { return _depth;  }
+
   bool isNonTerminal (void) const {
     return genotype::grammar::Rule_base::isValidNonTerminal(_symbol);
   }
-  bool isLeaf (void) const {  return _symbol == 'l'; }
-  bool isHair (void) const {  return _symbol == 'h'; }
+  bool isLeaf (void) const {    return _symbol == 'l';  }
+  bool isHair (void) const {    return _symbol == 'h';  }
+  bool isFlower (void) const {  return _symbol == 'f';  }
+  bool isStructural (void) const {
+    return _symbol == 's' || _symbol == 't';
+  }
 
 #ifndef NDEBUG
   auto id (void) const {  return _id; }
@@ -91,27 +105,33 @@ class Plant {
   using Layer = Organ::Layer;
   using Element = genotype::Element;
 
+public:
+  using Organs = std::set<Organ*>;
+  using Masses = std::array<float, EnumUtils<Layer>::size()>;
+  using Reserves = std::array<genotype::Metabolism::FloatElements,
+                              EnumUtils<Layer>::size()>;
+
+private:
   Genome _genome;
   Point _pos;
 
   uint _age;
 
-  using Organs = std::set<Organ*>;
   Organs _organs;
 
   using OrgansView = std::set<Organ*>;
-  OrgansView _bases, _nonTerminals, _leaves, _hairs;
+  OrgansView _bases, _nonTerminals, _hairs, _sinks, _flowers;
 
   uint _derived;  ///< Number of times derivation rules were applied
 
   Rect _boundingRect;
 
-  using Masses = std::array<float, EnumUtils<Layer>::size()>;
   Masses _biomasses;
 
-  using Reserves = std::array<genotype::Metabolism::FloatElements,
-                              EnumUtils<Layer>::size()>;
   Reserves _reserves;
+
+  using Fruits = std::map<Organ*, Genome>;
+  Fruits _fruits;
 
   bool _killed;
 
@@ -120,7 +140,7 @@ class Plant {
 #endif
 
 public:
-  Plant(const Genome &g, float x, float y);
+  Plant(const Genome &g, float x, float y, const Reserves &r);
   ~Plant (void);
 
   auto id (void) const {
@@ -158,6 +178,9 @@ public:
   }
 
   bool spontaneousDeath (void) const {
+    for (Element e: EnumUtils<Element>::iterator())
+      if (_reserves[Layer::SHOOT][e] + _reserves[Layer::ROOT][e] <= 0)
+          return true;
     return false;
   }
 
@@ -182,9 +205,23 @@ public:
     return 0;
   }
 
+  static Reserves reservesForPrimordialPlant (const Genome &g);
+
 private:
   void metabolicStep (Environment &env);
   void updateInternals (void);
+
+  bool isSink (Organ *o) const;
+  float sinkRequirement (Organ *o) const;  // How much more biomass it needs in [0,1]
+
+  static float ruleBiomassCost(const Genome &g, Layer l, char symbol);
+  float ruleBiomassCost (Layer l, char symbol) const {
+    return ruleBiomassCost(_genome, l, symbol);
+  }
+
+  static float initialBiomassFor (const Genome &g);
+
+  void attemptReproduction (Environment &env);
 
   Organ *addOrgan (Organ *parent, float angle, char symbol, Layer type);
 
