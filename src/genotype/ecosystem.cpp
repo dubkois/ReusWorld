@@ -20,10 +20,12 @@ DEFINE_GENOME_MUTATION_RATES({
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, initSeeds, "", 100u, 100u)
 DEFINE_GENOME_FIELD_AS_SUBGENOME(Environment, env, "")
 DEFINE_GENOME_FIELD_AS_SUBGENOME(Plant, plant, "")
+DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, maxYearDuration, "", 1u, 1u)
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(    plant, 1.f),
-  MUTATION_RATE(initSeeds, 0.f),
-  MUTATION_RATE(      env, 0.f)
+  MUTATION_RATE(          plant, 1.f),
+  MUTATION_RATE(      initSeeds, 0.f),
+  MUTATION_RATE(            env, 0.f),
+  MUTATION_RATE(maxYearDuration, 0.f)
 })
 #undef GENOME

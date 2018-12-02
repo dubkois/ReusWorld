@@ -12,7 +12,6 @@ namespace simu {
 class Simulation {
 protected:
   using PGenome = genotype::Plant;
-  using Reserves = Plant::Reserves;
 public:
   Simulation (const genotype::Ecosystem &genome)
     : _ecosystem(genome), _env(genome.env), _step(0) {}
@@ -24,6 +23,11 @@ public:
   virtual bool reset (void);
 
   virtual void step (void);
+
+  bool finished (void) const {
+    return _plants.empty()
+        || _ecosystem.maxYearDuration < year();
+  }
 
   const Environment& environment (void) const {
     return _env;
@@ -42,6 +46,11 @@ public:
     return float(_step) / spd;
   }
 
+  float year (void) const {
+    static const auto dpy = config::Simulation::daysPerYear();
+    return day() / dpy;
+  }
+
 protected:
   genotype::Ecosystem _ecosystem;
 
@@ -53,7 +62,7 @@ protected:
 
   uint _step;
 
-  virtual void addPlant (const PGenome &g, float x, const Reserves &r);
+  virtual void addPlant (const PGenome &g, float x, float biomass);
   virtual void delPlant (float x);
 };
 

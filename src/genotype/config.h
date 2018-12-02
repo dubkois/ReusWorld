@@ -25,18 +25,16 @@ namespace config {
 
 template <>
 struct SAG_CONFIG_FILE(Metabolism) {
-  template <typename T>
-  using Elements_array = std::array<T, EnumUtils<genotype::Element>::size()>;
+  using decimal = double;
+  using Elements = std::array<decimal, EnumUtils<genotype::Element>::size()>;
 
-  using FloatElements = Elements_array<float>;
+  using Be = Bounds<Elements>;
+  using Bd = Bounds<decimal>;
 
-  using Bfe = Bounds<FloatElements>;
-  using Bf = Bounds<float>;
-
-  DECLARE_PARAMETER(Bfe, conversionRatesBounds)
-  DECLARE_PARAMETER(Bfe, resistorsBounds)
-  DECLARE_PARAMETER(Bf, growthSpeedBounds)
-  DECLARE_PARAMETER(Bf, deltaWidthBounds)
+  DECLARE_PARAMETER(Be, conversionRatesBounds)
+  DECLARE_PARAMETER(Be, resistorsBounds)
+  DECLARE_PARAMETER(Bd, growthSpeedBounds)
+  DECLARE_PARAMETER(Bd, deltaWidthBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

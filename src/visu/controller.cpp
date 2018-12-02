@@ -124,8 +124,9 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
     _simulation.reset();
   });
   connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
-    play(index);
+    playInternal(index);
   });
+  connect(this, &Controller::playStatusChanged, playPause, &MultiAction::trigger);
   connect(slower, &QAction::triggered, [this] {
     _speed /= 2.f; play(_timer.isActive());
   });
@@ -153,6 +154,12 @@ QAction* Controller::buildAction(QStyle::StandardPixmap pixmap,
 }
 
 void Controller::play(bool b) {
+  if (_timer.isActive() != b)
+    emit playStatusChanged(b);
+  playInternal(b);
+}
+
+void Controller::playInternal(bool b) {
   if (b)  _timer.start(1000 / (_speed * config::Simulation::stepsPerDay()));
   else    _timer.stop();
   updateDisplays();
@@ -174,7 +181,8 @@ void Controller::updateMousePosition (const QPointF &pos) {
 void Controller::updateDisplays(void) {
   QString string;
   QTextStream qss (&string);
-  qss << "Time: " << _simulation.day() << ", Speed: " << _speed << " dps";
+  qss << "Time: " << QString::number(_simulation.day(), 'f', 1)
+      << ", Speed: " << _speed << " dps";
   _ldisplay->setText(string);
 
   string.clear();

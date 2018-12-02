@@ -233,17 +233,17 @@ struct adl_serializer<Map<T>> {
 
 #define GENOME Metabolism
 
-using MFE = Metabolism::FloatElements;
-DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, conversionRates, "",
-                                utils::uniformStdArray<MFE>(1e-3),
-                                utils::uniformStdArray<MFE>(1))
-DEFINE_GENOME_FIELD_WITH_BOUNDS(MFE, resistors, "",
-                                utils::uniformStdArray<MFE>(0),
-                                utils::uniformStdArray<MFE>(1),
-                                utils::uniformStdArray<MFE>(1),
-                                utils::uniformStdArray<MFE>(10))
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float, growthSpeed, "", 0, 1, 1, 10)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float, deltaWidth, "", 0, .1, .1, 1)
+using ME = Metabolism::Elements;
+DEFINE_GENOME_FIELD_WITH_BOUNDS(ME, conversionRates, "",
+                                utils::uniformStdArray<ME>(1e-3),
+                                utils::uniformStdArray<ME>(1))
+DEFINE_GENOME_FIELD_WITH_BOUNDS(ME, resistors, "",
+                                utils::uniformStdArray<ME>(0),
+                                utils::uniformStdArray<ME>(1),
+                                utils::uniformStdArray<ME>(1),
+                                utils::uniformStdArray<ME>(10))
+DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, growthSpeed, "", 0., 1., 1., 10.)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .1, .1, 1.)
 
 DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(conversionRates, 1.f),

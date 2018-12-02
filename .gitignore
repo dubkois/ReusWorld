@@ -1,5 +1,6 @@
 *aux
 *backup
+*.dat
 *log
 *.pdf
 *.png

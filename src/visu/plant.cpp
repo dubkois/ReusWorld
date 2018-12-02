@@ -85,6 +85,21 @@ const auto& pathForSymbol (char symbol) {
     return defaultPath;
   return it->second;
 }
+const auto& pathForApex (void) {
+  static const auto path = [] {
+    QPainterPath p;
+//    p.moveTo(0, -.5);
+//    p.lineTo(1, 0);
+//    p.lineTo(0, .5);
+//    p.closeSubpath();
+//    p.cubicTo({.33, -.5}, {.33,0}, {1, 0});
+//    p.cubicTo({.33,0}, {.33,  .5}, {0, 0});
+//    p.closeSubpath();
+    p.addEllipse({.5,0}, .5, .25);
+    return p;
+  }();
+  return path;
+}
 
 const auto& minBoundingBox (void) {
   static const auto l = segmentWidth();
@@ -107,6 +122,13 @@ const QColor& color (char symbol) {
     return black;
   else
     return others.at(symbol);
+}
+QColor apexColor (const simu::Organ *o) {
+  float r = .25 + .5 * o->requiredBiomass()
+      / (o->requiredBiomass() + o->biomass());
+  utils::iclip_max(r, .75f);
+  assert(.25 <= r && r <= .75);
+  return mix(color('s'), color('l'), r);
 }
 
 void desaturate (QColor &c) {
@@ -156,11 +178,44 @@ void Plant::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
   contextMenu()->popup(e->screenPos(), this);
 }
 
-void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
-  static constexpr bool drawOrganContour = true;
-  static constexpr int drawSimuBoundingBox = 0;
-  static constexpr bool drawQtBoundingBox = false;
+static constexpr bool drawOrganContour = true;
+static constexpr int drawSimuBoundingBox = 0;
+static constexpr bool drawQtBoundingBox = false;
 
+void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
+  for (simu::Organ *c: o->children())
+    paint(painter, c, contour, dead);
+
+  const auto &p = o->globalCoordinates();
+  QPointF p0 = toQPoint(p.start);
+  float r = -qRadiansToDegrees(p.rotation);
+  painter->save();
+    painter->translate(p0);
+    painter->rotate(r);
+
+    const QPainterPath *path;
+    QColor c;
+    if (o->length() == 0) {
+      c = apexColor(o);
+      path = &pathForApex();
+
+      static const float W = segmentWidth();
+      painter->scale(W, W);
+
+    } else {
+      c = color(o->symbol());
+      path = &pathForSymbol(o->symbol());
+      painter->scale(o->length(), o->width());
+    }
+
+    if (contour) painter->drawPath(*path);
+    if (dead)  desaturate(c);
+    painter->fillPath(*path, c);
+
+  painter->restore();
+}
+
+void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
   painter->save();
   QPen pen = painter->pen();
   pen.setWidth(0);
@@ -197,31 +252,17 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
     painter->setPen(pen);
   }
 
-  for (const simu::Organ *o: _plant.organs()) {
-    if (o->length() == 0) continue;
-    const auto &p = o->globalCoordinates();
-    QPointF p0 = toQPoint(p.start);
-    float r = -qRadiansToDegrees(p.rotation);
-    painter->save();
-      painter->translate(p0);
-      painter->rotate(r);
-
-      painter->scale(o->length(), o->width());
-      const QPainterPath &path = pathForSymbol(o->symbol());
-      if (doDrawOrganContour) painter->drawPath(path);
-
-      QColor c = color(o->symbol());
-      if (_plant.isDead())  desaturate(c);
-      painter->fillPath(path, c);
-
-    painter->restore();
-  }
 
 //  qDebug() << "Drawing: " << uint(_plant.genome().cdata.id) << _plant.age();
-  if (_plant.age() < 1) {
+  if (_plant.isSeed()) {
     const QPainterPath &path = seedPath();
     painter->fillPath(path, seedColor);
     if (doDrawOrganContour) painter->drawPath(path);
+
+  } else {
+    bool dead = _plant.isDead();
+    for (const simu::Organ *o: _plant.bases())
+      gui::paint(painter, o, doDrawOrganContour, dead);
   }
 
   painter->restore();

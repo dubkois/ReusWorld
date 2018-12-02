@@ -20,7 +20,7 @@ public:
   void step (void) override;
 
 private:
-  void addPlant (const PGenome &p, float x, const Reserves &r) override;
+  void addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x) override;
 
 signals:

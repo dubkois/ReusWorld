@@ -18,6 +18,7 @@ bool Simulation::init (void) {
 //    SRule::fromString("C -> [f]").toPair(),
 //  };
 //  _ecosystem.plant.shoot.recursivity = 5;
+//  _ecosystem.plant.dethklok = 101;
 
   // Collision debugging genotype
 //  _ecosystem.plant.shoot.rules = {
@@ -46,14 +47,53 @@ bool Simulation::init (void) {
 
   _env.init();
 
-  uint N = 1;//_ecosystem.initSeeds;
-  float dx = 3 * genotype::Plant::config_t::ls_segmentLength();
+  uint N = 3;//_ecosystem.initSeeds;
+  float dx = 5 * genotype::Plant::config_t::ls_segmentLength();
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
     auto pg = _ecosystem.plant.clone();
+
+    switch (i) {
+    case 0:
+      pg.shoot.rules = {
+        SRule::fromString("S -> ABC+l").toPair(),
+        SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
+        SRule::fromString("B -> Bs").toPair(),
+        SRule::fromString("C -> [f]").toPair(),
+      };
+      pg.shoot.recursivity = 5;
+      pg.dethklok = 101;
+      break;
+    case 1:
+      pg.shoot.rules = {
+        SRule::fromString("S -> ABC+l").toPair(),
+        SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
+        SRule::fromString("B -> Bs").toPair(),
+        SRule::fromString("C -> [f]").toPair(),
+      };
+      pg.shoot.recursivity = 5;
+      pg.root.rules = {
+        RRule::fromString("S -> AB[+h][-h]").toPair(),
+        RRule::fromString("A -> AB[-ABh][+ABh]").toPair(),
+        RRule::fromString("B -> Bt").toPair(),
+      };
+      pg.root.recursivity = 5;
+      pg.dethklok = 101;
+      break;
+    case 2:
+      pg.root.rules = {
+        RRule::fromString("S -> AB[+h][-h]").toPair(),
+        RRule::fromString("A -> AB[-ABh][+ABh]").toPair(),
+        RRule::fromString("B -> Bt").toPair(),
+      };
+      pg.root.recursivity = 5;
+      pg.dethklok = 101;
+      break;
+    }
+
 //    for (uint j=0; j<100; j++)  pg.mutate(_env.dice());
-    Reserves initReserves = Plant::reservesForPrimordialPlant(pg);
-    addPlant(pg, x0 + i * dx, initReserves);
+    float initBiomass = Plant::primordialPlantBaseBiomass(pg);
+    addPlant(pg, x0 + i * dx, initBiomass);
 //    std::cerr << "genome " << i << ": " << pg << std::endl;
   }
   return true;
@@ -70,8 +110,8 @@ bool Simulation::reset (void) {
   return init();
 }
 
-void Simulation::addPlant(const PGenome &p, float x, const Reserves &r) {
-  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0, r));
+void Simulation::addPlant(const PGenome &p, float x, float biomass) {
+  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0, biomass));
   if (pair.second) _env.addCollisionData(pair.first->second.get());
 }
 
@@ -89,7 +129,8 @@ void Simulation::step (void) {
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
     p->step(_env);
-    if (p->isDead())  corpses.insert(p->pos().x);
+    if (p->isDead())
+      corpses.insert(p->pos().x);
   }
 
   for (float x: corpses)

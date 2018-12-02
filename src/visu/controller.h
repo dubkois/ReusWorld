@@ -84,6 +84,12 @@ public:
 
   void updateMousePosition (const QPointF &pos);
 
+public slots:
+  void play (bool b);
+
+signals:
+  void playStatusChanged (bool play);
+
 private:
   QAction* buildAction(QStyle::StandardPixmap pixmap, const QString &name,
                        const QKeySequence &shortcut);
@@ -93,8 +99,8 @@ private:
 
   void updateDisplays (void);
 
-  void play (bool b);
   void step (void);
+  void playInternal (bool b);
 };
 
 } // end of namespace visu

@@ -24,11 +24,13 @@ public:
   uint initSeeds;
   Plant plant;
   Environment env;
+  uint maxYearDuration;
 };
 
 DECLARE_GENOME_FIELD(Ecosystem, uint, initSeeds)
 DECLARE_GENOME_FIELD(Ecosystem, Plant, plant)
 DECLARE_GENOME_FIELD(Ecosystem, Environment, env)
+DECLARE_GENOME_FIELD(Ecosystem, uint, maxYearDuration)
 
 } // end of namespace genotype
 
@@ -50,6 +52,7 @@ template <>
 struct SAG_CONFIG_FILE(Ecosystem) {
   using Bui = Bounds<uint>;
   DECLARE_PARAMETER(Bui, initSeedsBounds)
+  DECLARE_PARAMETER(Bui, maxYearDurationBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

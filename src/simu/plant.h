@@ -34,7 +34,7 @@ private:
   uint _depth;
 
   float _surface;
-  float _baseBiomass, _accumulatedBiomass;
+  float _baseBiomass, _accumulatedBiomass, _requiredBiomass;
   Rect _boundingRect;
 
 #ifndef NDEBUG
@@ -72,6 +72,13 @@ public:
     return _baseBiomass + _accumulatedBiomass;
   }
 
+  void setRequiredBiomass (float rb) {
+    _requiredBiomass = rb;
+  }
+  auto requiredBiomass (void) const {
+    return _requiredBiomass;
+  }
+
   auto symbol (void) const {  return _symbol; }
   auto layer (void) const {   return _layer;  }
 
@@ -105,18 +112,13 @@ class Plant {
   using Layer = Organ::Layer;
   using Element = genotype::Element;
 
-public:
-  using Organs = std::set<Organ*>;
-  using Masses = std::array<float, EnumUtils<Layer>::size()>;
-  using Reserves = std::array<genotype::Metabolism::FloatElements,
-                              EnumUtils<Layer>::size()>;
-
 private:
   Genome _genome;
   Point _pos;
 
   uint _age;
 
+  using Organs = std::set<Organ*>;
   Organs _organs;
 
   using OrgansView = std::set<Organ*>;
@@ -126,8 +128,12 @@ private:
 
   Rect _boundingRect;
 
+  using decimal = genotype::Metabolism::decimal;
+  using Masses = std::array<decimal, EnumUtils<Layer>::size()>;
   Masses _biomasses;
 
+  using Reserves = std::array<genotype::Metabolism::Elements,
+                              EnumUtils<Layer>::size()>;
   Reserves _reserves;
 
   using Fruits = std::map<Organ*, Genome>;
@@ -140,7 +146,7 @@ private:
 #endif
 
 public:
-  Plant(const Genome &g, float x, float y, const Reserves &r);
+  Plant(const Genome &g, float x, float y, float biomass);
   ~Plant (void);
 
   auto id (void) const {
@@ -169,8 +175,22 @@ public:
     return _boundingRect.translated(_pos);
   }
 
-  auto concentration (Layer l, Element e) {
+  auto biomass (void) const {
+    return _biomasses[Layer::SHOOT] + _biomasses[Layer::ROOT];
+  }
+
+  auto concentration (Layer l, Element e) const {
     return _reserves[l][e] / _biomasses[l];
+  }
+
+  bool isSeed (void) const {
+    if (_organs.size() == 2) {
+      for (Organ *o: _organs)
+        if (o->symbol() != config::PlantGenome::ls_axiom())
+          return false;
+      return true;
+    }
+    return false;
   }
 
   bool isDead (void) const {
@@ -178,6 +198,7 @@ public:
   }
 
   bool spontaneousDeath (void) const {
+    if (_genome.dethklok <= age())  return true;
     for (Element e: EnumUtils<Element>::iterator())
       if (_reserves[Layer::SHOOT][e] + _reserves[Layer::ROOT][e] <= 0)
           return true;
@@ -190,7 +211,9 @@ public:
     _killed = true;
   }
 
-  uint deriveRules(Environment &env);
+  const auto& bases (void) const {
+    return _bases;
+  }
 
   std::string toString (Layer type) const;
 
@@ -205,14 +228,19 @@ public:
     return 0;
   }
 
-  static Reserves reservesForPrimordialPlant (const Genome &g);
+  static float primordialPlantBaseBiomass (const Genome &g) {
+    return initialBiomassFor(g);
+  }
 
-private:
+private:  
+  uint deriveRules(Environment &env);
+
   void metabolicStep (Environment &env);
   void updateInternals (void);
 
   bool isSink (Organ *o) const;
   float sinkRequirement (Organ *o) const;  // How much more biomass it needs in [0,1]
+  void biomassRequirements (Masses &wastes, Masses &growth);
 
   static float ruleBiomassCost(const Genome &g, Layer l, char symbol);
   float ruleBiomassCost (Layer l, char symbol) const {

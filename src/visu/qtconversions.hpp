@@ -4,6 +4,7 @@
 #include "../simu/types.h"
 
 #include <QRectF>
+#include <QColor>
 
 namespace gui {
 
@@ -17,6 +18,14 @@ inline QRectF toRect (const simu::Point &c, float l, float w) {
 
 inline QRectF toRect (const simu::Rect &r) {
   return QRectF(toQPoint(r.ul), toQPoint(r.br));
+}
+
+inline QColor mix (const QColor &lhs, const QColor &rhs, float r) {
+  return QColor::fromRgbF(
+      r * lhs.redF() + (1-r) * rhs.redF(),
+    r * lhs.greenF() + (1-r) * rhs.greenF(),
+     r * lhs.blueF() + (1-r) * rhs.blueF()
+  );
 }
 
 } // end of namespace gui

@@ -64,16 +64,17 @@ struct LSystem {
 class Metabolism : public SelfAwareGenome<Metabolism> {
   APT_SAG()
 public:
-  using FloatElements = config_t::FloatElements;
-  FloatElements conversionRates; // f_c, f_w
-  FloatElements resistors;  // rho_c, rho_w
-  float growthSpeed;  // k_g
-  float deltaWidth;
+  using decimal = config_t::decimal;
+  using Elements = config_t::Elements;
+  Elements conversionRates; // f_c, f_w
+  Elements resistors;  // rho_c, rho_w
+  decimal growthSpeed;  // k_g
+  decimal deltaWidth;
 };
-DECLARE_GENOME_FIELD(Metabolism, Metabolism::FloatElements, conversionRates)
-DECLARE_GENOME_FIELD(Metabolism, Metabolism::FloatElements, resistors)
-DECLARE_GENOME_FIELD(Metabolism, float, growthSpeed)
-DECLARE_GENOME_FIELD(Metabolism, float, deltaWidth)
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::Elements, conversionRates)
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::Elements, resistors)
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, growthSpeed)
+DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, deltaWidth)
 
 
 class Plant : public SelfAwareGenome<Plant> {

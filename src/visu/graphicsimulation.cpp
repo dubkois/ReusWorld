@@ -8,8 +8,8 @@ void GraphicSimulation::setController(visu::Controller *c) {
   _controller = c;
 }
 
-void GraphicSimulation::addPlant(const PGenome &p, float x, const Reserves &r) {
-  Simulation::addPlant(p, x, r);
+void GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
+  Simulation::addPlant(p, x, biomass);
   _controller->view()->addPlantItem(*_plants.at(x));
 }
 
@@ -29,6 +29,8 @@ void GraphicSimulation::step (void) {
 
   for (const auto& p: _plants)
     _controller->view()->updatePlantItem(p.first);
+
+  if (finished()) _controller->play(false);
 }
 
 } // end of namespace visu
