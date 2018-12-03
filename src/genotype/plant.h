@@ -116,6 +116,11 @@ public:
     __builtin_unreachable();
   }
 
+  /// TODO Would prefer this to be automatic...
+  auto compatibility (float dist) const {
+    return cdata(dist);
+  }
+
   static grammar::Checkers checkers (LSystemType t) {
     switch(t) {
     case SHOOT:  return decltype(shoot)::Rule::checkers();

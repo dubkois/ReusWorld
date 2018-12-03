@@ -34,6 +34,12 @@ struct Point {
     return { lhs.x + rhs.x, lhs.y + rhs.y };
   }
 
+  Point& operator+= (const Point &that) {
+    x += that.x;
+    y += that.y;
+    return *this;
+  }
+
   friend Point operator- (const Point &lhs, const Point &rhs) {
     return Point { lhs.x - rhs.x, lhs.y - rhs.y };
   }
@@ -81,6 +87,11 @@ struct Rect {
     return os << "{ " << r.ul << ", " << r.br << " }";
 #endif
   }
+};
+
+struct Disk {
+  Point center;
+  float radius;
 };
 
 struct Position {

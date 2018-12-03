@@ -17,6 +17,7 @@ DEFINE_PARAMETER(float, assimilationRate, .01)
 DEFINE_PARAMETER(float, saturationRate, 1)
 DEFINE_PARAMETER(float, lifeCost, .1)
 DEFINE_PARAMETER(float, resourceCost, .5)
+DEFINE_PARAMETER(float, floweringCost, 1)
 
 #undef CFILE
 

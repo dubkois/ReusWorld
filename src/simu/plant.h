@@ -9,9 +9,12 @@
 ///   TODO water:check
 ///   TODO glucose:check
 /// TODO transport:check
-/// TODO starvation
-/// TODO biomass production:FIXME (only produce what's needed)
-/// TODO allocation:check
+/// TODO starvation:
+///   FIXME How do you die?
+/// TODO biomass production:
+///   FIXME Numerical traps (bandaged for now)
+/// TODO allocation:
+///   FIXME Repartition between root and shoot apexes
 /// TODO reproduction
 
 namespace simu {
@@ -61,13 +64,17 @@ public:
   void removeFromParent(void);
 
   float localRotation (void) const {  return _localRotation;  }
-  const auto& globalCoordinates (void) const {  return _global; }
+  const auto& inPlantCoordinates (void) const {  return _global; }
 
-  const auto& boundingRect (void) const { return _boundingRect; }
+  const auto& inPlantBoundingRect (void) const { return _boundingRect; }
 
   auto width (void) const {   return _width;    }
   auto length (void) const {  return _length;   }
   auto surface (void) const { return _surface;  }
+
+  auto baseBiomass (void) const {
+    return _baseBiomass;
+  }
   auto biomass (void) const {
     return _baseBiomass + _accumulatedBiomass;
   }
@@ -100,6 +107,10 @@ public:
     return _symbol == 's' || _symbol == 't';
   }
 
+  bool isFruit (void) const {
+    return _symbol == genotype::grammar::Rule_base::fruitSymbol();
+  }
+
 #ifndef NDEBUG
   auto id (void) const {  return _id; }
 
@@ -108,7 +119,10 @@ public:
 };
 
 class Plant {
+public:
   using Genome = genotype::Plant;
+  using Sex = genotype::BOCData::Sex;
+
   using Layer = Organ::Layer;
   using Element = genotype::Element;
 
@@ -146,11 +160,19 @@ private:
 #endif
 
 public:
-  Plant(const Genome &g, float x, float y, float biomass);
+  Plant(const Genome &g, float x, float y);
   ~Plant (void);
+
+  void init (Environment &env, float biomass);
+
+  void replaceWithFruit (Organ *o, const Genome &g, Environment &env);
 
   auto id (void) const {
     return _genome.cdata.id;
+  }
+
+  auto sex (void) const {
+    return _genome.cdata.sex;
   }
 
   const Point& pos (void) const {
@@ -159,6 +181,22 @@ public:
 
   const auto& organs (void) const {
     return _organs;
+  }
+
+  auto& stamens (void) {
+    assert(sex() == Sex::MALE);
+    return _flowers;
+  }
+
+  auto organBoundingRect (const Organ *o) const {
+    return o->inPlantBoundingRect().translated(_pos);
+  }
+
+  auto organGlobalCoordinates (const Organ *o) const {
+    auto gc = o->inPlantCoordinates();
+    gc.start += _pos;
+    gc.end += _pos;
+    return gc;
   }
 
   float age (void) const;
@@ -249,20 +287,46 @@ private:
 
   static float initialBiomassFor (const Genome &g);
 
-  void attemptReproduction (Environment &env);
+  Organ *addOrgan (Organ *parent, float angle, char symbol, Layer type,
+                   Environment &env);
 
-  Organ *addOrgan (Organ *parent, float angle, char symbol, Layer type);
-
-  void delOrgan (Organ *o);
+  void delOrgan (Organ *o, Environment &env);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
                       Layer type, Organs &newOrgans,
-                      const genotype::grammar::Checkers &checkers);
+                      const genotype::grammar::Checkers &checkers,
+                      Environment &env);
 
   void updateGeometry (void);
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
 };
+
+#ifndef NDEBUG
+
+struct PlantID {
+  Plant *p;
+  PlantID (Plant *p) : p(p) {}
+  static void print(std::ostream &os, const Plant *p) {
+    os << "P" << p->id();
+  }
+  friend std::ostream& operator<< (std::ostream &os, const PlantID &pid) {
+    os << "[";
+    print(os, pid.p);
+    return os << "]";
+  }
+};
+struct OrganID {
+  const Plant *p;
+  const Organ *o;
+  OrganID (const Plant *p, const Organ *o) : p(p), o(o) {}
+  friend std::ostream& operator<< (std::ostream &os, const OrganID &oid) {
+    os << "[";
+    PlantID::print(os, oid.p);
+    return os << ":O" << oid.o->id() << oid.o->symbol() << "]";
+  }
+};
+#endif
 
 } // end of namespace simu
 

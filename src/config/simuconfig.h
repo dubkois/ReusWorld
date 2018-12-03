@@ -22,6 +22,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(float, saturationRate)
   DECLARE_PARAMETER(float, lifeCost)
   DECLARE_PARAMETER(float, resourceCost)
+  DECLARE_PARAMETER(float, floweringCost) // Relative to base mass
 };
 
 } // end of namespace config

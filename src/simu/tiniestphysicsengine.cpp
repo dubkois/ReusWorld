@@ -5,6 +5,9 @@
 namespace simu {
 namespace physics {
 
+static constexpr bool debugUpperLayer = false;
+static constexpr bool debugCollision = false;
+
 // =============================================================================
 
 bool operator< (const Rect &lhs, const Rect &rhs) {
@@ -22,12 +25,14 @@ enum EventType { IN, OUT };
 struct XEvent {
   EventType type;
   Organ *organ;
+  Rect boundingRect;
 
-  XEvent (EventType t, Organ *o) : type(t), organ(o) {}
+  XEvent (EventType t, Organ *o, const Rect r)
+    : type(t), organ(o), boundingRect(r) {}
 
-  auto left (void) const {  return organ->boundingRect().l(); }
-  auto right (void) const { return organ->boundingRect().r(); }
-  auto top (void) const {   return organ->boundingRect().t(); }
+  auto left (void) const {  return boundingRect.l(); }
+  auto right (void) const { return boundingRect.r(); }
+  auto top (void) const {   return boundingRect.t(); }
   auto coord (void) const { return type == IN? left() : right(); }
 
   friend bool operator< (const XEvent &lhs, const XEvent &rhs) {
@@ -40,32 +45,33 @@ struct XEvent {
     return os << (e.type == IN ? "I" : "O")
               << "Event(" << e.organ->symbol() << "): "
               << "x = " << e.coord() << ", id = " << e.organ->id()
-              << ", bounds = " << e.organ->boundingRect();
+              << ", bounds = " << e.boundingRect;
   }
 };
 
-struct OrganStackCMP {
-  bool operator() (const Organ *lhs, const Organ *rhs) {
-    if (lhs->boundingRect().t() != rhs->boundingRect().t())
-      return lhs->boundingRect().t() < rhs->boundingRect().t();
-    return lhs < rhs;
-  }
-};
-
-template <typename T, typename CMP>
+template <typename T>
 struct SortedStack {
-  std::set<T, CMP> stack;
+  struct Item {
+    T value;
+    float y;
 
-  void push (Organ *o) {
-    stack.insert(o);
+    friend bool operator< (const Item &lhs, const Item &rhs) {
+      if (lhs.y != rhs.y) return lhs.y < rhs.y;
+      return lhs.value < rhs.value;
+    }
+  };
+  std::set<Item> stack;
+
+  void push (const T &v, float y) {
+    stack.insert({v,y});
   }
 
-  void erase (Organ *o) {
-    stack.erase(o);
+  void erase (const T &v, float y) {
+    stack.erase({v,y});
   }
 
   T top (void) const {
-    return *stack.rbegin();
+    return stack.rbegin()->value;
   }
 
   bool empty (void) const {
@@ -79,41 +85,52 @@ std::ostream& operator<< (std::ostream &os, const UpperLayer::Item &i) {
 }
 
 void UpperLayer::update (const Plant *p) {
-  const Point &pos = p->pos();
-
   items.clear();
   std::set<XEvent> xevents;
   for (Organ *o: p->organs()) {
     if (o->length() <= 0) continue; // Skip non terminals
-    if (o->boundingRect().t() < 0)  continue; // Skip below surface
-    xevents.emplace(IN, o);
-    xevents.emplace(OUT, o);
+
+    Rect r = p->organBoundingRect(o);
+    if (r.t() < 0)  continue; // Skip below surface
+
+    xevents.emplace(IN, o, r);
+    xevents.emplace(OUT, o, r);
   }
 
-  SortedStack<Organ*, OrganStackCMP> organs;
+  SortedStack<Organ*> organs;
   UpperLayer::Item current;
-  auto replace = [&pos, &current] (auto l, auto y, auto o) {
+  auto replace = [&current] (auto l, auto y, auto o) {
     current = Item();
-    current.l = l + pos.x;
-    current.y = y + pos.y;
+    current.l = l;
+    current.y = y;
     current.organ = o;
-//    std::cerr << "\tcurrent item: " << current << std::endl;
+
+//    if (debugUpperLayer)
+//      std::cerr << "\tcurrent item: " << current << std::endl;
   };
-  auto emplace = [&pos, &current, this] (auto r) {
-    current.r = r + pos.x;
-//    std::cerr << "\t[" << items.size() << "] ";
-    if (current.r - current.l > 1e-3) /*{*/ // Ignore segments smaller than 1mm
+  auto emplace = [&current, this] (auto r) {
+    current.r = r;
+
+//    if (debugUpperLayer)
+//      std::cerr << "\t[" << items.size() << "] ";
+
+    if (current.r - current.l > 1e-3) { // Ignore segments smaller than 1mm
       items.push_back(current);
-//      std::cerr << "Pushed current item: " << current << std::endl;
-//    } else
-//      std::cerr << "Ignored null-sized item: " << current << std::endl;
+
+//      if (debugUpperLayer)
+//        std::cerr << "Pushed current item: " << current << std::endl;
+
+    } else {
+//      if (debugUpperLayer)
+//        std::cerr << "Ignored null-sized item: " << current << std::endl;
+    }
   };
 
   for (XEvent e: xevents) {
 //    std::cerr << e << std::endl;
     switch (e.type) {
     case IN:
-      organs.push(e.organ);
+      organs.push(e.organ, e.top());
       if (current.y < e.top()) {
         if (current.organ)  emplace(e.left());
         replace(e.left(), e.top(), e.organ);
@@ -123,17 +140,23 @@ void UpperLayer::update (const Plant *p) {
     case OUT:
       assert(!organs.empty());
       Organ *top = organs.top();
-      organs.erase(e.organ);
-//      std::cerr << "\t\tCurrent top: " << top->id()
-//                << ", bounds: " << top->boundingRect() << std::endl;
+      organs.erase(e.organ, e.top());
+
+//      if (debugUpperLayer)
+//        std::cerr << "\t\tCurrent top: " << top->id()
+//                  << ", bounds: " << top->boundingRect() << std::endl;
+
       if (top == e.organ) {
         emplace(e.right());
 
         if (!organs.empty()) {
           Organ *newTop = organs.top();
-//          std::cerr << "\t\tNew top: " << newTop->id()
-//                    << ", bounds: " << newTop->boundingRect() << std::endl;
-          replace(e.right(), newTop->boundingRect().t(), newTop);
+
+//          if (debugUpperLayer)
+//            std::cerr << "\t\tNew top: " << newTop->id()
+//                      << ", bounds: " << newTop->boundingRect() << std::endl;
+
+          replace(e.right(), p->organBoundingRect(newTop).t(), newTop);
         }
       }
       break;
@@ -141,8 +164,10 @@ void UpperLayer::update (const Plant *p) {
   }
 
   assert(organs.empty());
-  std::cerr << "Extracted " << items.size() << " upper layer items from "
-            << p->organs().size() << " organs" << std::endl;
+
+  if (debugUpperLayer)
+    std::cerr << "Extracted " << items.size() << " upper layer items from "
+              << p->organs().size() << " organs" << std::endl;
 }
 
 // =============================================================================
@@ -161,6 +186,12 @@ void CollisionData::addCollisionData (Plant *p) {
 
 void CollisionData::removeCollisionData (Plant *p) {
   _data.erase(p);
+
+  for (auto it = _spores.begin(); it != _spores.end();) {
+    if (it->plant == p)
+      it = _spores.erase(it);
+    else  ++it;
+  }
 }
 
 void CollisionData::updateCollisions (Plant *p) {
@@ -178,6 +209,75 @@ void CollisionData::updateFinal (Plant *p) {
   object.updateFinal();
   _data.insert(object);
 }
+
+
+// =============================================================================
+
+Disk boundingDiskFor (const Plant *p, const Organ *o) {
+  const auto &gc = p->organGlobalCoordinates(o);
+  Point c = .5f * (gc.start + gc.end);
+  return { c, c.y * 5.f };
+}
+
+struct SphereXIntersection {
+  Spore obj;
+
+  explicit SphereXIntersection (const Spore &o) : obj(o) {}
+  explicit SphereXIntersection(Plant *p, Organ *f)
+    : SphereXIntersection(Spore(p,f, boundingDiskFor(p, f))) {}
+
+  static bool intersection (const Disk &lhs, const Disk &rhs) {
+    double dXSquared = lhs.center.x - rhs.center.x; // calc. delta X
+    dXSquared *= dXSquared; // square delta X
+
+    double dYSquared = lhs.center.y - lhs.center.y; // calc. delta Y
+    dYSquared *= dYSquared; // square delta Y
+
+    // Calculate the sum of the radii, then square it
+    double sumRadiiSquared = lhs.radius + rhs.radius;
+    sumRadiiSquared *= sumRadiiSquared;
+
+    return dXSquared + dYSquared <= sumRadiiSquared;
+  }
+
+  static bool leftOf (const Disk &lhs, const Disk &rhs) {
+    return lhs.center.x + lhs.radius < rhs.center.x - rhs.radius;
+  }
+
+  friend bool operator< (const SphereXIntersection &lhs, const Spore &rhs) {
+    return leftOf(lhs.obj.boundingDisk, rhs.boundingDisk);
+  }
+
+  friend bool operator< (const Spore &lhs, const SphereXIntersection &rhs) {
+    return leftOf(lhs.boundingDisk, rhs.obj.boundingDisk);
+  }
+};
+
+bool operator< (const Spore &lhs, const Spore &rhs) {
+  return lhs.boundingDisk.center.x < rhs.boundingDisk.center.x;
+}
+
+
+void CollisionData::addSpore(Plant *p, Organ *f) {
+  assert(p->sex() == Plant::Sex::FEMALE);
+  _spores.emplace(p, f, boundingDiskFor(p, f));
+}
+
+void CollisionData::delSpore(Plant *p, Organ *f) {
+  assert(p->sex() == Plant::Sex::FEMALE);
+  delSpore(Spore(p, f, boundingDiskFor(p, f)));
+}
+
+void CollisionData::delSpore(const Spore &s) {
+  _spores.erase(s);
+}
+
+CollisionData::Spores_range CollisionData::sporesInRange(Plant *p, Organ *f) {
+  assert(p->sex() == Plant::Sex::MALE);
+  return _spores.equal_range(SphereXIntersection(p,f));
+}
+
+// =============================================================================
 
 bool CollisionData::narrowPhaseCollision (const Plant *lhs, const Plant *rhs) {
   return true;
@@ -203,15 +303,21 @@ struct RectXIntersection {
 
   friend bool operator< (const RectXIntersection &lhs, const CObject &rhs) {
     bool b = leftOf(lhs.obj.boundingRect, rhs.boundingRect);
-//    std::cerr << "\t" << lhs.obj.boundingRect << " < " << rhs.boundingRect
-//              << " ? " << std::boolalpha << b << std::endl;
+
+//    if (debugCollision)
+//      std::cerr << "\t" << lhs.obj.boundingRect << " < " << rhs.boundingRect
+//                << " ? " << std::boolalpha << b << std::endl;
+
     return b;
   }
 
   friend bool operator< (const CObject &lhs, const RectXIntersection &rhs) {
     bool b = leftOf(lhs.boundingRect, rhs.obj.boundingRect);
-//    std::cerr << "\t" << lhs.boundingRect << " < " << rhs.obj.boundingRect
-//              << " ? " << std::boolalpha << b << std::endl;
+
+//    if (debugCollision)
+//      std::cerr << "\t" << lhs.boundingRect << " < " << rhs.obj.boundingRect
+//                << " ? " << std::boolalpha << b << std::endl;
+
     return b;
   }
 };
@@ -224,22 +330,27 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
   const CObject &c = *pit;
   assert(p == c.plant);
-  std::cerr << "Collision data " << c << std::endl;
+
+  if (debugCollision) std::cerr << "Collision data " << c << std::endl;
+
   auto itP = _data.equal_range(RectXIntersection(c));
   assert(itP.first != _data.end()); // p, at least, is not less than p
 
-  std::cerr << "Possible collisions for " << p->id() << ": "
-            << std::distance(itP.first, itP.second) - 1 << " (excluding self)\n";
+  if (debugCollision)
+    std::cerr << "Possible collisions for " << p->id() << ": "
+              << std::distance(itP.first, itP.second) - 1 << " (excluding self)\n";
+
   for (auto it = itP.first; it != itP.second; ++it) {
     const Plant *p_ = it->plant;
     if (p_ == p) continue;
 
-    std::cerr << "\t" << p_->id() << "\n";
+//    if (debugCollision) std::cerr << "\t" << p_->id() << "\n";
 
     if (narrowPhaseCollision(p, p_))
       return false;
   }
-  std::cerr << std::endl;
+
+  if (debugCollision) std::cerr << std::endl;
 
   return true;
 }

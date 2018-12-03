@@ -186,7 +186,7 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
   for (simu::Organ *c: o->children())
     paint(painter, c, contour, dead);
 
-  const auto &p = o->globalCoordinates();
+  const auto &p = o->inPlantCoordinates();
   QPointF p0 = toQPoint(p.start);
   float r = -qRadiansToDegrees(p.rotation);
   painter->save();
@@ -225,7 +225,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
     painter->save();
       if (drawSimuBoundingBox & 1) {
         QRectF r = toRect(_plant.boundingRect());
-        pen.setColor(Qt::blue);
+        pen.setColor(Qt::red);
         painter->setPen(pen);
         painter->drawRect(r);
       }
@@ -233,7 +233,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
         pen.setColor(Qt::green);
         painter->setPen(pen);
         for (const simu::Organ *o: _plant.organs())
-          painter->drawRect(toRect(o->boundingRect()));
+          painter->drawRect(toRect(_plant.organBoundingRect(o)));
       }
     painter->restore();
   }

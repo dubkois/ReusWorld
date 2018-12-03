@@ -38,13 +38,19 @@ class CollisionData {
 
   std::set<CollisionObject, std::less<>> _data;
 
+  using Spores = std::set<Spore, std::less<>>;
+  Spores _spores;
+
+  using Spores_range = std::pair<Spores::iterator, Spores::iterator>;
+
 public:
   using CObject = CollisionData::CollisionObject;
 
   void init (void) {}
   void reset (void);
 
-  const auto& data (void) const { return _data; }
+  const auto& data (void) const {   return _data;   }
+  const auto& spores (void) const { return _spores; }
 
   const UpperLayer::Items& canopy (const Plant *p) const;
 
@@ -54,6 +60,11 @@ public:
 
   void updateCollisions (Plant *p);
   void updateFinal (Plant *p);
+
+  void addSpore (Plant *p, Organ *f);
+  void delSpore (Plant *p, Organ *f);
+  void delSpore (const Spore &s);
+  Spores_range sporesInRange (Plant *p, Organ *f);
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs);
 };

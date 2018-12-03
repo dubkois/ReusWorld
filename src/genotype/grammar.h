@@ -72,6 +72,10 @@ struct Rule_base {
     return controls.find(c) != controls.end();
   }
 
+  static auto fruitSymbol (void) {
+    return 'g';
+  }
+
   friend std::ostream& operator<< (std::ostream &os, const Rule_base &r) {
     return os << r.lhs << " -> " << r.rhs;
   }

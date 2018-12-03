@@ -63,4 +63,21 @@ bool Environment::isCollisionFree (const Plant *p) const {
   return _collisionData->isCollisionFree(p);
 }
 
+void Environment::disseminateGeneticMaterial(Plant *p, Organ *f) {
+  _collisionData->addSpore(p, f);
+}
+
+void Environment::removeGeneticMaterial(Plant *p, Organ *f) {
+  _collisionData->delSpore(p, f);
+}
+
+physics::Spore Environment::collectGeneticMaterial(Plant *p, Organ *f) {
+  auto itP = _collisionData->sporesInRange(p, f);
+  if (std::distance(itP.first, itP.second) >= 1)
+    return *_dice(itP.first, itP.second);
+
+  else
+    return physics::Spore();
+}
+
 } // end of namespace simu

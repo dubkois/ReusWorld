@@ -66,6 +66,10 @@ public:
 
   bool isCollisionFree (const Plant *p) const;
 
+  void disseminateGeneticMaterial (Plant *p, Organ *f);
+  void removeGeneticMaterial(Plant *p, Organ *f);
+  physics::Spore collectGeneticMaterial (Plant *p, Organ *f);
+
   const auto& collisionData (void) const {
     return *_collisionData;
   }

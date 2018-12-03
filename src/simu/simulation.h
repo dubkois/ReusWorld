@@ -64,6 +64,8 @@ protected:
 
   virtual void addPlant (const PGenome &g, float x, float biomass);
   virtual void delPlant (float x);
+
+  virtual void performReproductions (void);
 };
 
 } // end of namespace simu
