@@ -149,16 +149,57 @@ void mutateLSystemRules (R &rules, Dice &dice) {
 
 template <typename R, typename Dice>
 void crossLSystemRules (const R &lhs, const R &rhs, R &child, Dice &dice) {
-  assert(false);
+  std::set<grammar::NonTerminal> nonTerminals;
+  for (auto &p: lhs)  nonTerminals.insert(p.first);
+  for (auto &p: rhs)  nonTerminals.insert(p.first);
+  for (grammar::NonTerminal nt: nonTerminals) {
+    auto itLhs = lhs.find(nt), itRhs = rhs.find(nt);
+    if (itLhs == lhs.end()) {
+      if (dice(.5)) child.insert(*itRhs);
+    } else if (itRhs == rhs.end()) {
+      if (dice(.5)) child.insert(*itLhs);
+    } else
+      child.insert(dice.toss(*itLhs, *itRhs));
+  }
 }
 
 template <typename R>
 double distanceLSystemRules (const R &lhs, const R &rhs) {
-  assert(false);
+  double d = 0;
+  std::set<grammar::NonTerminal> nonTerminals;
+  for (auto &p: lhs)  nonTerminals.insert(p.first);
+  for (auto &p: rhs)  nonTerminals.insert(p.first);
+  for (grammar::NonTerminal nt: nonTerminals) {
+    auto itLhs = lhs.find(nt), itRhs = rhs.find(nt);
+    if (itLhs != lhs.end() && itRhs != rhs.end()) {
+      uint i;
+      double d_ = 0;
+      auto rLhs = itLhs->second, rRhs = itRhs->second;
+      for (i=0; i<rLhs.size() && i<rRhs.size(); i++)
+        d_ += (rLhs.rhs[i] != rRhs.rhs[i]);
+      for (; i<rLhs.size(); i++)  d_ += 1;
+      for (; i<rRhs.size(); i++)  d_ += 1;
+      d += d_ / double(2 * Config::ls_maxRuleSize());
+
+    } else {
+      d += 1;
+    }
+  }
+  return d / double(maxRuleCount());
 }
 
 template <typename R>
 bool checkLSystemRules (const R &r) {
+  using Rule = typename R::mapped_type;
+  static const auto &checkers = Rule::checkers();
+  if (r.size() > maxRuleCount())  return false;
+  for (auto &p: r) {
+    if (!Rule::isValidTerminal(p.first))
+      return false;
+    if (p.second.sizeWithoutControlChars() > Config::ls_maxRuleSize())
+      return false;
+    grammar::checkSuccessor(p.second.rhs, checkers);
+  }
   return true;
 }
 
