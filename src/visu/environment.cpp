@@ -41,7 +41,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
       if (debugAABB) {
         painter->save();
-        QRectF r = toRect(obj.boundingRect);
+        QRectF r = toQRect(obj.boundingRect);
         pen.setColor(Qt::red);
         painter->setPen(pen);
         painter->drawRect(r);
@@ -51,10 +51,8 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
       if (debugLeaves) {
         auto y = -1.05 * obj.plant->boundingRect().t();
 
-  //      uint i=0;
         const auto &items = obj.layer.items;
         for (const ULItem &item: items) {
-  //        y += ((i++ % 2)? 1 : -1) * .0125;
 
           if (debugLeaves & 1) {  // Draw upper layer segments
             painter->setPen(pen);
@@ -65,7 +63,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
           if (debugLeaves & 2) {  // Draw line to associated organ
             painter->setPen(dotPen);
-            auto oy = toRect(obj.plant->organBoundingRect(item.organ)).top();
+            auto oy = toQRect(item.organ->globalCoordinates().boundingRect).top();
             painter->drawLine(QPointF(.5 * (item.l + item.r), y),
                               QPointF(.5 * (item.l + item.r), oy));
           }
@@ -74,11 +72,11 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
         if ((debugLeaves & 4) && !items.empty()) {  // Draw upper layer enveloppe
           painter->setPen(dotPen);
           ULItem prev = items[0];
-          auto prevY = toRect(obj.plant->organBoundingRect(prev.organ)).top();
+          auto prevY = toQRect(prev.organ->globalCoordinates().boundingRect).top();
           painter->drawLine(QPointF(prev.l, prevY), QPointF(prev.r, prevY));
           for (uint i=1; i<items.size(); i++) {
             ULItem curr = items[i];
-            auto oy = toRect(obj.plant->organBoundingRect(curr.organ)).top();
+            auto oy = toQRect(curr.organ->globalCoordinates().boundingRect).top();
             painter->drawLine(QPointF(prev.r, prevY), QPointF(curr.l, oy));
             painter->drawLine(QPointF(curr.l, oy), QPointF(curr.r, oy));
             prev = curr;
@@ -95,8 +93,8 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
     pen.setColor(Qt::blue);
     painter->setPen(pen);
 
-    const auto& spores = _object.collisionData().spores();
-    for (const simu::physics::Spore &s: spores)
+    const auto& pistils = _object.collisionData().pistils();
+    for (const simu::physics::Pistil &s: pistils)
       painter->drawEllipse(toQPoint(s.boundingDisk.center),
                            s.boundingDisk.radius, s.boundingDisk.radius);
 

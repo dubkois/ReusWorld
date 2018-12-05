@@ -12,15 +12,16 @@ inline QPointF toQPoint (const simu::Point &p) {
   return QPointF(p.x, -p.y);
 }
 
-inline QRectF toRect (const simu::Point &c, float l, float w) {
+inline QRectF toQRect (const simu::Point &c, float l, float w) {
   return QRectF(toQPoint(c) + QPointF(0, -.5*w), QSizeF(l, w));
 }
 
-inline QRectF toRect (const simu::Rect &r) {
+inline QRectF toQRect (const simu::Rect &r) {
   return QRectF(toQPoint(r.ul), toQPoint(r.br));
 }
 
 inline QColor mix (const QColor &lhs, const QColor &rhs, float r) {
+  assert(0 <= r && r <= 1);
   return QColor::fromRgbF(
       r * lhs.redF() + (1-r) * rhs.redF(),
     r * lhs.greenF() + (1-r) * rhs.greenF(),

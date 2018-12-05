@@ -56,7 +56,7 @@ public:
 
   void step (void);
 
-  float waterAt(const Position &p);
+  float waterAt(const Point &p);
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
   void addCollisionData (Plant *p);
@@ -66,9 +66,10 @@ public:
 
   bool isCollisionFree (const Plant *p) const;
 
-  void disseminateGeneticMaterial (Plant *p, Organ *f);
-  void removeGeneticMaterial(Plant *p, Organ *f);
-  physics::Spore collectGeneticMaterial (Plant *p, Organ *f);
+  void disseminateGeneticMaterial (Organ *f);
+  void updateGeneticMaterial (Organ *f, const Point &oldPos);
+  void removeGeneticMaterial(const Point &pos);
+  physics::Pistil collectGeneticMaterial (Organ *f);
 
   const auto& collisionData (void) const {
     return *_collisionData;

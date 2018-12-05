@@ -13,10 +13,8 @@ using SConfig = config::Simulation;
 using Rule_base = genotype::grammar::Rule_base;
 
 static const auto A = GConfig::ls_rotationAngle();
-static const auto L = GConfig::ls_segmentLength();
-static const auto W = GConfig::ls_segmentWidth();
 
-static constexpr bool debugMetabolism = false;
+static constexpr bool debugMetabolism = true;
 static constexpr bool debugDerivation = false;
 static constexpr bool debugGrowth = false;
 static constexpr bool debugOrganManagement = false;
@@ -29,24 +27,29 @@ bool nonNullAngle (float a) {
   return fabs(a) > 1e-6;
 }
 
-#ifndef NDEBUG
-#define MAYBE_ID uint id,
-#define MAYBE_SET_ID , _id(id)
-#else
-#define MAYBE_ID
-#define MAYBE_SET_ID
-#endif
+Organ::Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
+              Organ *p)
+  : _id(id), _plant(plant), _width(w), _length(l),
+    _symbol(c), _layer(t), _parent(nullptr) {
 
-Organ::Organ (MAYBE_ID float w, float l, float r, char c, Layer t, Organ *p)
-  : _localRotation(r), _global{}, _width(w), _length(l), _symbol(c), _layer(t),
-    _parent(nullptr) MAYBE_SET_ID {
   _baseBiomass = -1;
   _accumulatedBiomass = 0;
+
+  _parentCoordinates.rotation = r;
+  _plantCoordinates = {};
+  _globalCoordinates = {};
+
   updateParent(p);
 }
 
-#undef MAYBE_ID
-#undef MAYBE_SET_ID
+float Organ::fullness(void) const {
+  if (_requiredBiomass == 0)  return 1;
+  float f = 1 - _requiredBiomass / (biomass() + _requiredBiomass);
+  assert(biomass() > 0);
+  assert(_requiredBiomass != 0 || f == 1);
+  assert(0 <= f && f <= 1);
+  return f;
+}
 
 void Organ::removeFromParent(void) {
   if (_parent)  _parent->_children.erase(this);
@@ -92,26 +95,37 @@ void Organ::updateDimensions(bool andTransformations) {
 }
 
 void Organ::updateTransformation(void) {
-  _global.rotation = _localRotation;
-  if (_parent)  _global.rotation += _parent->_global.rotation;
+  _plantCoordinates.rotation = _parentCoordinates.rotation;
+  if (_parent)  _plantCoordinates.rotation += _parent->_plantCoordinates.rotation;
 
-  _global.start = _parent ? _parent->_global.end : Point{0,0};
+  _plantCoordinates.origin =
+      _parent ? _parent->_plantCoordinates.end : Point{0,0};
 
-  _global.end = _global.start + Point::fromPolar(_global.rotation, _length);
+  _plantCoordinates.end = _plantCoordinates.origin
+      + Point::fromPolar(_plantCoordinates.rotation, _length);
 
-  Point v = rotate_point(_global.rotation, {0, .5f * width()});
+  Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * width()});
 
   Point corners [] {
-    _global.start + v, _global.start - v, _global.end + v, _global.end - v
+    _plantCoordinates.origin + v, _plantCoordinates.origin - v,
+    _plantCoordinates.end + v, _plantCoordinates.end - v
   };
 
-  _boundingRect = Rect::invalid();
+  Rect &pr = _plantCoordinates.boundingRect;
+  pr = Rect::invalid();
   for (Point p: corners) {
-    _boundingRect.ul.x = std::min(_boundingRect.ul.x, p.x);
-    _boundingRect.ul.y = std::max(_boundingRect.ul.y, p.y);
-    _boundingRect.br.x = std::max(_boundingRect.br.x, p.x);
-    _boundingRect.br.y = std::min(_boundingRect.br.y, p.y);
+    pr.ul.x = std::min(pr.ul.x, p.x);
+    pr.ul.y = std::max(pr.ul.y, p.y);
+    pr.br.x = std::max(pr.br.x, p.x);
+    pr.br.y = std::min(pr.br.y, p.y);
   }
+
+  _plantCoordinates.center = pr.center();
+
+  const Point &pp = _plant->pos();
+  _globalCoordinates.origin = _plantCoordinates.origin + pp;
+  _globalCoordinates.center = _plantCoordinates.center + pp;
+  _globalCoordinates.boundingRect = _plantCoordinates.boundingRect.translated(pp);
 
   for (Organ *c: _children) c->updateTransformation();
 }
@@ -134,15 +148,16 @@ void Organ::updateParent (Organ *newParent) {
 }
 
 void Organ::updateRotation(float d_angle) {
-  _localRotation += d_angle;
+  _parentCoordinates.rotation += d_angle;
   updateTransformation();
 }
 
 #ifndef NDEBUG
 std::ostream& operator<< (std::ostream &os, const Organ &o) {
   return os << std::setprecision(2) << std::fixed
-            << "{ " << o._global.start << "->" << o._global.end << ", "
-            << o._global.rotation << ", " << o._symbol << "}";
+            << "{ " << o._plantCoordinates.origin << "->"
+            << o._plantCoordinates.end << ", "
+            << o._plantCoordinates.rotation << ", " << o._symbol << "}";
 }
 #endif
 
@@ -150,9 +165,7 @@ std::ostream& operator<< (std::ostream &os, const Organ &o) {
 Plant::Plant(const Genome &g, float x, float y)
   : _genome(g), _pos{x, y}, _age(0), _derived(0), _killed(false) {
 
-#ifndef NDEBUG
-  _nextOrganID = 0;
-#endif
+  _nextOrganID = OID(0);
 
   _biomasses.fill(0);
 
@@ -168,11 +181,8 @@ Plant::~Plant (void) {
 
 void Plant::init (Environment &env, float biomass) {
   auto A = genotype::grammar::toSuccessor(GConfig::ls_axiom());
-  for (Layer l: {Layer::SHOOT, Layer::ROOT}) {
-    Organs newOrgans;
-    float a = initialAngle(l);
-    turtleParse(nullptr, A, a, l, newOrgans, _genome.checkers(l), env);
-  }
+  for (Layer l: {Layer::SHOOT, Layer::ROOT})
+    turtleParse(nullptr, A, initialAngle(l), l, _genome.checkers(l), env);
 
   updateGeometry();
   updateInternals();
@@ -198,9 +208,13 @@ void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
 
   delOrgan(o, env);
 
-  Organs newOrgans;
-  turtleParse(parent, toSuccessor(Rule::fruitSymbol()), rotation, l,
-              newOrgans, _genome.checkers(l), env);
+  auto p = _fruits.insert({_nextOrganID, {g, nullptr}});
+  assert(p.second);
+
+  Organ *fruit = turtleParse(parent, toSuccessor(Rule::fruitSymbol()), rotation,
+                             l, _genome.checkers(l), env);
+
+  p.first->second.fruit = fruit;
 }
 
 float Plant::age (void) const {
@@ -236,7 +250,7 @@ uint Plant::deriveRules(Environment &env) {
     bool colliding = !env.isCollisionFree(this);
     if (colliding) {
       // Delete new organs at the end (eg. A[l], with A -> As[l])
-      auto &o_children = o_->children();
+      auto o_children = o_ ? o_->children() : _bases;
       for (auto it = o_children.begin(); it != o_children.end();) {
         auto newOrgans_it = newOrgans.find(*it);
         if (newOrgans_it != newOrgans.end()) {
@@ -249,7 +263,7 @@ uint Plant::deriveRules(Environment &env) {
       }
 
       // Revert reparenting
-      updateSubtree(o_, o, -angle);
+      if (o_) updateSubtree(o_, o, -angle);
 
       // Delete newly created plant portion
       Organ *o__ = o_;
@@ -302,9 +316,9 @@ void Plant::updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta)
 
 void Plant::updateGeometry(void) {
   // update bounding rect
-  _boundingRect = (*_organs.begin())->inPlantBoundingRect();
+  _boundingRect = (*_organs.begin())->inPlantCoordinates().boundingRect;
   for (Organ *o: _organs)
-    _boundingRect.uniteWith(o->inPlantBoundingRect());
+    _boundingRect.uniteWith(o->inPlantCoordinates().boundingRect);
 }
 
 Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
@@ -328,7 +342,8 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
                     a, type, newOrgans, checkers, env);
         break;
       }
-    } else if (checkers.nonTerminal(c) || checkers.terminal(c)) {
+    } else if (checkers.nonTerminal(c) || checkers.terminal(c)
+               || c == genotype::grammar::Rule_base::fruitSymbol()) {
       Organ *o = addOrgan(parent, angle, c, type, env);
       newOrgans.insert(o);
       parent = o;
@@ -345,18 +360,11 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
 Organ* Plant::addOrgan(Organ *parent, float angle, char symbol, Layer type,
                        Environment &env) {
 
-  float width = W, length = L;
-  if (Rule_base::isValidNonTerminal(symbol))
-    width = 0, length = 0;
-
-#ifndef NDEBUG
-#define MAYBE_ID _nextOrganID++,
-#else
-#define MAYBE_ID
-#endif
-  Organ *o = new Organ(MAYBE_ID width, length, angle, symbol, type, parent);
+  auto size = GConfig::sizeOf(symbol);
+  Organ *o = new Organ(_nextOrganID, this, size.width, size.length, angle,
+                       symbol, type, parent);
+  _nextOrganID = OID(uint(_nextOrganID)+1);
   _organs.insert(o); 
-#undef MAYBE_ID
 
   if (debugOrganManagement) {
     std::cerr << "Created " << *o;
@@ -375,7 +383,7 @@ Organ* Plant::addOrgan(Organ *parent, float angle, char symbol, Layer type,
   o->setRequiredBiomass(isSink(o) ? sinkRequirement(o) : 0);
 
   if (o->isFlower() && sex() == Sex::FEMALE)
-    env.disseminateGeneticMaterial(this, o);
+    env.disseminateGeneticMaterial(o);
 
   return o;
 }
@@ -399,8 +407,11 @@ void Plant::delOrgan(Organ *o, Environment &env) {
 
   if (o->isFlower()) {
     _flowers.erase(o);
-    if (sex() == Sex::FEMALE) env.removeGeneticMaterial(this, o);
+    if (sex() == Sex::FEMALE)
+      env.removeGeneticMaterial(o->globalCoordinates().center);
   }
+
+  if (o->isFruit()) _fruits.erase(o->id());
 
   delete o;
 }
@@ -421,18 +432,21 @@ float Plant::sinkRequirement (Organ *o) const {
     required = (1 + SConfig::floweringCost()) * o->biomass();
 
   } else if (o->isFruit()) {
-    required = initialBiomassFor(_fruits.at(o)) * _genome.seedsPerFruit;
+    required = initialBiomassFor(_fruits.at(o->id()).genome) * _genome.seedsPerFruit;
 
   } else if (o->isStructural()) {
+    const auto &size = GConfig::sizeOf(o->symbol());
     if (debugMetabolism)
       std::cerr << "[O" << o->id() << o->symbol() << "] requests a width of "
-                << W << " * (1 + " << _genome.metabolism.deltaWidth << ")^"
-                << std::max(0, int(o->depth()) -1)
-                << ") = " << W * std::pow(1 + _genome.metabolism.deltaWidth,
-                                      std::max(0, int(o->depth()) -1))
+                << size.width << " * (1 + " << _genome.metabolism.deltaWidth
+                << ")^" << std::max(0, int(o->depth()) -1)
+                << ") = " << size.width * std::pow(1 + _genome.metabolism.deltaWidth,
+                                                   std::max(0, int(o->depth()) -1))
                 << std::endl;
 
-    required = L * W * std::pow(1 + _genome.metabolism.deltaWidth, std::max(0, int(o->depth()) -1));
+    required = size.length * size.width
+        * std::pow(1 + _genome.metabolism.deltaWidth,
+                   std::max(0, int(o->depth()) -1));
   }
 
   required = std::max(0.f, required - o->biomass());
@@ -446,11 +460,11 @@ float Plant::sinkRequirement (Organ *o) const {
 
 float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
   const std::string &succ = g.successor(l, symbol);
-  const auto &checkers = g.checkers(l);
   float cost = 0;
-  for (char c: succ)
-    if (checkers.terminal(c))
-      cost += W * L;
+  for (char c: succ) {
+    const auto &size = GConfig::sizeOf(c);
+    cost += size.width * size.length;
+  }
   return cost;
 }
 
@@ -476,7 +490,7 @@ void Plant::metabolicStep(Environment &env) {
   decimal U_w = 0;
   decimal uw_k = (1 + concentration(Layer::ROOT, Element::WATER) * J_E); assert(uw_k >= 1);
   for (Organ *h: _hairs) {
-    decimal w = env.waterAt(organGlobalCoordinates(h));
+    decimal w = env.waterAt(h->globalCoordinates().center);
     U_w += w * k_E * h->surface() / uw_k;
     if (debugMetabolism)
       std::cerr << "[O" << h->id() << h->symbol() << "] drawing "
@@ -513,7 +527,7 @@ void Plant::metabolicStep(Environment &env) {
     U_g += light * k_E * (i.r - i.l) / ug_k;
 
     if (debugMetabolism)
-      std::cerr << OrganID(this, i.organ) << " photosynthizing "
+      std::cerr << OrganID(i.organ) << " photosynthizing "
                 << U_g << " = " << light << " * " << k_E << " * (" << i.r
                 << " - " << i.l << ") / " << ug_k << std::endl;
   }
@@ -593,7 +607,7 @@ void Plant::metabolicStep(Environment &env) {
     decimal b = X[s->layer()] * r / G[s->layer()];
 
     if (debugMetabolism)
-      std::cerr << OrganID(this, s) << " b = "
+      std::cerr << OrganID(s) << " b = "
                 << "X[" << s->layer() << "] * " << r << " / G[" << s->layer()
                 << "] = " << X[s->layer()] << " * " << r << " / "
                 << G[s->layer()] << " = " << X[s->layer()] * r / G[s->layer()]
@@ -653,12 +667,47 @@ float Plant::initialBiomassFor (const Genome &g) {
        + ruleBiomassCost(g, Layer::ROOT, GConfig::ls_axiom());
 }
 
-void Plant::step (Environment &env) {
+void Plant::collectFruits(Seeds &seeds, Environment &env) {
+  bool dead = this->isDead();
+  std::vector<Organ*> collectedFruits;
+  for (auto &p: _fruits) {
+    Organ *fruit = p.second.fruit;
+
+    if (dead || fabs(fruit->fullness() - 1) > 1e-3) {
+      uint S = _genome.seedsPerFruit;
+      float biomass = fruit->biomass();
+      float biomassPerSeed = biomass / float(S);
+      for (uint i=0; i<S && biomass > 0; i++) {
+        Genome g = p.second.genome;
+        Point pos = fruit->globalCoordinates().center;
+
+        g.cdata.id = genotype::BOCData::nextID();
+        seeds.push_back({biomassPerSeed, g, pos});
+        biomass -= biomassPerSeed;
+      }
+      collectedFruits.push_back(fruit);
+    }
+  }
+
+  while (!collectedFruits.empty()) {
+    Organ *fruit = collectedFruits.back();
+    collectedFruits.pop_back();
+    delOrgan(fruit, env);
+  }
+}
+
+void Plant::step (Environment &env, Seeds &seeds) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << _age << " days old ##"
               << std::endl;
 
   if (_age % SConfig::stepsPerDay() == 0) {
+    /// FIXME Kinda quick and dirty
+    std::map<Organ*, Point> oldPistilsPositions;
+    if (sex() == Sex::FEMALE)
+      for (Organ *f: _flowers)
+        oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+
     bool derived = bool(deriveRules(env));
     _derived += derived;
 
@@ -668,9 +717,19 @@ void Plant::step (Environment &env) {
         for (Organ *o: _organs)
           if (o->layer() == t && o->isNonTerminal())
             _nonTerminals.erase(o);
+
+    for (auto &p: oldPistilsPositions)
+      if (p.second != p.first->globalCoordinates().center)
+        env.updateGeneticMaterial(p.first, p.second);
   }
 
   metabolicStep(env);
+  collectFruits(seeds, env);
+
+  std::vector<Organ*> deadOrgans;
+  for (Organ *o: _organs) if (o->biomass() < 0) deadOrgans.push_back(o);
+  while (!deadOrgans.empty())
+    delOrgan(deadOrgans.back(), env), deadOrgans.pop_back();
 
   _age++;
 

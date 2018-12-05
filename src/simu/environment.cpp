@@ -26,17 +26,10 @@ void Environment::destroy (void) {
 
 void Environment::step (void) {}
 
-float Environment::waterAt(const Position &p) {
-  uint v0 = p.start.x * _genome.voxels / _genome.width,
-       v1 = p.end.x * _genome.voxels / _genome.width;
-
-  float d0 = p.start.y / _genome.depth,
-        d1 = p.end.y / _genome.depth;
-
-  return .5 * (
-      _layers[SHALLOW][v0] * uint(d0) + _layers[DEEP][v0] * (1.f - uint(d0))
-    + _layers[SHALLOW][v1] * uint(d1) + _layers[DEEP][v1] * (1.f - uint(d1))
-  );
+float Environment::waterAt(const Point &p) {
+  uint v = p.x * _genome.voxels / _genome.width;
+  float d = p.y / _genome.depth;
+  return _layers[SHALLOW][v] * uint(d) + _layers[DEEP][v] * (1.f - uint(d));
 }
 
 const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {
@@ -63,21 +56,25 @@ bool Environment::isCollisionFree (const Plant *p) const {
   return _collisionData->isCollisionFree(p);
 }
 
-void Environment::disseminateGeneticMaterial(Plant *p, Organ *f) {
-  _collisionData->addSpore(p, f);
+void Environment::disseminateGeneticMaterial(Organ *f) {
+  _collisionData->addPistil(f);
 }
 
-void Environment::removeGeneticMaterial(Plant *p, Organ *f) {
-  _collisionData->delSpore(p, f);
+void Environment::updateGeneticMaterial(Organ *f, const Point &oldPos) {
+  _collisionData->updatePistil(f, oldPos);
 }
 
-physics::Spore Environment::collectGeneticMaterial(Plant *p, Organ *f) {
-  auto itP = _collisionData->sporesInRange(p, f);
+void Environment::removeGeneticMaterial(const Point &pos) {
+  _collisionData->delPistil(pos);
+}
+
+physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
+  auto itP = _collisionData->sporesInRange(f);
   if (std::distance(itP.first, itP.second) >= 1)
     return *_dice(itP.first, itP.second);
 
   else
-    return physics::Spore();
+    return physics::Pistil();
 }
 
 } // end of namespace simu

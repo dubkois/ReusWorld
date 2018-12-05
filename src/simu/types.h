@@ -43,6 +43,14 @@ struct Point {
   friend Point operator- (const Point &lhs, const Point &rhs) {
     return Point { lhs.x - rhs.x, lhs.y - rhs.y };
   }
+
+  friend bool operator== (const Point &lhs, const Point &rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y;
+  }
+
+  friend bool operator!= (const Point &lhs, const Point &rhs) {
+    return lhs.x != rhs.x || lhs.y != rhs.y;
+  }
 };
 
 struct Rect {
@@ -82,6 +90,11 @@ struct Rect {
     return { { ul.x + p.x, ul.y + p.y }, { br.x + p.x, br.y + p.y } };
   }
 
+  friend bool intersects (const Rect &lhs, const Rect &rhs) {
+    return lhs.l() <= rhs.r() && lhs.r() >= rhs.l()
+        && lhs.t() >= rhs.b() && lhs.b() <= rhs.t();
+  }
+
 #ifndef NDEBUG
   friend std::ostream& operator<< (std::ostream &os, const Rect &r) {
     return os << "{ " << r.ul << ", " << r.br << " }";
@@ -92,6 +105,20 @@ struct Rect {
 struct Disk {
   Point center;
   float radius;
+
+  friend bool intersects (const Disk &lhs, const Disk &rhs) {
+    double dXSquared = lhs.center.x - rhs.center.x; // calc. delta X
+    dXSquared *= dXSquared; // square delta X
+
+    double dYSquared = lhs.center.y - lhs.center.y; // calc. delta Y
+    dYSquared *= dYSquared; // square delta Y
+
+    // Calculate the sum of the radii, then square it
+    double sumRadiiSquared = lhs.radius + rhs.radius;
+    sumRadiiSquared *= sumRadiiSquared;
+
+    return dXSquared + dYSquared <= sumRadiiSquared;
+  }
 };
 
 struct Position {

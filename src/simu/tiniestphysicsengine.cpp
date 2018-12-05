@@ -8,6 +8,36 @@ namespace physics {
 static constexpr bool debugUpperLayer = false;
 static constexpr bool debugCollision = false;
 
+
+// =============================================================================
+
+bool intersects (const CObject &lhs, const CObject &rhs) {
+  return intersects(lhs.boundingRect, rhs.boundingRect);
+}
+
+template <typename C, typename V>
+std::pair<typename C::iterator, typename C::iterator>
+intersect_range (const C &container, const V &value) {
+  auto vit = container.find(value);
+  assert(vit != container.end());
+
+  const auto &cv = *vit;
+
+  auto itLR = typename C::reverse_iterator(vit);
+  while (itLR != container.rend() && intersects(*itLR, cv))
+    itLR = std::next(itLR);
+
+  auto itR = vit;
+  while (itR != container.end() && intersects(*itR, cv))
+    itR = std::next(itR);
+
+  return {
+    itLR.base(), // should be std::prev(itLR.base()) but we want the next
+    itR
+  };
+}
+
+
 // =============================================================================
 
 bool operator< (const Rect &lhs, const Rect &rhs) {
@@ -90,7 +120,7 @@ void UpperLayer::update (const Plant *p) {
   for (Organ *o: p->organs()) {
     if (o->length() <= 0) continue; // Skip non terminals
 
-    Rect r = p->organBoundingRect(o);
+    const Rect &r = o->globalCoordinates().boundingRect;
     if (r.t() < 0)  continue; // Skip below surface
 
     xevents.emplace(IN, o, r);
@@ -156,7 +186,7 @@ void UpperLayer::update (const Plant *p) {
 //            std::cerr << "\t\tNew top: " << newTop->id()
 //                      << ", bounds: " << newTop->boundingRect() << std::endl;
 
-          replace(e.right(), p->organBoundingRect(newTop).t(), newTop);
+          replace(e.right(), newTop->globalCoordinates().boundingRect.t(), newTop);
         }
       }
       break;
@@ -177,105 +207,45 @@ void CollisionData::reset(void) {
 }
 
 const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
-  return _data.find(p)->layer.items;
+  auto it = _data.find(*p);
+  assert(it != _data.end());
+  return it->layer.items;
 }
 
 void CollisionData::addCollisionData (Plant *p) {
-  _data.insert(physics::CObject(p));
+  _data.insert(CObject(p));
 }
 
 void CollisionData::removeCollisionData (Plant *p) {
-  _data.erase(p);
+  auto it = _data.find(*p);
+  assert(it != _data.end());
+  _data.erase(it);
 
-  for (auto it = _spores.begin(); it != _spores.end();) {
-    if (it->plant == p)
-      it = _spores.erase(it);
+  for (auto it = _pistils.begin(); it != _pistils.end();) {
+    if (it->organ->plant() == p)
+      it = _pistils.erase(it);
     else  ++it;
   }
 }
 
 void CollisionData::updateCollisions (Plant *p) {
-  auto it = _data.find(p);
-  physics::CObject object = *it;
+  auto it = _data.find(*p);
+  assert(it != _data.end());
+  CObject object = *it;
   _data.erase(it);
   object.updateCollisions();
   _data.insert(object);
 }
 
 void CollisionData::updateFinal (Plant *p) {
-  auto it = _data.find(p);
-  physics::CObject object = *it;
+  auto it = _data.find(*p);
+  assert(it != _data.end());
+  CObject object = *it;
   _data.erase(it);
   object.updateFinal();
   _data.insert(object);
 }
 
-
-// =============================================================================
-
-Disk boundingDiskFor (const Plant *p, const Organ *o) {
-  const auto &gc = p->organGlobalCoordinates(o);
-  Point c = .5f * (gc.start + gc.end);
-  return { c, c.y * 5.f };
-}
-
-struct SphereXIntersection {
-  Spore obj;
-
-  explicit SphereXIntersection (const Spore &o) : obj(o) {}
-  explicit SphereXIntersection(Plant *p, Organ *f)
-    : SphereXIntersection(Spore(p,f, boundingDiskFor(p, f))) {}
-
-  static bool intersection (const Disk &lhs, const Disk &rhs) {
-    double dXSquared = lhs.center.x - rhs.center.x; // calc. delta X
-    dXSquared *= dXSquared; // square delta X
-
-    double dYSquared = lhs.center.y - lhs.center.y; // calc. delta Y
-    dYSquared *= dYSquared; // square delta Y
-
-    // Calculate the sum of the radii, then square it
-    double sumRadiiSquared = lhs.radius + rhs.radius;
-    sumRadiiSquared *= sumRadiiSquared;
-
-    return dXSquared + dYSquared <= sumRadiiSquared;
-  }
-
-  static bool leftOf (const Disk &lhs, const Disk &rhs) {
-    return lhs.center.x + lhs.radius < rhs.center.x - rhs.radius;
-  }
-
-  friend bool operator< (const SphereXIntersection &lhs, const Spore &rhs) {
-    return leftOf(lhs.obj.boundingDisk, rhs.boundingDisk);
-  }
-
-  friend bool operator< (const Spore &lhs, const SphereXIntersection &rhs) {
-    return leftOf(lhs.boundingDisk, rhs.obj.boundingDisk);
-  }
-};
-
-bool operator< (const Spore &lhs, const Spore &rhs) {
-  return lhs.boundingDisk.center.x < rhs.boundingDisk.center.x;
-}
-
-
-void CollisionData::addSpore(Plant *p, Organ *f) {
-  assert(p->sex() == Plant::Sex::FEMALE);
-  _spores.emplace(p, f, boundingDiskFor(p, f));
-}
-
-void CollisionData::delSpore(Plant *p, Organ *f) {
-  assert(p->sex() == Plant::Sex::FEMALE);
-  delSpore(Spore(p, f, boundingDiskFor(p, f)));
-}
-
-void CollisionData::delSpore(const Spore &s) {
-  _spores.erase(s);
-}
-
-CollisionData::Spores_range CollisionData::sporesInRange(Plant *p, Organ *f) {
-  assert(p->sex() == Plant::Sex::MALE);
-  return _spores.equal_range(SphereXIntersection(p,f));
-}
 
 // =============================================================================
 
@@ -287,60 +257,29 @@ bool CollisionData::narrowPhaseCollision (const Plant *lhs, const Plant *rhs) {
 // =============================================================================
 
 bool operator< (const CObject &lhs, const CObject &rhs) {
-  return lhs.boundingRect < rhs.boundingRect;
+  return lhs.plant->pos().x < rhs.plant->pos().x;
+}
+
+bool operator< (const CObject &lhs, const Plant &rhs) {
+  return lhs.plant->pos().x < rhs.pos().x;
+}
+
+bool operator< (const Plant &lhs, const CObject &rhs) {
+  return lhs.pos().x < rhs.plant->pos().x;
 }
 
 // =============================================================================
 
-struct RectXIntersection {
-  const CObject &obj;
-
-  explicit RectXIntersection (const CObject &o) : obj(o) {}
-
-  static bool leftOf (const Rect &lhs, const Rect &rhs) {
-    return lhs.br.x < rhs.ul.x;
-  }
-
-  friend bool operator< (const RectXIntersection &lhs, const CObject &rhs) {
-    bool b = leftOf(lhs.obj.boundingRect, rhs.boundingRect);
-
-//    if (debugCollision)
-//      std::cerr << "\t" << lhs.obj.boundingRect << " < " << rhs.boundingRect
-//                << " ? " << std::boolalpha << b << std::endl;
-
-    return b;
-  }
-
-  friend bool operator< (const CObject &lhs, const RectXIntersection &rhs) {
-    bool b = leftOf(lhs.boundingRect, rhs.obj.boundingRect);
-
-//    if (debugCollision)
-//      std::cerr << "\t" << lhs.boundingRect << " < " << rhs.obj.boundingRect
-//                << " ? " << std::boolalpha << b << std::endl;
-
-    return b;
-  }
-};
-
 bool CollisionData::isCollisionFree (const Plant *p) const {
-  auto pit = _data.find(p);
-  if (pit == _data.end())
-    utils::doThrow<std::logic_error>(
-      "Could not find collision data for plant ", p->id());
-
-  const CObject &c = *pit;
-  assert(p == c.plant);
-
-  if (debugCollision) std::cerr << "Collision data " << c << std::endl;
-
-  auto itP = _data.equal_range(RectXIntersection(c));
-  assert(itP.first != _data.end()); // p, at least, is not less than p
-
+  auto range = intersect_range(_data, *p);
   if (debugCollision)
     std::cerr << "Possible collisions for " << p->id() << ": "
-              << std::distance(itP.first, itP.second) - 1 << " (excluding self)\n";
+              << range.first->plant->id() << " to "
+              << std::prev(range.second)->plant->id()
+              << " (" << std::distance(range.first, range.second) - 1
+              << ", excluding self)" << std::endl;
 
-  for (auto it = itP.first; it != itP.second; ++it) {
+  for (auto it = range.first; it != range.second; ++it) {
     const Plant *p_ = it->plant;
     if (p_ == p) continue;
 
@@ -353,6 +292,73 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
   if (debugCollision) std::cerr << std::endl;
 
   return true;
+}
+
+
+// =============================================================================
+
+bool operator< (const Pistil &lhs, const Pistil &rhs) {
+  return lhs.boundingDisk.center.x < rhs.boundingDisk.center.x;
+}
+
+bool operator< (const Pistil &lhs, const Point &rhs) {
+  return lhs.boundingDisk.center.x < rhs.x;
+}
+
+bool operator< (const Point &lhs, const Pistil &rhs) {
+  return lhs.x < rhs.boundingDisk.center.x;
+}
+
+Disk boundingDiskFor (const Organ *o) {
+  Point c = o->globalCoordinates().center;
+  return { c, c.y * 5.f };
+}
+
+void CollisionData::addPistil(Organ *p) {
+  _pistils.emplace(p, boundingDiskFor(p));
+}
+
+void CollisionData::delPistil(const Point &pos) {
+  auto it = _pistils.find(pos);
+  assert(it != _pistils.end());
+  _pistils.erase(it);
+}
+
+void CollisionData::delPistil(const Pistil &s) {
+  delPistil(s.boundingDisk.center);
+}
+
+void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
+  auto it = _pistils.find(oldPos);
+  assert(it != _pistils.end());
+  Pistil s = *it;
+  _pistils.erase(it);
+  s.boundingDisk = boundingDiskFor(p);
+  _pistils.insert(s);
+}
+
+struct LowerBound {
+  Disk boundingDisk;
+
+  static bool leftOf (const Disk &lhs, const Disk &rhs) {
+    return lhs.center.x + lhs.radius < rhs.center.x - rhs.radius;
+  }
+
+  friend bool operator< (const LowerBound &lhs, const Pistil &rhs) {
+    return leftOf(lhs.boundingDisk, rhs.boundingDisk);
+  }
+
+  friend bool operator< (const Pistil &lhs, const LowerBound &rhs) {
+    return leftOf(lhs.boundingDisk, rhs.boundingDisk);
+  }
+};
+CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
+  Disk boundingDisk = boundingDiskFor(s);
+  auto itL = std::next(_pistils.lower_bound(LowerBound{boundingDisk})),
+       itR = itL;
+  while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
+    itR = std::next(itR);
+  return { itL, itR };
 }
 
 // =============================================================================

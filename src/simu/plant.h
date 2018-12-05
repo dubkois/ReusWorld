@@ -19,15 +19,39 @@
 
 namespace simu {
 
+struct Plant;
 struct Environment;
 
 class Organ {
 public:
   using Layer = genotype::LSystemType;
+  enum OID : uint { INVALID = uint(-1) };
+
+  struct ParentCoordinates {
+   float rotation;
+  };
+
+  struct PlantCoordinates {
+    Point origin, end;
+    Point center;
+    float rotation;
+    Rect boundingRect;
+  };
+
+  struct GlobalCoordinates {
+    Point origin;
+    Point center;
+    Rect boundingRect;
+  };
 
 private:
-  float _localRotation;   // Parent coordinate
-  Position _global;       // Plant coordinates
+  OID _id;
+  Plant *const _plant;
+
+  ParentCoordinates _parentCoordinates;
+  PlantCoordinates _plantCoordinates;
+  GlobalCoordinates _globalCoordinates;
+
   float _width, _length;  // Constant for now
   char _symbol;           // To choose color and shape
   Layer _layer;           // To check altitude and symbol
@@ -38,19 +62,10 @@ private:
 
   float _surface;
   float _baseBiomass, _accumulatedBiomass, _requiredBiomass;
-  Rect _boundingRect;
-
-#ifndef NDEBUG
-  uint _id;
-#endif
 
 public:
-#ifndef NDEBUG
-#define MAYBE_ID uint id,
-#else
-#define MAYBE_ID
-#endif
-  Organ (MAYBE_ID float w, float l, float r, char c, Layer t, Organ *p = nullptr);
+  Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
+         Organ *p = nullptr);
 
   /// surface, biomass
   void accumulate (float biomass);
@@ -63,10 +78,14 @@ public:
 
   void removeFromParent(void);
 
-  float localRotation (void) const {  return _localRotation;  }
-  const auto& inPlantCoordinates (void) const {  return _global; }
+  auto id (void) const {    return _id;     }
+  auto plant (void) const { return _plant;  }
 
-  const auto& inPlantBoundingRect (void) const { return _boundingRect; }
+  float localRotation (void) const {
+    return _parentCoordinates.rotation;
+  }
+  const auto& inPlantCoordinates (void) const {  return _plantCoordinates; }
+  const auto& globalCoordinates (void) const { return _globalCoordinates; }
 
   auto width (void) const {   return _width;    }
   auto length (void) const {  return _length;   }
@@ -85,6 +104,7 @@ public:
   auto requiredBiomass (void) const {
     return _requiredBiomass;
   }
+  float fullness (void) const;  ///< Returns ratio of accumulated biomass [0,1]
 
   auto symbol (void) const {  return _symbol; }
   auto layer (void) const {   return _layer;  }
@@ -112,8 +132,6 @@ public:
   }
 
 #ifndef NDEBUG
-  auto id (void) const {  return _id; }
-
   friend std::ostream& operator<< (std::ostream &os, const Organ &o);
 #endif
 };
@@ -125,6 +143,13 @@ public:
 
   using Layer = Organ::Layer;
   using Element = genotype::Element;
+
+  struct Seed {
+    float biomass;
+    Genome genome;
+    Point position;
+  };
+  using Seeds = std::vector<Seed>;
 
 private:
   Genome _genome;
@@ -150,14 +175,17 @@ private:
                               EnumUtils<Layer>::size()>;
   Reserves _reserves;
 
-  using Fruits = std::map<Organ*, Genome>;
+  using OID = Organ::OID;
+  struct FruitData {
+    Genome genome;
+    Organ *fruit;
+  };
+  using Fruits = std::map<OID, FruitData>;
   Fruits _fruits;
 
-  bool _killed;
+  OID _nextOrganID;
 
-#ifndef NDEBUG
-  uint _nextOrganID;
-#endif
+  bool _killed;
 
 public:
   Plant(const Genome &g, float x, float y);
@@ -188,17 +216,6 @@ public:
     return _flowers;
   }
 
-  auto organBoundingRect (const Organ *o) const {
-    return o->inPlantBoundingRect().translated(_pos);
-  }
-
-  auto organGlobalCoordinates (const Organ *o) const {
-    auto gc = o->inPlantCoordinates();
-    gc.start += _pos;
-    gc.end += _pos;
-    return gc;
-  }
-
   float age (void) const;
 
   const auto& genome (void) const {
@@ -218,7 +235,10 @@ public:
   }
 
   auto concentration (Layer l, Element e) const {
-    return _reserves[l][e] / _biomasses[l];
+    if (auto b = _biomasses[l])
+      return _reserves[l][e] / b;
+    else
+      return decimal(0);
   }
 
   bool isSeed (void) const {
@@ -243,7 +263,7 @@ public:
     return false;
   }
 
-  void step (Environment &env);
+  void step (Environment &env, Seeds &seeds);
 
   void kill (void) {
     _killed = true;
@@ -297,9 +317,18 @@ private:
                       const genotype::grammar::Checkers &checkers,
                       Environment &env);
 
+  Organ* turtleParse (Organ *parent, const std::string &successor, float angle,
+                      Layer type, const genotype::grammar::Checkers &checkers,
+                      Environment &env) {
+    Organs newOrgans;
+    return turtleParse(parent, successor, angle, type, newOrgans, checkers, env);
+  }
+
   void updateGeometry (void);
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
+
+  void collectFruits (Seeds &seeds, Environment &env);
 };
 
 #ifndef NDEBUG
@@ -317,12 +346,11 @@ struct PlantID {
   }
 };
 struct OrganID {
-  const Plant *p;
   const Organ *o;
-  OrganID (const Plant *p, const Organ *o) : p(p), o(o) {}
+  OrganID (const Organ *o) : o(o) {}
   friend std::ostream& operator<< (std::ostream &os, const OrganID &oid) {
     os << "[";
-    PlantID::print(os, oid.p);
+    PlantID::print(os, oid.o->plant());
     return os << ":O" << oid.o->id() << oid.o->symbol() << "]";
   }
 };

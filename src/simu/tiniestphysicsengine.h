@@ -16,17 +16,21 @@ class CollisionData {
 
     UpperLayer layer;
 
-    CollisionObject (const Plant *p) : plant(p) {
+    explicit CollisionObject (const Plant *p) : plant(p) {
       updateFinal();
     }
 
     void updateCollisions (void) {
-      boundingRect = plant->translatedBoundingRect();
+      boundingRect = boundingRectOf(plant);
     }
 
     void updateFinal (void) {
       updateCollisions();
       layer.update(plant);
+    }
+
+    static Rect boundingRectOf (const Plant *p) {
+      return p->translatedBoundingRect();
     }
 
 #ifndef NDEBUG
@@ -36,12 +40,13 @@ class CollisionData {
 #endif
   };
 
-  std::set<CollisionObject, std::less<>> _data;
+  using Collisions = std::set<CollisionObject, std::less<>>;
+  Collisions _data;
 
-  using Spores = std::set<Spore, std::less<>>;
-  Spores _spores;
+  using Pistils = std::set<Pistil, std::less<>>;
+  Pistils _pistils;
 
-  using Spores_range = std::pair<Spores::iterator, Spores::iterator>;
+  using Pistils_range = std::pair<Pistils::iterator, Pistils::iterator>;
 
 public:
   using CObject = CollisionData::CollisionObject;
@@ -49,8 +54,8 @@ public:
   void init (void) {}
   void reset (void);
 
-  const auto& data (void) const {   return _data;   }
-  const auto& spores (void) const { return _spores; }
+  const auto& data (void) const {     return _data;     }
+  const auto& pistils (void) const {  return _pistils;  }
 
   const UpperLayer::Items& canopy (const Plant *p) const;
 
@@ -61,25 +66,16 @@ public:
   void updateCollisions (Plant *p);
   void updateFinal (Plant *p);
 
-  void addSpore (Plant *p, Organ *f);
-  void delSpore (Plant *p, Organ *f);
-  void delSpore (const Spore &s);
-  Spores_range sporesInRange (Plant *p, Organ *f);
+  void addPistil (Organ *p);
+  void updatePistil (Organ *p, const Point &oldPos);
+  void delPistil (const Pistil &s);
+  void delPistil (const Point &pos);
+  Pistils_range sporesInRange (Organ *s);
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs);
 };
 
 using CObject = CollisionData::CObject;
-
-inline bool operator< (const CObject &lhs, const Plant *rhs) {
-  return lhs.plant < rhs;
-}
-
-inline bool operator< (const Plant *lhs, const CObject &rhs) {
-  return lhs < rhs.plant;
-}
-
-bool operator< (const CObject &lhs, const CObject &rhs);
 
 } // end of namespace physics
 } // end of namespace simu

@@ -308,14 +308,35 @@ DEFINE_GENOME_MUTATION_RATES({
 auto initRule = [] (const std::string &rhs) {
   return grammar::toSuccessor(Config::ls_axiom()) + " -> " + rhs;
 };
-DEFINE_PARAMETER(genotype::grammar::NonTerminal, ls_axiom, 'S')
-DEFINE_PARAMETER(genotype::grammar::Successor, ls_shootInitRule, initRule("s[+l][-l]f"))
-DEFINE_PARAMETER(genotype::grammar::Successor, ls_rootInitRule, initRule("t[+h][-h]"))
-DEFINE_PARAMETER(char, ls_maxNonTerminal, 'F')
+DEFINE_PARAMETER(Config::NonTerminal, ls_axiom, 'S')
+DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("s[+l][-l]f"))
+DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("[+h][-h]"))
+DEFINE_PARAMETER(Config::NonTerminal, ls_maxNonTerminal, 'F')
 DEFINE_PARAMETER(uint, ls_maxRuleSize, 10)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
-DEFINE_PARAMETER(float, ls_segmentWidth, .01)
-DEFINE_PARAMETER(float, ls_segmentLength, .1)
+
+static const auto tsize = [] (float wr = 1, float lr = 1) {
+  return Config::TerminalSize{ .01f * wr, .1f * lr };
+};
+DEFINE_MAP_PARAMETER(Config::TerminalsSizes, ls_terminalsSizes, {
+  { 's', tsize() },
+  { 'l', tsize() },
+  { 'f', tsize(1, .5) },
+  { 'g', tsize(2, .2) },
+
+  { 't', tsize() },
+  { 'h', tsize() }
+})
+const Config::TerminalSize& Config::sizeOf (char symbol) {
+  static const auto &sizes = ls_terminalsSizes();
+  static const auto null = TerminalSize{0,0};
+  auto it = sizes.find(symbol);
+  if (it != sizes.end())
+    return it->second;
+  else
+    return null;
+}
+
 
 DEFINE_PARAMETER(Config::Bui, ls_recursivityBounds, 1u, 2u, 2u, 5u)
 DEFINE_MAP_PARAMETER(Config::MutationRates, ls_mutationRates, {
@@ -342,17 +363,31 @@ DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<SHOOT>, shoot, "", LSYSTEM_FIELD_FUNCTO
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<ROOT>, root, "", LSYSTEM_FIELD_FUNCTOR(root))
 
 DEFINE_GENOME_FIELD_AS_SUBGENOME(Metabolism, metabolism, "")
-DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 100u, 100u, 1000u)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 10u, 10u, 1000u)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, fruitOvershoot, "", 1.f, 1.1f, 1.1f, 2.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)
 
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(        cdata, 1.f),
-  MUTATION_RATE(        shoot, 1.f),
-  MUTATION_RATE(         root, 1.f),
-  MUTATION_RATE(   metabolism, 1.f),
-  MUTATION_RATE(     dethklok, 1.f),
-  MUTATION_RATE(seedsPerFruit, 1.f),
+  MUTATION_RATE(         cdata, 1.f),
+  MUTATION_RATE(         shoot, 1.f),
+  MUTATION_RATE(          root, 1.f),
+  MUTATION_RATE(    metabolism, 1.f),
+  MUTATION_RATE(      dethklok, 1.f),
+  MUTATION_RATE(fruitOvershoot, 1.f),
+  MUTATION_RATE( seedsPerFruit, 1.f),
 })
+
+
+namespace config {
+std::ostream& operator<< (std::ostream &os, const Config::TerminalSize &ts) {
+  return os << ts.width << 'x' << ts.length;
+}
+std::istream& operator>> (std::istream &is, Config::TerminalSize &ts) {
+  char c;
+  is >> ts.width >> c >> ts.length;
+  return is;
+}
+} // end of namespace config
 
 #undef GENOME

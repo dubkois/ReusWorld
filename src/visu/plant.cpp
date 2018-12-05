@@ -12,6 +12,8 @@
 
 namespace gui {
 
+using GConfig = config::PlantGenome;
+
 struct Plant::PlantMenu : public QMenu {
   Plant *plantVisu;
 
@@ -31,14 +33,11 @@ struct Plant::PlantMenu : public QMenu {
   }
 };
 
-auto segmentWidth (void) {
-  return config::PlantGenome::ls_segmentWidth();
-}
-
 const auto& seedPath (void) {
   static const QPainterPath path = [] {
     QPainterPath seed;
-    seed.addEllipse({0,0}, segmentWidth(), segmentWidth());
+    const auto &size = GConfig::sizeOf('s');
+    seed.addEllipse({0,0}, .25 * size.length, .5 * size.length);
     return seed;
   }();
   return path;
@@ -66,7 +65,7 @@ const auto& pathForSymbol (char symbol) {
       return p;
     }();
     m['f'] = [] {
-      float w = 2;
+      float w = 1;
       QPainterPath p;
       p.quadTo(0, -.5*w,  1,  -.5*w);
       p.quadTo(1, -.25*w, .5, -.16*w);
@@ -75,6 +74,11 @@ const auto& pathForSymbol (char symbol) {
       p.quadTo(1,  .25*w, 1,   .5*w);
       p.quadTo(0,  .5*w,  0,   0);
       p.closeSubpath();
+      return p;
+    }();
+    m['g'] = [] {
+      QPainterPath p;
+      p.addEllipse({.5,0}, .5, .5);
       return p;
     }();
     return m;
@@ -102,33 +106,29 @@ const auto& pathForApex (void) {
 }
 
 const auto& minBoundingBox (void) {
-  static const auto l = segmentWidth();
-  static const QRectF box = QRectF(-l, -l, 2*l, 2*l);
+  static const QRectF box = seedPath().boundingRect();
   return box;
 }
 
 const QColor seedColor = QColor::fromRgbF(.33,.42,.18);
-const QColor& color (char symbol) {
-  static const QColor black (Qt::black);
-  static const std::map<char, QColor> others {
-    { 's', QColor::fromRgbF(.55,.27,.07) },
+QColor color (const simu::Organ *o) {
+  static const std::map<char, QColor> terminals {
+    { 's', QColor::fromRgbF( .55,  .27,  .07) },
     { 'l', QColor(Qt::green) },
-    { 'f', QColor::fromRgbF(.75,0,0) },
+    { 'f', QColor::fromRgbF( .75, 0.,   0.) },
 
-    { 't', QColor::fromRgbF(.82,.71,.55) },
+    { 't', QColor::fromRgbF( .82,  .71,  .55) },
     { 'h', QColor(Qt::gray) },
   };
-  if (std::isupper(symbol))
-    return black;
+
+  if (o->isNonTerminal())
+    return mix(terminals.at('l'), terminals.at('s'), o->fullness());
+  else if (o->isFlower())
+    return mix(terminals.at('f'), terminals.at('s'), o->fullness());
+  else if (o->isFruit())
+    return mix(QColor::fromRgbF(.75, .75, 0.), terminals.at('s'), o->fullness());
   else
-    return others.at(symbol);
-}
-QColor apexColor (const simu::Organ *o) {
-  float r = .25 + .5 * o->requiredBiomass()
-      / (o->requiredBiomass() + o->biomass());
-  utils::iclip_max(r, .75f);
-  assert(.25 <= r && r <= .75);
-  return mix(color('s'), color('l'), r);
+    return terminals.at(o->symbol());
 }
 
 void desaturate (QColor &c) {
@@ -144,7 +144,7 @@ Plant::Plant(simu::Plant &p) : _plant(p), _selected(false) {
 
 void Plant::updateGeometry(void) {
   prepareGeometryChange();
-  _boundingRect = toRect(_plant.boundingRect())
+  _boundingRect = toQRect(_plant.boundingRect())
                     .united(minBoundingBox());
   float m = .1 * std::min(_boundingRect.width(), _boundingRect.height());
   _boundingRect.adjust(-m, -m, m, m);
@@ -187,28 +187,27 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
     paint(painter, c, contour, dead);
 
   const auto &p = o->inPlantCoordinates();
-  QPointF p0 = toQPoint(p.start);
+  QPointF p0 = toQPoint(p.origin);
   float r = -qRadiansToDegrees(p.rotation);
   painter->save();
     painter->translate(p0);
     painter->rotate(r);
 
     const QPainterPath *path;
-    QColor c;
     if (o->length() == 0) {
-      c = apexColor(o);
       path = &pathForApex();
 
-      static const float W = segmentWidth();
+      static const float W = GConfig::sizeOf('s').width;
       painter->scale(W, W);
 
     } else {
-      c = color(o->symbol());
       path = &pathForSymbol(o->symbol());
       painter->scale(o->length(), o->width());
     }
 
     if (contour) painter->drawPath(*path);
+
+    QColor c = color(o);
     if (dead)  desaturate(c);
     painter->fillPath(*path, c);
 
@@ -224,7 +223,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   if (drawSimuBoundingBox != 0) {
     painter->save();
       if (drawSimuBoundingBox & 1) {
-        QRectF r = toRect(_plant.boundingRect());
+        QRectF r = toQRect(_plant.boundingRect());
         pen.setColor(Qt::red);
         painter->setPen(pen);
         painter->drawRect(r);
@@ -233,7 +232,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
         pen.setColor(Qt::green);
         painter->setPen(pen);
         for (const simu::Organ *o: _plant.organs())
-          painter->drawRect(toRect(_plant.organBoundingRect(o)));
+          painter->drawRect(toQRect(o->inPlantCoordinates().boundingRect));
       }
     painter->restore();
   }

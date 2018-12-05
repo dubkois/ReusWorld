@@ -4,10 +4,11 @@
 
 namespace simu {
 
+static constexpr bool debugPlantManagement = true;
 static constexpr bool debugReproduction = true;
 
 static constexpr bool debug = false
-  | debugReproduction;
+  | debugPlantManagement | debugReproduction;
 
 bool Simulation::init (void) {
   _step = 0;
@@ -17,10 +18,10 @@ bool Simulation::init (void) {
 
   // Interesting tree
 //  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("S -> ABC+l").toPair(),
+//    SRule::fromString("S -> AB[Cf]+l").toPair(),
 //    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
 //    SRule::fromString("B -> Bs").toPair(),
-//    SRule::fromString("C -> [f]").toPair(),
+//    SRule::fromString("C -> C+s").toPair(),
 //  };
 //  _ecosystem.plant.shoot.recursivity = 5;
 //  _ecosystem.plant.dethklok = 101;
@@ -53,7 +54,7 @@ bool Simulation::init (void) {
   _env.init();
 
   uint N = 5;//_ecosystem.initSeeds;
-  float dx = 5 * genotype::Plant::config_t::ls_segmentLength();
+  float dx = .5; // m
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
     auto pg = _ecosystem.plant.clone();
@@ -119,53 +120,86 @@ bool Simulation::reset (void) {
 void Simulation::addPlant(const PGenome &p, float x, float biomass) {
   auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0));
   if (pair.second) {
-    _env.addCollisionData(pair.first->second.get());
     pair.first->second->init(_env, biomass);
+    _env.addCollisionData(pair.first->second.get());
+
+    if (debugPlantManagement) {
+      Plant *p = pair.first->second.get();
+      std::cerr << PlantID(p) << " Added at " << p->pos() << std::endl;
+    }
   }
 }
 
 void Simulation::delPlant(float x) {
+  if (debugPlantManagement)
+    std::cerr << PlantID(_plants.at(x).get()) << " Deleted" << std::endl;
+
   _env.removeCollisionData(_plants.at(x).get());
   _plants.erase(x);
 }
 
 void Simulation::performReproductions(void) {
+  std::vector<Plant*> modifiedPlants;
+  if (debugReproduction)
+    std::cerr << "Performing reproduction(s)" << std::endl;
+
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
-    Plant *plant = it.second.get();
-    if (plant->sex() == Plant::Sex::FEMALE) continue;
+    Plant *father = it.second.get();
+    if (father->sex() == Plant::Sex::FEMALE) continue;
 
     bool fecundated = false;
-    auto &stamens = plant->stamens();
+    auto &stamens = father->stamens();
     for (auto it = stamens.begin(); it != stamens.end();
          it = fecundated ? stamens.erase(it) : ++it, fecundated = false) {
 
       Organ *stamen = *it;
 
       if (stamen->requiredBiomass() > 0)  continue;
-      physics::Spore s = _env.collectGeneticMaterial(plant, stamen);
+      physics::Pistil s = _env.collectGeneticMaterial(stamen);
 
       if (debugReproduction) {
         if (s.isValid())
-          std::cerr << OrganID(plant, stamen) << " Got a spore: "
-                    << OrganID(s.plant, s.flower) << std::endl;
+          std::cerr << OrganID(stamen) << " Got a spore: "
+                    << OrganID(s.organ) << std::endl;
         else
-          std::cerr << OrganID(plant, stamen) << " Could not find a spore"
+          std::cerr << OrganID(stamen) << " Could not find a spore"
                     << std::endl;
       }
 
       if (!s.isValid()) continue;
-      if (s.flower->requiredBiomass() > 0)  continue;
+      if (s.organ->requiredBiomass() > 0)  continue;
 
+      Plant *mother = s.organ->plant();
       Plant::Genome child;
-      bool fecundated = genotype::bailOutCrossver(s.plant->genome(),
-                                                  plant->genome(),
+      bool fecundated = genotype::bailOutCrossver(mother->genome(),
+                                                  father->genome(),
                                                   child, _env.dice());
 
+      if (debugReproduction)
+        std::cerr << "Mating " << mother->id() << " with " << father->id()
+                  << " (compat=" << mother->genome().compatibility(distance(mother->genome(), father->genome()))
+                  << ")? " << fecundated << std::endl;
+
       if (fecundated) {
-        s.plant->replaceWithFruit(s.flower, child, _env);
+        mother->replaceWithFruit(s.organ, child, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
+        modifiedPlants.push_back(mother);
       }
     }
+  }
+
+  for (Plant *p: modifiedPlants)
+    _env.updateCollisionDataFinal(p);
+}
+
+void Simulation::plantSeeds(Plant::Seeds &seeds) {
+  if (debugReproduction && seeds.size() > 0)
+    std::cerr << "Planting " << seeds.size() << " seeds" << std::endl;
+
+  for (const Plant::Seed &seed: seeds) {
+    float dx = 1 + 5 * seed.position.y;
+    float x = seed.position.x + _env.dice()(-dx, dx);
+    addPlant(seed.genome, x, seed.biomass);
   }
 }
 
@@ -175,10 +209,11 @@ void Simulation::step (void) {
 
   _env.step();
 
+  Plant::Seeds seeds;
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
-    p->step(_env);
+    p->step(_env, seeds);
     if (p->isDead())
       corpses.insert(p->pos().x);
   }
@@ -187,6 +222,7 @@ void Simulation::step (void) {
     delPlant(x);
 
   performReproductions();
+  plantSeeds(seeds);
 
   _step++;
 }

@@ -29,19 +29,17 @@ struct UpperLayer {
 };
 
 
-struct Spore {
-  Plant *const plant;
-  Organ *const flower;
+struct Pistil {
+  Organ *const organ;
 
   Disk boundingDisk;
 
-  Spore (void) : Spore(nullptr, nullptr, Disk()) {}
+  Pistil (void) : Pistil(nullptr, Disk()) {}
 
-  Spore (Plant *p, Organ *f, const Disk &d)
-    : plant(p), flower(f), boundingDisk(d) {}
+  Pistil (Organ *f, const Disk &d) : organ(f), boundingDisk(d) {}
 
   bool isValid (void) const {
-    return plant && flower && boundingDisk.radius > 0;
+    return organ && boundingDisk.radius > 0;
   }
 };
 

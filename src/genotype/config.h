@@ -41,8 +41,13 @@ struct SAG_CONFIG_FILE(Metabolism) {
 
 template <>
 struct SAG_CONFIG_FILE(Plant) {
+  using NonTerminal = genotype::grammar::NonTerminal;
+  using Successor = genotype::grammar::Successor;
+
   using Bui = Bounds<uint>;
+  using Bf = Bounds<float>;
   DECLARE_PARAMETER(Bui, dethklokBounds)
+  DECLARE_PARAMETER(Bf, fruitOvershootBounds)
   DECLARE_PARAMETER(Bui, seedsPerFruitBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
@@ -50,14 +55,20 @@ struct SAG_CONFIG_FILE(Plant) {
   using BOCConfig = genotype::BOCData::config_t;
   DECLARE_SUBCONFIG(BOCConfig, crossoverConfig)
 
-  DECLARE_PARAMETER(genotype::grammar::NonTerminal, ls_axiom)
-  DECLARE_PARAMETER(genotype::grammar::Successor, ls_shootInitRule)
-  DECLARE_PARAMETER(genotype::grammar::Successor, ls_rootInitRule)
-  DECLARE_PARAMETER(char, ls_maxNonTerminal)
+  DECLARE_PARAMETER(NonTerminal, ls_axiom)
+  DECLARE_PARAMETER(Successor, ls_shootInitRule)
+  DECLARE_PARAMETER(Successor, ls_rootInitRule)
+  DECLARE_PARAMETER(NonTerminal, ls_maxNonTerminal)
   DECLARE_PARAMETER(uint, ls_maxRuleSize)
   DECLARE_PARAMETER(float, ls_rotationAngle)
-  DECLARE_PARAMETER(float, ls_segmentWidth)
-  DECLARE_PARAMETER(float, ls_segmentLength)
+
+  struct TerminalSize {
+    float width, length;
+  };
+  using TerminalsSizes = std::map<char, TerminalSize>;
+  DECLARE_PARAMETER(TerminalsSizes, ls_terminalsSizes)
+  static const TerminalSize& sizeOf (char symbol);
+
 
   DECLARE_PARAMETER(Bui, ls_recursivityBounds)
   DECLARE_PARAMETER(MutationRates, ls_mutationRates)
@@ -65,6 +76,9 @@ struct SAG_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(MutationRates, ls_ruleMutationRates)
 };
 using PlantGenome = SAGConfigFile<genotype::Plant>;
+
+std::ostream& operator<< (std::ostream &os, const PlantGenome::TerminalSize &ts);
+std::istream& operator>> (std::istream &is, PlantGenome::TerminalSize &ts);
 
 } // end of namespace config
 

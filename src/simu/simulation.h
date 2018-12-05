@@ -66,6 +66,7 @@ protected:
   virtual void delPlant (float x);
 
   virtual void performReproductions (void);
+  virtual void plantSeeds (Plant::Seeds &seeds);
 };
 
 } // end of namespace simu

@@ -89,6 +89,7 @@ public:
   Metabolism metabolism;
   uint dethklok;
 
+  float fruitOvershoot; ///< Ratio of minimal resources per fruit
   uint seedsPerFruit;
 
 
@@ -138,6 +139,7 @@ DECLARE_GENOME_FIELD(Plant, LSystem<SHOOT>, shoot)
 DECLARE_GENOME_FIELD(Plant, LSystem<ROOT>, root)
 DECLARE_GENOME_FIELD(Plant, Metabolism, metabolism)
 DECLARE_GENOME_FIELD(Plant, uint, dethklok)
+DECLARE_GENOME_FIELD(Plant, float, fruitOvershoot)
 DECLARE_GENOME_FIELD(Plant, uint, seedsPerFruit)
 
 
