@@ -256,13 +256,7 @@ public:
     return _killed || spontaneousDeath();
   }
 
-  bool spontaneousDeath (void) const {
-    if (_genome.dethklok <= age())  return true;
-    for (Element e: EnumUtils<Element>::iterator())
-      if (_reserves[Layer::SHOOT][e] + _reserves[Layer::ROOT][e] <= 0)
-          return true;
-    return false;
-  }
+  bool spontaneousDeath (void) const;
 
   void step (Environment &env, Seeds &seeds);
 

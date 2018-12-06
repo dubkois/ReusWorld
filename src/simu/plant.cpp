@@ -233,6 +233,15 @@ float Plant::age (void) const {
   return _age / float(SConfig::stepsPerDay());
 }
 
+bool Plant::spontaneousDeath(void) const {
+  if (_genome.dethklok <= age())  return true;
+  if (_sinks.empty())  return true;
+//  for (Element e: EnumUtils<Element>::iterator())
+//    if (_reserves[Layer::SHOOT][e] + _reserves[Layer::ROOT][e] <= 0)
+//        return true;
+  return false;
+}
+
 uint Plant::deriveRules(Environment &env) {
   auto nonTerminals = _nonTerminals;
   uint derivations = 0;
@@ -514,7 +523,11 @@ void Plant::metabolicStep(Environment &env) {
                 << U_w << " = " << w << " * " << k_E << " * " << h->surface()
                 << " / " << uw_k << std::endl;
   }
+  if (debugMetabolism)
+    std::cerr << PlantID(this) << " Total water uptake of " << U_w;
   utils::iclip_max(U_w, _biomasses[Layer::ROOT] - _reserves[Layer::ROOT][Element::WATER]);
+  if (debugMetabolism)
+    std::cerr << " clipped to " << U_w << std::endl;
   _reserves[Layer::ROOT][Element::WATER] += U_w;
   assert(U_w >= 0);
   assert(_reserves[Layer::ROOT][Element::WATER] <= _biomasses[Layer::ROOT]);
@@ -549,8 +562,12 @@ void Plant::metabolicStep(Environment &env) {
                 << U_g << " = " << light << " * " << k_E << " * (" << i.r
                 << " - " << i.l << ") / " << ug_k << std::endl;
   }
+  if (debugMetabolism)
+    std::cerr << PlantID(this) << " Total glucose production of " << U_g;
   utils::iclip_max(U_g, _reserves[Layer::SHOOT][Element::WATER]);
   utils::iclip_max(U_g, _biomasses[Layer::SHOOT] - _reserves[Layer::SHOOT][Element::GLUCOSE]);
+  if (debugMetabolism)
+    std::cerr << " clipped to " << U_g << std::endl;
   _reserves[Layer::SHOOT][Element::WATER] -= U_g;
   _reserves[Layer::SHOOT][Element::GLUCOSE] += U_g;
   assert(U_g >= 0);
@@ -641,12 +658,14 @@ void Plant::metabolicStep(Environment &env) {
               << "\n\tbiomasses:";
     for (decimal b: _biomasses) std::cerr << " " << b;
     std::cerr << "\n\treserves:";
-    for (auto &rs: _reserves) {
-      std::cerr << " [";
-      for (decimal r: rs) std::cerr << " " << r;
-      std::cerr << " ]";
-    }
-    std::cerr << std::endl;
+    for (Layer l: EnumUtils<Layer>::iterator())
+      for (Element e: EnumUtils<Element>::iterator())
+        std::cerr << "\n\t\t"
+                  << EnumUtils<Layer>::getName(l)[0]
+                  << EnumUtils<Element>::getName(e)[0]
+                  << ": " << _reserves[l][e] << " ("
+                  << 100 * concentration(l, e) << " %)";
+    std::cerr << "\n" << std::endl;
   }
 
   if (SConfig::logIndividualStats()) {
@@ -730,7 +749,7 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
 
 void Plant::step (Environment &env, Seeds &seeds) {
   if (debug)
-    std::cerr << "## Plant " << id() << ", " << _age << " days old ##"
+    std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
 
   if (_age % SConfig::stepsPerDay() == 0) {
