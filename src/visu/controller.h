@@ -94,6 +94,9 @@ private:
   QAction* buildAction(QStyle::StandardPixmap pixmap, const QString &name,
                        const QKeySequence &shortcut);
 
+  QAction* buildAction(const QIcon &icon, const QString &name,
+                       const QKeySequence &shortcut);
+
   template <typename... ARGS>
   MultiAction* buildMultiAction (const QKeySequence &shortcut, ARGS... args);
 

@@ -102,7 +102,7 @@ public:
     _requiredBiomass = rb;
   }
   auto requiredBiomass (void) const {
-    return _requiredBiomass;
+    return std::max(0.f, _requiredBiomass);
   }
   float fullness (void) const;  ///< Returns ratio of accumulated biomass [0,1]
 
@@ -117,6 +117,9 @@ public:
 
   auto depth (void) const { return _depth;  }
 
+  bool isSeed (void) const {
+    return _symbol == config::PlantGenome::ls_axiom();
+  }
   bool isNonTerminal (void) const {
     return genotype::grammar::Rule_base::isValidNonTerminal(_symbol);
   }
@@ -241,11 +244,9 @@ public:
       return decimal(0);
   }
 
-  bool isSeed (void) const {
+  bool isInSeedState (void) const {
     if (_organs.size() == 2) {
-      for (Organ *o: _organs)
-        if (o->symbol() != config::PlantGenome::ls_axiom())
-          return false;
+      for (Organ *o: _organs) if (!o->isSeed()) return false;
       return true;
     }
     return false;
@@ -299,6 +300,7 @@ private:
   bool isSink (Organ *o) const;
   float sinkRequirement (Organ *o) const;  // How much more biomass it needs in [0,1]
   void biomassRequirements (Masses &wastes, Masses &growth);
+  static float seedBiomassRequirements(const Genome &mother, const Genome &child);
 
   static float ruleBiomassCost(const Genome &g, Layer l, char symbol);
   float ruleBiomassCost (Layer l, char symbol) const {

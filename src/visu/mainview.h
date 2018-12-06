@@ -27,6 +27,7 @@ class MainView : public QGraphicsView {
   QPointF _viewportCenter;
 
   Plant *_selection;
+  float _zoom;
 
 public:
   explicit MainView(const simu::Environment &e, QWidget *parent = nullptr);
@@ -38,7 +39,6 @@ public:
   void delPlantItem(float x);
 
   void mouseMoveEvent(QMouseEvent *e);
-  void mouseReleaseEvent(QMouseEvent *e);
 
 private:
   bool eventFilter (QObject*, QEvent *event) override;
@@ -52,6 +52,16 @@ public slots:
 
   void updateSelection(Plant *that);
   void focusOnSelection(void);
+
+  void zoomIn (void) {
+    _zoom *= 2.f;
+    focusOnSelection();
+  }
+
+  void zoomOut (void) {
+    _zoom *= .5f;
+    focusOnSelection();
+  }
 };
 
 } // end of namespace gui

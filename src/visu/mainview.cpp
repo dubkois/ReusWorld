@@ -13,7 +13,7 @@ namespace gui {
 
 MainView::MainView(const simu::Environment &e, QWidget *parent)
   : QGraphicsView(parent), _scene(new QGraphicsScene(parent)),
-    _env(new Environment(e)), _selection(nullptr) {
+    _env(new Environment(e)), _selection(nullptr), _zoom(1) {
 
   setScene(_scene);
   setDragMode(ScrollHandDrag);
@@ -48,9 +48,12 @@ void MainView::updatePlantItem(float x) {
 }
 
 void MainView::delPlantItem(float x) {
-  Plant *p = _plants.value(x);
+  auto it = _plants.find(x);
+  assert(it != _plants.end());
+  Plant *p = *it;
   assert(p);
-  if (p == _selection)  _selection = nullptr;
+  if (p == _selection)  selectNextPlant();
+  _plants.erase(it);
   _scene->removeItem(p);
   p->deleteLater();
 }
@@ -69,11 +72,6 @@ void MainView::resizeEvent (QResizeEvent *event) {
 void MainView::mouseMoveEvent(QMouseEvent *e) {
   _controller->updateMousePosition(mapToScene(e->pos()));
   QGraphicsView::mouseMoveEvent(e);
-}
-
-void MainView::mouseReleaseEvent(QMouseEvent *e) {
-  qDebug() << "Mouse event in view";
-  QGraphicsView::mouseReleaseEvent(e);
 }
 
 void MainView::selectPreviousPlant(void) {
@@ -111,18 +109,13 @@ void MainView::updateSelection(Plant *that) {
   _selection = that;
   _selection->setSelected(true);
   focusOnSelection();
-
-  const auto &p = _selection->plant();
-  std::cerr << "Genotype for plant(" << p.genome().cdata.id << "): "
-            << p.genome()
-            << "LSystem state: " << p
-            << std::endl;
 }
 
 void MainView::focusOnSelection(void) {
   if (!_selection)  return;
   fitInView(_selection->boundingRect().translated(_selection->pos()),
             Qt::KeepAspectRatio);
+  scale(_zoom, _zoom);
 }
 
 } // end of namespace gui

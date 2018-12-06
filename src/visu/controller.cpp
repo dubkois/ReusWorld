@@ -57,11 +57,12 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   QMenuBar *menuBar = w.menuBar();
   QMenu *menuSimulation = menuBar->addMenu("Simulation");
-
-  menuBar->addMenu(menuSimulation);
+  QMenu *menuVisualisation = menuBar->addMenu("Visualisation");
 
   QToolBar *controlToolbar = new QToolBar,
            *statusToolbar = new QToolBar;
+
+  // == Simu ===================================================================
 
   QAction *reset = buildAction(QStyle::SP_BrowserReload, "Reset",
                                QKeySequence("Ctrl+R"));
@@ -71,10 +72,10 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
                                             QStyle::SP_MediaPause, "Pause");
 
   QAction *slower = buildAction(QStyle::SP_MediaSeekBackward, "Slow down",
-                                QKeySequence("-"));
+                                QKeySequence("Ctrl+-"));
 
   QAction *faster = buildAction(QStyle::SP_MediaSeekForward, "Speed up",
-                                QKeySequence("+"));
+                                QKeySequence("Ctrl++"));
 
   QAction *step = buildAction(QStyle::SP_MediaSkipForward, "Step",
                               QKeySequence("N"));
@@ -85,14 +86,32 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   QAction *prevPlant = buildAction(QStyle::SP_ArrowLeft, "Prev",
                                    QKeySequence::MoveToPreviousChar);
 
+  // == Visu ===================================================================
+
+  QAction *fullscreen = buildAction(QIcon::fromTheme("view-fullscreen"),
+                                    "Fullscreen", QKeySequence("F11"));
+
+  QAction *zoomOut = buildAction(QIcon::fromTheme("zoom-out"), "Zoom out",
+                                 QKeySequence("-"));
+
+  QAction *zoomIn = buildAction(QIcon::fromTheme("zoom-in"), "Zoom in",
+                                QKeySequence("+"));
+
   _window.setCentralWidget(_view);
 
   menuSimulation->addAction(reset);
   menuSimulation->addAction(playPause);
   menuSimulation->addAction(step);
   menuSimulation->addSeparator();
+  menuSimulation->addAction(slower);
+  menuSimulation->addAction(faster);
+  menuSimulation->addSeparator();
   menuSimulation->addAction(prevPlant);
   menuSimulation->addAction(nextPlant);
+
+  menuVisualisation->addAction(fullscreen);
+  menuVisualisation->addAction(zoomOut);
+  menuVisualisation->addAction(zoomIn);
 
   statusToolbar->setMovable(false);
   _window.addToolBar(Qt::BottomToolBarArea, statusToolbar);
@@ -137,6 +156,15 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   connect(nextPlant, &QAction::triggered, _view, &gui::MainView::selectNextPlant);
   connect(prevPlant, &QAction::triggered, _view, &gui::MainView::selectPreviousPlant);
 
+  connect(fullscreen, &QAction::triggered, [this] {
+    if (!_window.isFullScreen())
+      _window.showFullScreen();
+    else
+      _window.showNormal();
+  });
+  connect(zoomIn, &QAction::triggered, _view, &gui::MainView::zoomIn);
+  connect(zoomOut, &QAction::triggered, _view, &gui::MainView::zoomOut);
+
   _speed = 1;
   connect(&_timer, &QTimer::timeout, this, &Controller::step);
 
@@ -148,7 +176,14 @@ QAction* Controller::buildAction(QStyle::StandardPixmap pixmap,
                                  const QString &name,
                                  const QKeySequence &shortcut) {
 
-  QAction *action = new QAction(style()->standardIcon(pixmap), name, _view);
+  return buildAction(style()->standardIcon(pixmap), name, shortcut);
+}
+
+QAction* Controller::buildAction(const QIcon &icon,
+                                 const QString &name,
+                                 const QKeySequence &shortcut) {
+
+  QAction *action = new QAction(icon, name, _view);
   action->setShortcut(shortcut);
   return action;
 }

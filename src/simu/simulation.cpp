@@ -125,14 +125,33 @@ void Simulation::addPlant(const PGenome &p, float x, float biomass) {
 
     if (debugPlantManagement) {
       Plant *p = pair.first->second.get();
-      std::cerr << PlantID(p) << " Added at " << p->pos() << std::endl;
+      std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
+                << biomass << " initial biomass" << std::endl;
     }
   }
 }
 
 void Simulation::delPlant(float x) {
-  if (debugPlantManagement)
-    std::cerr << PlantID(_plants.at(x).get()) << " Deleted" << std::endl;
+  if (debugPlantManagement) {
+    Plant *p = _plants.at(x).get();
+    bool spontaneous = p->spontaneousDeath();
+    std::cerr << PlantID(p) << " Deleted."
+              << " Death was " << (spontaneous ? "spontaneous" : "forced");
+    if (spontaneous) {
+      std::cerr << "\n\tReserves:";
+
+      using PL = EnumUtils<Plant::Layer>;
+      using PE = EnumUtils<Plant::Element>;
+      for (auto l: PL::iterator())
+        for (auto e: PE::iterator())
+          std::cerr << " {" << PL::getName(l)[0] << PE::getName(e)[0]
+                    << ": " << 100 * p->concentration(l, e) << "%}";
+
+      std::cerr << "\n\tAge: " << p->age() << " / " << p->genome().dethklok
+                << "\n\tOrgans: " << p->organs().size()
+                << std::endl;
+    }
+  }
 
   _env.removeCollisionData(_plants.at(x).get());
   _plants.erase(x);
@@ -159,10 +178,10 @@ void Simulation::performReproductions(void) {
 
       if (debugReproduction) {
         if (s.isValid())
-          std::cerr << OrganID(stamen) << " Got a spore: "
+          std::cerr << "\t" << OrganID(stamen) << " Got a spore: "
                     << OrganID(s.organ) << std::endl;
         else
-          std::cerr << OrganID(stamen) << " Could not find a spore"
+          std::cerr << "\t" << OrganID(stamen) << " Could not find a spore"
                     << std::endl;
       }
 
@@ -175,10 +194,14 @@ void Simulation::performReproductions(void) {
                                                   father->genome(),
                                                   child, _env.dice());
 
-      if (debugReproduction)
-        std::cerr << "Mating " << mother->id() << " with " << father->id()
-                  << " (compat=" << mother->genome().compatibility(distance(mother->genome(), father->genome()))
-                  << ")? " << fecundated << std::endl;
+      if (debugReproduction) {
+        double d = distance(mother->genome(), father->genome());
+        double c = mother->genome().compatibility(d);
+        assert(c > 0);
+        std::cerr << "\tMating " << mother->id() << " with " << father->id()
+                  << " (dist=" << d << ", compat=" << c << ")? "
+                  << fecundated << std::endl;
+      }
 
       if (fecundated) {
         mother->replaceWithFruit(s.organ, child, _env);
@@ -194,11 +217,12 @@ void Simulation::performReproductions(void) {
 
 void Simulation::plantSeeds(Plant::Seeds &seeds) {
   if (debugReproduction && seeds.size() > 0)
-    std::cerr << "Planting " << seeds.size() << " seeds" << std::endl;
+    std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
   for (const Plant::Seed &seed: seeds) {
     float dx = 1 + 5 * seed.position.y;
-    float x = seed.position.x + _env.dice()(-dx, dx);
+    float x = seed.position.x
+        + _env.dice().toss(1.f, -1.f) * _env.dice()(rng::ndist(dx, dx/3));
     addPlant(seed.genome, x, seed.biomass);
   }
 }

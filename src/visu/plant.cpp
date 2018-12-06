@@ -14,6 +14,14 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
+static constexpr bool drawOrganContour = true;
+static constexpr bool drawQtBoundingBox = false;
+
+static auto apexSize (void) {
+  static const float s = GConfig::sizeOf('s').width;
+  return s;
+}
+
 struct Plant::PlantMenu : public QMenu {
   Plant *plantVisu;
 
@@ -32,16 +40,6 @@ struct Plant::PlantMenu : public QMenu {
     QMenu::popup(pos);
   }
 };
-
-const auto& seedPath (void) {
-  static const QPainterPath path = [] {
-    QPainterPath seed;
-    const auto &size = GConfig::sizeOf('s');
-    seed.addEllipse({0,0}, .25 * size.length, .5 * size.length);
-    return seed;
-  }();
-  return path;
-}
 
 const auto& pathForSymbol (char symbol) {
   static const auto defaultPath = [] {
@@ -106,7 +104,10 @@ const auto& pathForApex (void) {
 }
 
 const auto& minBoundingBox (void) {
-  static const QRectF box = seedPath().boundingRect();
+  static const auto box = [] {
+    float AS = apexSize();
+    return QRectF (-.5*AS, -AS, AS, 2*AS);
+  }();
   return box;
 }
 
@@ -167,7 +168,12 @@ void Plant::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) {
   qDebug() << "Plant::mouseDoubleClickEvent(" << e->button() << "," << e->buttons() << ")";
   if (e->button() == Qt::LeftButton) {
     setSelected(true);
-    emit selected(this);
+    std::cerr << "Genotype for plant(" << _plant.genome().cdata.id << "): "
+              << _plant.genome()
+              << "LSystem state: " << _plant
+              << std::endl;
+
+    emit selected(this);    
   }
 
   QGraphicsObject::mouseDoubleClickEvent(e);
@@ -177,10 +183,6 @@ void Plant::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
   qDebug() << "Plant::contextMenuEvent()";
   contextMenu()->popup(e->screenPos(), this);
 }
-
-static constexpr bool drawOrganContour = true;
-static constexpr int drawSimuBoundingBox = 0;
-static constexpr bool drawQtBoundingBox = false;
 
 void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
   for (simu::Organ *c: o->children())
@@ -197,8 +199,8 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
     if (o->length() == 0) {
       path = &pathForApex();
 
-      static const float W = GConfig::sizeOf('s').width;
-      painter->scale(W, W);
+      static const float AS = apexSize();
+      painter->scale(AS, AS);
 
     } else {
       path = &pathForSymbol(o->symbol());
@@ -220,22 +222,6 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   pen.setWidth(0);
   painter->setPen(pen);
 
-  if (drawSimuBoundingBox != 0) {
-    painter->save();
-      if (drawSimuBoundingBox & 1) {
-        QRectF r = toQRect(_plant.boundingRect());
-        pen.setColor(Qt::red);
-        painter->setPen(pen);
-        painter->drawRect(r);
-      }
-      if (drawSimuBoundingBox & 2) {
-        pen.setColor(Qt::green);
-        painter->setPen(pen);
-        for (const simu::Organ *o: _plant.organs())
-          painter->drawRect(toQRect(o->inPlantCoordinates().boundingRect));
-      }
-    painter->restore();
-  }
   if (drawQtBoundingBox) {
     painter->save();
       QRectF r = boundingRect();
@@ -251,18 +237,10 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
     painter->setPen(pen);
   }
 
-
 //  qDebug() << "Drawing: " << uint(_plant.genome().cdata.id) << _plant.age();
-  if (_plant.isSeed()) {
-    const QPainterPath &path = seedPath();
-    painter->fillPath(path, seedColor);
-    if (doDrawOrganContour) painter->drawPath(path);
-
-  } else {
-    bool dead = _plant.isDead();
-    for (const simu::Organ *o: _plant.bases())
-      gui::paint(painter, o, doDrawOrganContour, dead);
-  }
+  bool dead = _plant.isDead();
+  for (const simu::Organ *o: _plant.bases())
+    gui::paint(painter, o, doDrawOrganContour, dead);
 
   painter->restore();
 }

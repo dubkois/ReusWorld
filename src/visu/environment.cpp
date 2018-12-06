@@ -95,8 +95,9 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
     const auto& pistils = _object.collisionData().pistils();
     for (const simu::physics::Pistil &s: pistils)
-      painter->drawEllipse(toQPoint(s.boundingDisk.center),
-                           s.boundingDisk.radius, s.boundingDisk.radius);
+      if (s.organ->fullness() > .99)
+        painter->drawEllipse(toQPoint(s.boundingDisk.center),
+                             s.boundingDisk.radius, s.boundingDisk.radius);
 
     painter->restore();
   }

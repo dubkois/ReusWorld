@@ -14,14 +14,15 @@ using Rule_base = genotype::grammar::Rule_base;
 
 static const auto A = GConfig::ls_rotationAngle();
 
-static constexpr bool debugMetabolism = true;
-static constexpr bool debugDerivation = false;
-static constexpr bool debugGrowth = false;
 static constexpr bool debugOrganManagement = false;
+static constexpr bool debugDerivation = false;
+static constexpr bool debugMetabolism = true;
+static constexpr bool debugGrowth = false;
+static constexpr bool debugReproduction = false;
 
 static constexpr bool debug = false
-  | debugMetabolism | debugDerivation | debugGrowth
-  | debugOrganManagement;
+  | debugOrganManagement | debugDerivation | debugMetabolism | debugGrowth
+  | debugReproduction;
 
 bool nonNullAngle (float a) {
   return fabs(a) > 1e-6;
@@ -47,7 +48,8 @@ float Organ::fullness(void) const {
   float f = 1 - _requiredBiomass / (biomass() + _requiredBiomass);
   assert(biomass() > 0);
   assert(_requiredBiomass != 0 || f == 1);
-  assert(0 <= f && f <= 1);
+  assert(isSeed() || (0 <= f && f <= 1));
+  utils::iclip_max(f, 1.f);
   return f;
 }
 
@@ -104,11 +106,20 @@ void Organ::updateTransformation(void) {
   _plantCoordinates.end = _plantCoordinates.origin
       + Point::fromPolar(_plantCoordinates.rotation, _length);
 
-  Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * width()});
+  Point pend = _plantCoordinates.end;
+  auto width = _width;
+  if (_length == 0 && _width == 0) {
+    static const auto S = GConfig::ls_terminalsSizes().at('s').width;
+    width = S;
+    pend = _plantCoordinates.origin
+        + Point::fromPolar(_plantCoordinates.rotation, S);
+  }
+
+  Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * width});
 
   Point corners [] {
-    _plantCoordinates.origin + v, _plantCoordinates.origin - v,
-    _plantCoordinates.end + v, _plantCoordinates.end - v
+    _plantCoordinates.origin + v, pend + v,
+    _plantCoordinates.origin - v, pend - v
   };
 
   Rect &pr = _plantCoordinates.boundingRect;
@@ -121,6 +132,7 @@ void Organ::updateTransformation(void) {
   }
 
   _plantCoordinates.center = pr.center();
+
 
   const Point &pp = _plant->pos();
   _globalCoordinates.origin = _plantCoordinates.origin + pp;
@@ -188,7 +200,7 @@ void Plant::init (Environment &env, float biomass) {
   updateInternals();
 
   // Distribute initial resources to producer modules
-  assert(isSeed());
+  assert(isInSeedState());
   float totalBR = 0;
   for (Organ *o: _organs) totalBR += o->requiredBiomass();
   for (Organ *o: _organs)
@@ -432,7 +444,8 @@ float Plant::sinkRequirement (Organ *o) const {
     required = (1 + SConfig::floweringCost()) * o->biomass();
 
   } else if (o->isFruit()) {
-    required = initialBiomassFor(_fruits.at(o->id()).genome) * _genome.seedsPerFruit;
+    required = seedBiomassRequirements(_genome, _fruits.at(o->id()).genome)
+      * _genome.seedsPerFruit;
 
   } else if (o->isStructural()) {
     const auto &size = GConfig::sizeOf(o->symbol());
@@ -478,6 +491,10 @@ void Plant::biomassRequirements (Masses &wastes, Masses &growth) {
     growth[o->layer()] += o->requiredBiomass();
 }
 
+float Plant::seedBiomassRequirements(const Genome &mother, const Genome &child) {
+  return initialBiomassFor(child) * mother.fruitOvershoot;
+}
+
 void Plant::metabolicStep(Environment &env) {
   using genotype::Element;
   using L_EU = EnumUtils<Layer>;
@@ -493,12 +510,13 @@ void Plant::metabolicStep(Environment &env) {
     decimal w = env.waterAt(h->globalCoordinates().center);
     U_w += w * k_E * h->surface() / uw_k;
     if (debugMetabolism)
-      std::cerr << "[O" << h->id() << h->symbol() << "] drawing "
+      std::cerr << OrganID(h) << " Drawing "
                 << U_w << " = " << w << " * " << k_E << " * " << h->surface()
                 << " / " << uw_k << std::endl;
   }
   utils::iclip_max(U_w, _biomasses[Layer::ROOT] - _reserves[Layer::ROOT][Element::WATER]);
   _reserves[Layer::ROOT][Element::WATER] += U_w;
+  assert(U_w >= 0);
   assert(_reserves[Layer::ROOT][Element::WATER] <= _biomasses[Layer::ROOT]);
 
 
@@ -535,6 +553,7 @@ void Plant::metabolicStep(Environment &env) {
   utils::iclip_max(U_g, _biomasses[Layer::SHOOT] - _reserves[Layer::SHOOT][Element::GLUCOSE]);
   _reserves[Layer::SHOOT][Element::WATER] -= U_g;
   _reserves[Layer::SHOOT][Element::GLUCOSE] += U_g;
+  assert(U_g >= 0);
   assert(_reserves[Layer::SHOOT][Element::GLUCOSE] <= _biomasses[Layer::SHOOT]);
 
 
@@ -602,7 +621,7 @@ void Plant::metabolicStep(Environment &env) {
 
   for (Organ *s: _sinks) {
     decimal r = s->requiredBiomass();
-    assert(r >= 0);
+    assert(s->isSeed() || r >= 0);
     if (r <= 0) continue;
     decimal b = X[s->layer()] * r / G[s->layer()];
 
@@ -669,14 +688,22 @@ float Plant::initialBiomassFor (const Genome &g) {
 
 void Plant::collectFruits(Seeds &seeds, Environment &env) {
   bool dead = this->isDead();
+  if (debugReproduction && dead)
+    std::cerr << PlantID(this) << " Dead. Force collecting fruits" << std::endl;
+
   std::vector<Organ*> collectedFruits;
   for (auto &p: _fruits) {
     Organ *fruit = p.second.fruit;
 
-    if (dead || fabs(fruit->fullness() - 1) > 1e-3) {
+    if (debugReproduction)
+      std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit) << " at "
+                << 100 * fruit->fullness() << "% capacity" << std::endl;
+
+    if (dead || fabs(fruit->fullness() - 1) < 1e-3) {
       uint S = _genome.seedsPerFruit;
       float biomass = fruit->biomass();
-      float biomassPerSeed = biomass / float(S);
+      float requestedBiomass = seedBiomassRequirements(_genome, p.second.genome);
+      float biomassPerSeed = std::min(biomass, requestedBiomass);
       for (uint i=0; i<S && biomass > 0; i++) {
         Genome g = p.second.genome;
         Point pos = fruit->globalCoordinates().center;
@@ -684,6 +711,11 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
         g.cdata.id = genotype::BOCData::nextID();
         seeds.push_back({biomassPerSeed, g, pos});
         biomass -= biomassPerSeed;
+
+        if (debugReproduction)
+          std::cerr << PlantID(this) << " Created seed from " << OrganID(fruit)
+                    << " at " << 100 * biomassPerSeed / requestedBiomass
+                    << "% capacity" << std::endl;
       }
       collectedFruits.push_back(fruit);
     }

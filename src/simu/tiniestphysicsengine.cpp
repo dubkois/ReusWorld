@@ -354,8 +354,11 @@ struct LowerBound {
 };
 CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
   Disk boundingDisk = boundingDiskFor(s);
-  auto itL = std::next(_pistils.lower_bound(LowerBound{boundingDisk})),
-       itR = itL;
+  auto itL = _pistils.lower_bound(LowerBound{boundingDisk});
+  if (itL == _pistils.end())  return { itL, itL };
+
+  itL = std::next(itL);
+  auto itR = itL;
   while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
     itR = std::next(itR);
   return { itL, itR };
