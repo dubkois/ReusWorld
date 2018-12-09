@@ -4,8 +4,8 @@
 
 namespace simu {
 
-static constexpr bool debugPlantManagement = true;
-static constexpr bool debugReproduction = true;
+static constexpr bool debugPlantManagement = false;
+static constexpr bool debugReproduction = false;
 
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction;
@@ -16,14 +16,31 @@ bool Simulation::init (void) {
   using SRule = genotype::LSystem<genotype::SHOOT>::Rule;
   using RRule = genotype::LSystem<genotype::ROOT>::Rule;
 
-  // Interesting tree
+  // Unbalanced shoot/root rules
 //  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("S -> AB[Cf]+l").toPair(),
-//    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
-//    SRule::fromString("B -> Bs").toPair(),
-//    SRule::fromString("C -> C+s").toPair(),
+//    SRule::fromString("S -> [-Al][+Al]l").toPair(),
+//    SRule::fromString("A -> As[-l][+l]").toPair(),
 //  };
 //  _ecosystem.plant.shoot.recursivity = 5;
+//  _ecosystem.plant.root.rules = {
+//    RRule::fromString("S -> [-Ah][+Ah]").toPair(),
+//    RRule::fromString("A -> hA[+Ah]").toPair(),
+//  };
+//  _ecosystem.plant.root.recursivity = 5;
+//  _ecosystem.plant.dethklok = 101;
+
+  // Interesting tree
+//  _ecosystem.plant.shoot.rules = {
+//    SRule::fromString("S -> AB[-Al][+Al]f").toPair(),
+//    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
+//    SRule::fromString("B -> Bs").toPair(),
+//  };
+//  _ecosystem.plant.shoot.recursivity = 5;
+//  _ecosystem.plant.root.rules = {
+//    RRule::fromString("S -> [-Ah][+Ah][Ah]").toPair(),
+//    RRule::fromString("A -> hA[+Ah]").toPair(),
+//  };
+//  _ecosystem.plant.root.recursivity = 2;
 //  _ecosystem.plant.dethklok = 101;
 
   // Collision debugging genotype
@@ -53,7 +70,7 @@ bool Simulation::init (void) {
 
   _env.init();
 
-  uint N = 5;//_ecosystem.initSeeds;
+  uint N = _ecosystem.initSeeds;
   float dx = .5; // m
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
@@ -132,27 +149,7 @@ void Simulation::addPlant(const PGenome &p, float x, float biomass) {
 }
 
 void Simulation::delPlant(float x) {
-  if (debugPlantManagement) {
-    Plant *p = _plants.at(x).get();
-    bool spontaneous = p->spontaneousDeath();
-    std::cerr << PlantID(p) << " Deleted."
-              << " Death was " << (spontaneous ? "spontaneous" : "forced");
-    if (spontaneous) {
-      std::cerr << "\n\tReserves:";
-
-      using PL = EnumUtils<Plant::Layer>;
-      using PE = EnumUtils<Plant::Element>;
-      for (auto l: PL::iterator())
-        for (auto e: PE::iterator())
-          std::cerr << " {" << PL::getName(l)[0] << PE::getName(e)[0]
-                    << ": " << 100 * p->concentration(l, e) << "%}";
-
-      std::cerr << "\n\tAge: " << p->age() << " / " << p->genome().dethklok
-                << "\n\tOrgans: " << p->organs().size()
-                << std::endl;
-    }
-  }
-
+  if (debugPlantManagement) _plants.at(x)->autopsy();
   _env.removeCollisionData(_plants.at(x).get());
   _plants.erase(x);
 }
@@ -212,7 +209,7 @@ void Simulation::performReproductions(void) {
   }
 
   for (Plant *p: modifiedPlants)
-    _env.updateCollisionDataFinal(p);
+    p->update(_env);
 }
 
 void Simulation::plantSeeds(Plant::Seeds &seeds) {
@@ -248,7 +245,36 @@ void Simulation::step (void) {
   performReproductions();
   plantSeeds(seeds);
 
+  if (config::Simulation::logGlobalStats()) {
+    std::ofstream ofs;
+    std::ios_base::openmode mode = std::fstream::out;
+    if (_step > 0)  mode |= std::fstream::app;
+    else            mode |= std::fstream::trunc;
+    ofs.open("global.dat", mode);
+
+    if (_step == 0)
+      ofs << "Plants Biomass FM_ratio Flowers Fruits\n";
+
+    using decimal = Plant::decimal;
+    decimal biomass = 0;
+    uint flowers = 0, fruits = 0;
+    uint females = 0, males = 0;
+    for (const auto &p: _plants) {
+      const Plant &plant = *p.second;
+      biomass += plant.biomass();
+      flowers += plant.flowers().size();
+      fruits += plant.fruits().size();
+      females += (plant.sex() == Plant::Sex::FEMALE);
+      males += (plant.sex() == Plant::Sex::MALE);
+    }
+    ofs << _plants.size() << " " << biomass << " " << float(females) / float(males)
+        << " " << flowers << " " << fruits << std::endl;
+  }
+
   _step++;
+  if (finished())
+    std::cerr << "Simulation completed in " << _step << " steps"
+              << std::endl;
 }
 
 } // end of namespace simu

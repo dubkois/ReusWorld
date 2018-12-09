@@ -29,7 +29,7 @@ while getopts "h?c:f:p" opt; do
         ;;
     f)  file=$OPTARG
         ;;
-    p)  persist="--"
+    p)  persist="-"
         ;;
     esac
 done

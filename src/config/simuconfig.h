@@ -14,6 +14,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
 
   DECLARE_PARAMETER(bool, logIndividualStats)
+  DECLARE_PARAMETER(bool, logGlobalStats)
 
   DECLARE_PARAMETER(uint, stepsPerDay)
   DECLARE_PARAMETER(uint, daysPerYear)

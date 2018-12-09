@@ -58,7 +58,7 @@ private:
 
   Organ *_parent;
   std::set<Organ*> _children;
-  uint _depth;
+  uint _depth;  ///< Height of the subtree rooted here
 
   float _surface;
   float _baseBiomass, _accumulatedBiomass, _requiredBiomass;
@@ -94,6 +94,9 @@ public:
   auto baseBiomass (void) const {
     return _baseBiomass;
   }
+  auto accumulatedBiomass (void) const {
+    return _accumulatedBiomass;
+  }
   auto biomass (void) const {
     return _baseBiomass + _accumulatedBiomass;
   }
@@ -115,7 +118,11 @@ public:
   auto& children (void) { return _children; }
   const auto& children (void) const { return _children; }
 
-  auto depth (void) const { return _depth;  }
+  void updateDepth (uint newDepth);
+  void updateParentDepth (void);
+  auto depth (void) const {
+    return _depth;
+  }
 
   bool isSeed (void) const {
     return _symbol == config::PlantGenome::ls_axiom();
@@ -154,6 +161,8 @@ public:
   };
   using Seeds = std::vector<Seed>;
 
+  using decimal = genotype::Metabolism::decimal;
+
 private:
   Genome _genome;
   Point _pos;
@@ -170,7 +179,6 @@ private:
 
   Rect _boundingRect;
 
-  using decimal = genotype::Metabolism::decimal;
   using Masses = std::array<decimal, EnumUtils<Layer>::size()>;
   Masses _biomasses;
 
@@ -190,6 +198,11 @@ private:
 
   bool _killed;
 
+  enum State {
+    DIRTY_METABOLISM, DIRTY_COLLISION
+  };
+  std::bitset<2> _dirty;
+
 public:
   Plant(const Genome &g, float x, float y);
   ~Plant (void);
@@ -197,6 +210,8 @@ public:
   void init (Environment &env, float biomass);
 
   void replaceWithFruit (Organ *o, const Genome &g, Environment &env);
+
+  void update (Environment &env);
 
   auto id (void) const {
     return _genome.cdata.id;
@@ -217,6 +232,14 @@ public:
   auto& stamens (void) {
     assert(sex() == Sex::MALE);
     return _flowers;
+  }
+
+  const auto& flowers (void) const {
+    return _flowers;
+  }
+
+  const auto& fruits (void) const {
+    return _fruits;
   }
 
   float age (void) const;
@@ -257,6 +280,7 @@ public:
   }
 
   bool spontaneousDeath (void) const;
+  void autopsy (void) const;
 
   void step (Environment &env, Seeds &seeds);
 
@@ -282,24 +306,31 @@ public:
   }
 
   static float primordialPlantBaseBiomass (const Genome &g) {
-    return initialBiomassFor(g);
+    return seedBiomassRequirements(g, g);
   }
 
 private:  
   uint deriveRules(Environment &env);
 
   void metabolicStep (Environment &env);
-  void updateInternals (void);
+  void updateMetabolicValues (void);
 
   bool isSink (Organ *o) const;
   float sinkRequirement (Organ *o) const;  // How much more biomass it needs in [0,1]
   void biomassRequirements (Masses &wastes, Masses &growth);
-  static float seedBiomassRequirements(const Genome &mother, const Genome &child);
+  void updateRequirements (void);
+
+  template <typename F>
+  void distributeBiomass (decimal amount, Organs &organs, F match);
+
+  template <typename F>
+  void distributeBiomass (decimal amount, Organs &organs, decimal total, F match);
 
   static float ruleBiomassCost(const Genome &g, Layer l, char symbol);
   float ruleBiomassCost (Layer l, char symbol) const {
     return ruleBiomassCost(_genome, l, symbol);
   }
+  static float seedBiomassRequirements(const Genome &mother, const Genome &child);
 
   static float initialBiomassFor (const Genome &g);
 
@@ -330,8 +361,8 @@ private:
 #ifndef NDEBUG
 
 struct PlantID {
-  Plant *p;
-  PlantID (Plant *p) : p(p) {}
+  const Plant *p;
+  PlantID (const Plant *p) : p(p) {}
   static void print(std::ostream &os, const Plant *p) {
     os << "P" << p->id();
   }
@@ -347,7 +378,8 @@ struct OrganID {
   friend std::ostream& operator<< (std::ostream &os, const OrganID &oid) {
     os << "[";
     PlantID::print(os, oid.o->plant());
-    return os << ":O" << oid.o->id() << oid.o->symbol() << "]";
+    return os << ":" << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0]
+              << "O" << oid.o->id() << oid.o->symbol() << "]";
   }
 };
 #endif

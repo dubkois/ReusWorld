@@ -9,6 +9,7 @@ DEFINE_SUBCONFIG(genotype::Plant::config_t, plantGenotypeConfig)
 DEFINE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
 
 DEFINE_PARAMETER(bool, logIndividualStats, false)
+DEFINE_PARAMETER(bool, logGlobalStats, false)
 
 DEFINE_PARAMETER(uint, stepsPerDay, 10)
 DEFINE_PARAMETER(uint, daysPerYear, 100)

@@ -119,6 +119,12 @@ struct Disk {
 
     return dXSquared + dYSquared <= sumRadiiSquared;
   }
+
+#ifndef NDEBUG
+  friend std::ostream& operator<< (std::ostream &os, const Disk &d) {
+    return os << "{" << d.center << ", " << d.radius << "}";
+  }
+#endif
 };
 
 struct Position {

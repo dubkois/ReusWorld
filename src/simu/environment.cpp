@@ -27,8 +27,12 @@ void Environment::destroy (void) {
 void Environment::step (void) {}
 
 float Environment::waterAt(const Point &p) {
-  uint v = p.x * _genome.voxels / _genome.width;
-  float d = p.y / _genome.depth;
+  assert(-xextent() <= p.x && p.x <= xextent());
+  assert(-yextent() <= p.y && p.y <= 0);
+  uint v = (p.x + xextent()) * float(_genome.voxels) / width();
+  assert(v < _genome.voxels);
+  float d = - p.y / yextent();
+  assert(0 <= d && d <= 1);
   return _layers[SHALLOW][v] * uint(d) + _layers[DEEP][v] * (1.f - uint(d));
 }
 

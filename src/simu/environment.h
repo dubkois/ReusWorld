@@ -34,19 +34,19 @@ public:
   void init (void);
   void destroy (void);
 
-  float width (void) const {
+  auto width (void) const {
     return _genome.width;
   }
 
-  float height (void) const {
+  auto height (void) const {
     return 2. * _genome.depth;
   }
 
-  float xextent (void) const {
+  auto xextent (void) const {
     return .5 * _genome.width;
   }
 
-  float yextent (void) const {
+  auto yextent (void) const {
     return _genome.depth;
   }
 

@@ -2,6 +2,8 @@
 #include <QEvent>
 #include <QMouseEvent>
 
+#include <QScrollBar>
+
 #include "kgd/apt/visu/graphicsviewzoom.h"
 
 #include "mainview.h"
@@ -74,6 +76,15 @@ void MainView::mouseMoveEvent(QMouseEvent *e) {
   QGraphicsView::mouseMoveEvent(e);
 }
 
+void MainView::mouseDoubleClickEvent(QMouseEvent *e) {
+  if (_selection) {
+    _selection->setSelected(false);
+    _selection->update();
+    _selection = nullptr;
+  }
+  QGraphicsView::mouseDoubleClickEvent(e);
+}
+
 void MainView::selectPreviousPlant(void) {
   if (!_plants.empty()) {
     Plant *p = nullptr;
@@ -116,6 +127,39 @@ void MainView::focusOnSelection(void) {
   fitInView(_selection->boundingRect().translated(_selection->pos()),
             Qt::KeepAspectRatio);
   scale(_zoom, _zoom);
+}
+
+void MainView::paintEvent(QPaintEvent *e) {
+  QGraphicsView::paintEvent(e);
+
+  static constexpr float M = 10;
+  static constexpr float H = 10;
+
+  QPainter painter (viewport());
+
+  QPointF p0 = rect().bottomLeft();
+  p0 += QPointF(M, - M - .5*H - horizontalScrollBar()->height());
+
+  QPointF p1 = p0 + QPointF(.1*rect().width(), 0);
+
+  painter.drawLine(p0, p1);
+  painter.drawLine(p0 + QPointF(0, -.5*H), p0 + QPointF(0, .5*H));
+  painter.drawLine(p1 + QPointF(0, -.5*H), p1 + QPointF(0, .5*H));
+
+  qreal width = mapToScene(p1.toPoint()).x() - mapToScene(p0.toPoint()).x();
+  QString unit = "m";
+
+  if (width < 1) {
+    width *= 100.;
+    unit = "cm";
+  }
+  if (width < 1) {
+    width *= 10.;
+    unit = "mm";
+  }
+
+  painter.drawText(QRectF(p0.x(), p0.y() -1.5*H, p1.x() - p0.x(), 1.5*H),
+                   Qt::AlignCenter, QString::number(width, 'f', 2) + unit);
 }
 
 } // end of namespace gui

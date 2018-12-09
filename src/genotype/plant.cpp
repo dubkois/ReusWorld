@@ -6,6 +6,8 @@
 using namespace genotype;
 using Config = config::PlantGenome;
 
+static constexpr bool debugMutations = false;
+
 template <LSystemType T> struct InitRule;
 template <> struct InitRule<SHOOT> {
   static auto rule (void) { return Config::ls_shootInitRule(); }
@@ -60,7 +62,7 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
 
   std::string field = dice.pickOne(ruleRates);
 
-  std::cerr << "\tMutation " << field << " on '" << rule;
+  if (debugMutations)  std::cerr << "\tMutation " << field << " on '" << rule;
 
   if (field == "dupSymb") {
     size_t i = nonBracketSymbol(rule.rhs, dice);
@@ -93,7 +95,7 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
     utils::doThrow<std::logic_error>("Unhandled field '", field,
                                      "' for lsystem rule mutation");
 
-  std::cerr << " >> " << rule << std::endl;
+  if (debugMutations)  std::cerr << " >> " << rule << std::endl;
 }
 
 template <typename R, typename Dice>
@@ -284,7 +286,7 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(ME, resistors, "",
                                 utils::uniformStdArray<ME>(1),
                                 utils::uniformStdArray<ME>(10))
 DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, growthSpeed, "", 0., 1., 1., 10.)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .1, .1, 1.)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .2, .2, 1.)
 
 DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(conversionRates, 1.f),
@@ -354,7 +356,13 @@ DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
   { "brkSymb", .5f },
   { "delSymb", .5f },
 })
+
+
+/// Config file hierarchy
+DEFINE_SUBCONFIG(Config::Crossover, crossoverConfig)
+DEFINE_SUBCONFIG(Config::Metabolism, metabolismConfig)
 #undef CFILE
+
 
 /// Auto-managed
 DEFINE_GENOME_FIELD_AS_SUBGENOME(BOCData, cdata, "")
@@ -377,7 +385,6 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(fruitOvershoot, 1.f),
   MUTATION_RATE( seedsPerFruit, 1.f),
 })
-
 
 namespace config {
 std::ostream& operator<< (std::ostream &os, const Config::TerminalSize &ts) {

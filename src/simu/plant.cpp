@@ -11,18 +11,21 @@ using GConfig = genotype::Plant::config_t;
 using SConfig = config::Simulation;
 
 using Rule_base = genotype::grammar::Rule_base;
+using L_EU = EnumUtils<Plant::Layer>;
+using E_EU = EnumUtils<Plant::Element>;
 
 static const auto A = GConfig::ls_rotationAngle();
 
+static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
 static constexpr bool debugDerivation = false;
-static constexpr bool debugMetabolism = true;
+static constexpr int debugMetabolism = false;
 static constexpr bool debugGrowth = false;
 static constexpr bool debugReproduction = false;
 
 static constexpr bool debug = false
-  | debugOrganManagement | debugDerivation | debugMetabolism | debugGrowth
-  | debugReproduction;
+  | debugInit   | debugOrganManagement | debugDerivation | debugMetabolism
+  | debugGrowth | debugReproduction;
 
 bool nonNullAngle (float a) {
   return fabs(a) > 1e-6;
@@ -40,6 +43,7 @@ Organ::Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
   _plantCoordinates = {};
   _globalCoordinates = {};
 
+  _depth = 0;
   updateParent(p);
 }
 
@@ -53,10 +57,6 @@ float Organ::fullness(void) const {
   return f;
 }
 
-void Organ::removeFromParent(void) {
-  if (_parent)  _parent->_children.erase(this);
-}
-
 Point rotate_point(float angle, Point p) {
   float s = std::sin(angle);
   float c = std::cos(angle);
@@ -68,7 +68,7 @@ Point rotate_point(float angle, Point p) {
 void Organ::accumulate (float biomass) {
   if (isStructural()) {
     if (debugGrowth)
-      std::cerr << "[O" << _id << _symbol << "] old width: " << _width
+      std::cerr << OrganID(this) << " old width: " << _width
                 << ", adding " << biomass;
 
     _baseBiomass += biomass;
@@ -76,7 +76,8 @@ void Organ::accumulate (float biomass) {
 
     if (debugGrowth)
       std::cerr << ", new width: " << _baseBiomass << " / " << _length
-                << " = " << _width << std::endl;
+                << " = " << _width << " (" << 100 * fullness() << "%)"
+                << std::endl;
 
     updateDimensions(false);
 
@@ -142,21 +143,41 @@ void Organ::updateTransformation(void) {
   for (Organ *c: _children) c->updateTransformation();
 }
 
+void Organ::removeFromParent(void) {
+  if (_parent) {
+    _parent->_children.erase(this);
+    uint depth = 0;
+    for (Organ *c: _parent->_children)
+      depth = std::max(depth, c->_depth);
+    _parent->updateDepth(depth);
+  }
+}
+
+void Organ::updateParentDepth(void) {
+  if (_parent)  _parent->updateDepth(_depth + (isNonTerminal() ? 0 : 1));
+}
+
+void Organ::updateDepth(uint newDepth) {
+  _depth = std::max(_depth, newDepth);
+
+  if (debugGrowth) {
+    std::cerr << OrganID(this);
+    for (uint d = 0; d<_depth; d++) std::cerr << "  ";
+    std::cerr << " Updated depth to " << _depth << std::endl;
+  }
+
+  updateParentDepth();
+}
+
 void Organ::updateParent (Organ *newParent) {
   if (_parent != newParent) {
     removeFromParent();
     if (newParent)  newParent->_children.insert(this);
     _parent = newParent;
+    updateParentDepth();
 
     updateTransformation();
   }
-
-  _depth = 0;
-  for (Organ *c: _children) {
-    c->updateParent(c->_parent);
-    _depth = std::max(_depth, c->_depth);
-  }
-  _depth++;
 }
 
 void Organ::updateRotation(float d_angle) {
@@ -166,10 +187,12 @@ void Organ::updateRotation(float d_angle) {
 
 #ifndef NDEBUG
 std::ostream& operator<< (std::ostream &os, const Organ &o) {
-  return os << std::setprecision(2) << std::fixed
-            << "{ " << o._plantCoordinates.origin << "->"
-            << o._plantCoordinates.end << ", "
-            << o._plantCoordinates.rotation << ", " << o._symbol << "}";
+  std::stringstream tmpos;
+  tmpos << std::setprecision(2) << std::fixed
+     << "{ " << o._plantCoordinates.origin << "->"
+     << o._plantCoordinates.end << ", "
+     << o._plantCoordinates.rotation << ", " << o._symbol << "}";
+  return os << tmpos.rdbuf();
 }
 #endif
 
@@ -196,8 +219,6 @@ void Plant::init (Environment &env, float biomass) {
   for (Layer l: {Layer::SHOOT, Layer::ROOT})
     turtleParse(nullptr, A, initialAngle(l), l, _genome.checkers(l), env);
 
-  updateGeometry();
-  updateInternals();
 
   // Distribute initial resources to producer modules
   assert(isInSeedState());
@@ -205,6 +226,13 @@ void Plant::init (Environment &env, float biomass) {
   for (Organ *o: _organs) totalBR += o->requiredBiomass();
   for (Organ *o: _organs)
     o->accumulate(biomass * o->requiredBiomass() / totalBR);
+
+  updateMetabolicValues();
+  updateGeometry();
+
+  if (debugInit)
+    std::cerr << PlantID(this) << " Initialized. Genome is " << _genome
+              << std::endl;
 }
 
 void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
@@ -218,8 +246,6 @@ void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
   Layer l = o->layer();
   assert(l == Layer::SHOOT);
 
-  delOrgan(o, env);
-
   auto p = _fruits.insert({_nextOrganID, {g, nullptr}});
   assert(p.second);
 
@@ -227,6 +253,11 @@ void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
                              l, _genome.checkers(l), env);
 
   p.first->second.fruit = fruit;
+
+  _dirty.set(DIRTY_METABOLISM, true);
+
+  // Clean up
+  delOrgan(o, env);
 }
 
 float Plant::age (void) const {
@@ -242,6 +273,27 @@ bool Plant::spontaneousDeath(void) const {
   return false;
 }
 
+void Plant::autopsy(void) const {
+  bool spontaneous = spontaneousDeath();
+  std::cerr << PlantID(this) << " Deleted."
+            << " Death was " << (spontaneous ? "spontaneous" : "forced");
+  if (spontaneous) {
+    std::cerr << "\n\tReserves:";
+
+    using PL = EnumUtils<Plant::Layer>;
+    using PE = EnumUtils<Plant::Element>;
+    for (auto l: PL::iterator())
+      for (auto e: PE::iterator())
+        std::cerr << " {" << PL::getName(l)[0] << PE::getName(e)[0]
+                  << ": " << 100 * concentration(l, e) << "%}";
+
+    std::cerr << "\n\tAge: " << age() << " / " << _genome.dethklok
+              << "\n\tOrgans: " << _organs.size()
+              << " (" << _sinks.size() << " of which are sinks)"
+              << std::endl;
+  }
+}
+
 uint Plant::deriveRules(Environment &env) {
   auto nonTerminals = _nonTerminals;
   uint derivations = 0;
@@ -250,9 +302,13 @@ uint Plant::deriveRules(Environment &env) {
     auto succ = _genome.successor(ltype, o->symbol());
 
     // Did the apex accumulate enough resources ?
-    if (o->requiredBiomass() > 0) continue;
+    if (o->requiredBiomass() > 0) {
+      if (debugDerivation)
+        std::cerr << OrganID(o) << " Apex is not ready (" << 100*o->fullness()
+                  << "%)" << std::endl;
+      continue;
 
-    if (debugDerivation)
+    } else if (debugDerivation)
       std::cerr << "Applying " << o->symbol() << " -> " << succ << std::endl;
 
     auto size_before = _organs.size();
@@ -305,7 +361,18 @@ uint Plant::deriveRules(Environment &env) {
       auto size_after = _organs.size();
       assert(size_before == size_after);
 
-    } else {
+    } else { // All's good
+
+      // Divide remaining biomass into newly created sinks
+      float leftOverBiomass = o->biomass() - ruleBiomassCost(o->layer(), o->symbol());
+      if (leftOverBiomass > 0) {
+        if (debugMetabolism || debugDerivation)
+          std::cerr << PlantID(this) << "Dispatching " << leftOverBiomass
+                    << " left over biomass" << std::endl;
+        distributeBiomass(leftOverBiomass, newOrgans,
+                          [] (Organ*) { return true; });
+      }
+
       derivations++;
 
       // Destroy
@@ -313,10 +380,10 @@ uint Plant::deriveRules(Environment &env) {
     }
   }
 
-  if (derivations > 0)  updateInternals();
-  env.updateCollisionDataFinal(this);
-
-  if (debugDerivation)  std::cerr << std::endl;
+  if (derivations > 0) {
+    _dirty.set(DIRTY_METABOLISM);
+    _dirty.set(DIRTY_COLLISION);
+  }
 
   return derivations;
 }
@@ -434,6 +501,7 @@ void Plant::delOrgan(Organ *o, Environment &env) {
 
   if (o->isFruit()) _fruits.erase(o->id());
 
+  _dirty.set(DIRTY_COLLISION, true);
   delete o;
 }
 
@@ -458,11 +526,11 @@ float Plant::sinkRequirement (Organ *o) const {
 
   } else if (o->isStructural()) {
     const auto &size = GConfig::sizeOf(o->symbol());
-    if (debugMetabolism)
-      std::cerr << "[O" << o->id() << o->symbol() << "] requests a width of "
+    if (debugGrowth)
+      std::cerr << OrganID(o) << " requests a width of "
                 << size.width << " * (1 + " << _genome.metabolism.deltaWidth
                 << ")^" << std::max(0, int(o->depth()) -1)
-                << ") = " << size.width * std::pow(1 + _genome.metabolism.deltaWidth,
+                << " = " << size.width * std::pow(1 + _genome.metabolism.deltaWidth,
                                                    std::max(0, int(o->depth()) -1))
                 << std::endl;
 
@@ -474,7 +542,7 @@ float Plant::sinkRequirement (Organ *o) const {
   required = std::max(0.f, required - o->biomass());
 
   if (debugMetabolism)
-    std::cerr << "[O" << o->id() << o->symbol() << "] requires "
+    std::cerr << OrganID(o) << " Requires "
               << required << std::endl;
 
   return required;
@@ -500,17 +568,56 @@ void Plant::biomassRequirements (Masses &wastes, Masses &growth) {
     growth[o->layer()] += o->requiredBiomass();
 }
 
+template <typename F>
+void Plant::distributeBiomass (decimal  amount, Organs &organs, F match) {
+  float totalRequirements = 0;
+  for (Organ *o: organs)  if (match(o)) totalRequirements += o->requiredBiomass();
+  distributeBiomass(amount, organs, totalRequirements, match);
+}
+
+template <typename F>
+void Plant::distributeBiomass (decimal amount, Organs &organs, decimal total, F match) {
+  for (Organ *o: organs) {
+    if (!match(o))  continue;
+    decimal r = o->requiredBiomass();
+    if (r <= 0) continue;
+    decimal b = o->requiredBiomass() * amount / total;
+
+    if (debugMetabolism)
+      std::cerr << OrganID(o) << " b = "
+                << o->requiredBiomass() << " * " << amount << " / " << total
+                << " = " << b << std::endl;
+
+    o->accumulate(std::min(r, b));
+  }
+}
+
 float Plant::seedBiomassRequirements(const Genome &mother, const Genome &child) {
   return initialBiomassFor(child) * mother.fruitOvershoot;
 }
 
 void Plant::metabolicStep(Environment &env) {
   using genotype::Element;
-  using L_EU = EnumUtils<Layer>;
 
   static const auto &k_E = SConfig::assimilationRate();
   static const auto &J_E = SConfig::saturationRate();
   static const auto &f_E = SConfig::resourceCost();
+
+  if (debugMetabolism > 1) {
+    std::cerr << PlantID(this) << " state at start:\n\t"
+              << _organs.size() << " organs"
+              << "\n\tbiomasses:";
+    for (decimal b: _biomasses) std::cerr << " " << b;
+    std::cerr << "\n\treserves:";
+    for (Layer l: L_EU::iterator())
+      for (Element e: E_EU::iterator())
+        std::cerr << "\n\t\t"
+                  << L_EU::getName(l)[0]
+                  << E_EU::getName(e)[0]
+                  << ": " << _reserves[l][e] << " ("
+                  << 100 * concentration(l, e) << " %)";
+    std::cerr << "\n" << std::endl;
+  }
 
   // Collect water
   decimal U_w = 0;
@@ -520,8 +627,9 @@ void Plant::metabolicStep(Environment &env) {
     U_w += w * k_E * h->surface() / uw_k;
     if (debugMetabolism)
       std::cerr << OrganID(h) << " Drawing "
-                << U_w << " = " << w << " * " << k_E << " * " << h->surface()
-                << " / " << uw_k << std::endl;
+                << w * k_E * h->surface() / uw_k << " = "
+                << w << " * " << k_E << " * " << h->surface() << " / " << uw_k
+                << std::endl;
   }
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Total water uptake of " << U_w;
@@ -541,11 +649,17 @@ void Plant::metabolicStep(Environment &env) {
       (_genome.metabolism.resistors[Element::WATER] / _biomasses[Layer::ROOT])
     + (_genome.metabolism.resistors[Element::WATER] / _biomasses[Layer::SHOOT])
   );
-  _reserves[Layer::ROOT][Element::WATER] -= T_w;
-  _reserves[Layer::SHOOT][Element::WATER] += T_w;
   if (debugMetabolism)
     std::cerr << PlantID(this) << " transfering " << T_w
-              << " from ROOT to SHOOT" << std::endl;
+              << " = ( "
+              << concentration(Layer::ROOT, Element::WATER)
+              << " - " << concentration(Layer::SHOOT, Element::WATER)
+              << " ) / ( ("
+              << _genome.metabolism.resistors[Element::WATER] << " / " << _biomasses[Layer::ROOT]
+              << ") + (" << _genome.metabolism.resistors[Element::WATER] << " / " << _biomasses[Layer::SHOOT]
+              << ") ) from ROOT to SHOOT" << std::endl;
+  _reserves[Layer::ROOT][Element::WATER] -= T_w;
+  _reserves[Layer::SHOOT][Element::WATER] += T_w;
 
 
   // Produce glucose
@@ -568,9 +682,9 @@ void Plant::metabolicStep(Environment &env) {
   utils::iclip_max(U_g, _biomasses[Layer::SHOOT] - _reserves[Layer::SHOOT][Element::GLUCOSE]);
   if (debugMetabolism)
     std::cerr << " clipped to " << U_g << std::endl;
+  assert(U_g >= 0);
   _reserves[Layer::SHOOT][Element::WATER] -= U_g;
   _reserves[Layer::SHOOT][Element::GLUCOSE] += U_g;
-  assert(U_g >= 0);
   assert(_reserves[Layer::SHOOT][Element::GLUCOSE] <= _biomasses[Layer::SHOOT]);
 
 
@@ -582,17 +696,22 @@ void Plant::metabolicStep(Environment &env) {
       (_genome.metabolism.resistors[Element::GLUCOSE] / _biomasses[Layer::SHOOT])
     + (_genome.metabolism.resistors[Element::GLUCOSE] / _biomasses[Layer::ROOT])
   );
+  if (debugMetabolism)
+    std::cerr << PlantID(this) << " Transfering " << T_g
+              << " = ( "
+              << concentration(Layer::SHOOT, Element::GLUCOSE)
+              << " - " << concentration(Layer::ROOT, Element::GLUCOSE)
+              << " ) / ( ("
+              << _genome.metabolism.resistors[Element::GLUCOSE] << " / " << _biomasses[Layer::SHOOT]
+              << ") + (" << _genome.metabolism.resistors[Element::GLUCOSE] << " / " << _biomasses[Layer::ROOT]
+              << ") ) from SHOOT to ROOT" << std::endl;
   _reserves[Layer::SHOOT][Element::GLUCOSE] -= T_g;
   _reserves[Layer::ROOT][Element::GLUCOSE] += T_g;
-
-  if (debugMetabolism)
-    std::cerr << PlantID(this) << " transfering " << T_g
-              << " from SHOOT to ROOT" << std::endl;
 
 
   // Transform resources into biomass
   if (debugMetabolism)
-    std::cerr << "Transforming resources into biomass" << std::endl;
+    std::cerr << PlantID(this) << " Transforming resources into biomass" << std::endl;
   Masses X, W, G;
   biomassRequirements(W, G);
   for (Layer l: L_EU::iterator()) {
@@ -611,14 +730,14 @@ void Plant::metabolicStep(Environment &env) {
     if (debugMetabolism)
       std::cerr << ", clipped to " << X[l] << std::endl;
 
-    for (Element e: EnumUtils<Element>::iterator())
+    for (Element e: E_EU::iterator())
       _reserves[l][e] -= f_E * X[l];
   }
 
 
   // Transform biomass into wastes
   if (debugMetabolism) {
-    std::cerr << "Wastes:";
+    std::cerr << PlantID(this) << " Wastes:";
     for (decimal f: W) std::cerr << " " << f;
     std::cerr << std::endl;
   }
@@ -627,7 +746,7 @@ void Plant::metabolicStep(Environment &env) {
 
   // Distribute to consumers (non terminals, structurals, fruits)
   if (debugMetabolism) {
-    std::cerr << "Available biomass:";
+    std::cerr << PlantID(this) << " Available biomass:";
     for (Layer l: L_EU::iterator())
       std::cerr << " " << X[l];
     std::cerr << std::endl;
@@ -636,21 +755,38 @@ void Plant::metabolicStep(Environment &env) {
     std::cerr << std::endl;
   }
 
-  for (Organ *s: _sinks) {
-    decimal r = s->requiredBiomass();
-    assert(s->isSeed() || r >= 0);
-    if (r <= 0) continue;
-    decimal b = X[s->layer()] * r / G[s->layer()];
+  for (Layer l: L_EU::iterator())
+    distributeBiomass(X[l], _sinks, G[l],
+                      [&l] (Organ *o) {
+      return o->layer() == l;
+    });
 
-    if (debugMetabolism)
-      std::cerr << OrganID(s) << " b = "
-                << "X[" << s->layer() << "] * " << r << " / G[" << s->layer()
-                << "] = " << X[s->layer()] << " * " << r << " / "
-                << G[s->layer()] << " = " << X[s->layer()] * r / G[s->layer()]
-                << std::endl;
+//  for (Organ *s: _sinks) {
+//    decimal r = s->requiredBiomass();
+//    assert(s->isSeed() || r >= 0);
+//    if (r <= 0) continue;
+//    decimal b = X[s->layer()] * r / G[s->layer()];
 
-    s->accumulate(std::min(r, b));
-  }
+//    if (debugMetabolism)
+//      std::cerr << OrganID(s) << " b = "
+//                << "X[" << s->layer() << "] * " << r << " / G[" << s->layer()
+//                << "] = " << X[s->layer()] << " * " << r << " / "
+//                << G[s->layer()] << " = " << X[s->layer()] * r / G[s->layer()]
+//                << std::endl;
+
+//    s->accumulate(std::min(r, b));
+//  }
+
+  // Update biomass (if needed)
+  bool update = false;
+  for (Layer l: L_EU::iterator())
+    update |= (X[l] > 0);
+  if (update) updateMetabolicValues();
+
+  // Clip resources to new biomass
+  for (Layer l: L_EU::iterator())
+    for (Element e: E_EU::iterator())
+      utils::iclip_max(_reserves[l][e], _biomasses[l]);
 
   if (debugMetabolism) {
     std::cerr << PlantID(this) << " state at end:\n\t"
@@ -658,11 +794,11 @@ void Plant::metabolicStep(Environment &env) {
               << "\n\tbiomasses:";
     for (decimal b: _biomasses) std::cerr << " " << b;
     std::cerr << "\n\treserves:";
-    for (Layer l: EnumUtils<Layer>::iterator())
-      for (Element e: EnumUtils<Element>::iterator())
+    for (Layer l: L_EU::iterator())
+      for (Element e: E_EU::iterator())
         std::cerr << "\n\t\t"
-                  << EnumUtils<Layer>::getName(l)[0]
-                  << EnumUtils<Element>::getName(e)[0]
+                  << L_EU::getName(l)[0]
+                  << E_EU::getName(e)[0]
                   << ": " << _reserves[l][e] << " ("
                   << 100 * concentration(l, e) << " %)";
     std::cerr << "\n" << std::endl;
@@ -681,7 +817,7 @@ void Plant::metabolicStep(Environment &env) {
     if (_age == 0)
       ofs << R"("Organs" "Apexes" "M_{sh}" "M_{rt}" "M_{shW}" "M_{shG}" )"
              R"("M_{rtW}" "M_{rtG}" "U_W" "T_W" "U_G" "T_G" "W_{sh}" "W_{rt}" )"
-             R"("X_{sh}" "X_{rt}")" << "\n";
+             R"("G_{sh}" "G_{rt}")" << "\n";
     ofs << _organs.size() << " " << _nonTerminals.size() << " "
         << _biomasses[Layer::SHOOT] << " " << _biomasses[Layer::ROOT] << " "
         << _reserves[Layer::SHOOT][Element::WATER] << " "
@@ -694,10 +830,36 @@ void Plant::metabolicStep(Environment &env) {
   }
 }
 
-void Plant::updateInternals(void) {
+void Plant::updateMetabolicValues(void) {
+  auto oldBiomasses = _biomasses;
   _biomasses.fill(0);
-  for (Organ *o: _organs)
+
+  static constexpr bool d = debugMetabolism || debugDerivation || debugReproduction;
+  if (d)  std::cerr << PlantID(this) << " Updating biomasses:\n";
+
+  for (Organ *o: _organs) {
+    if (d)  std::cerr << OrganID(o) << " \tM[" << L_EU::getName(o->layer())
+                      << "] += " << o->biomass() << "\n";
     _biomasses[o->layer()] += o->biomass();
+  }
+
+  if (d) {
+    std::cerr << PlantID(this) << " Updated biomasses:";
+    for (Layer l: L_EU::iterator()) {
+      std::cerr << " [" << L_EU::getName(l) << ":" << _biomasses[l]
+                << " (dM=" << _biomasses[l] - oldBiomasses[l] << ")]";
+    }
+    std::cerr << std::endl;
+  }
+
+  for (Layer l: L_EU::iterator()) {
+    if (_biomasses[l] < oldBiomasses[l]) {
+      if (d)
+        std::cerr << PlantID(this) << " Clipped to " << _biomasses[l] << std::endl;
+      for (Element e: E_EU::iterator())
+        utils::iclip_max(_reserves[l][e], _biomasses[l]);
+    }
+  }
 }
 
 float Plant::initialBiomassFor (const Genome &g) {
@@ -747,6 +909,30 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
   }
 }
 
+void Plant::updateRequirements(void) {
+  for (Organ *o: _organs) {
+    if (o->isStructural()) {
+      float db = sinkRequirement(o) - o->accumulatedBiomass();
+      if (debugGrowth)
+        std::cerr << OrganID(o) << " Updated biomass requirement (" << db
+                  << ")" << std::endl;
+      assert(db >= 0);
+      o->setRequiredBiomass(db);
+    }
+  }
+}
+
+void Plant::update (Environment &env) {
+  if (_dirty.test(DIRTY_COLLISION)) {
+    env.updateCollisionDataFinal(this);
+    _dirty.set(DIRTY_COLLISION, false);
+  }
+  if (_dirty.test(DIRTY_METABOLISM)) {
+    updateMetabolicValues();
+    _dirty.set(DIRTY_METABOLISM, false);
+  }
+}
+
 void Plant::step (Environment &env, Seeds &seeds) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
@@ -763,15 +949,25 @@ void Plant::step (Environment &env, Seeds &seeds) {
     _derived += derived;
 
     // Remove non terminals when reaching maximal derivation for a given lsystem
-    for (LSystemType t: {LSystemType::SHOOT, LSystemType::ROOT})
-      if (_genome.maxDerivations(t) < _derived)
-        for (Organ *o: _organs)
-          if (o->layer() == t && o->isNonTerminal())
-            _nonTerminals.erase(o);
+    for (Layer l: {Layer::SHOOT, Layer::ROOT}) {
+      if (_genome.maxDerivations(l) >= _derived)  continue;
+      if (debugDerivation)
+        std::cerr << PlantID(this) << " Trimming non terminals for "
+                  << L_EU::getName(l) << std::endl;
+      for (Organ *o: _nonTerminals) {
+        if (o->layer() == l) {
+          updateSubtree(o, o->parent(), o->localRotation());
+          delOrgan(o, env);
+        }
+      }
+    }
 
     for (auto &p: oldPistilsPositions)
       if (p.second != p.first->globalCoordinates().center)
         env.updateGeneticMaterial(p.first, p.second);
+
+    if (derived)  updateRequirements();
+    update(env);
   }
 
   metabolicStep(env);
@@ -782,7 +978,11 @@ void Plant::step (Environment &env, Seeds &seeds) {
   while (!deadOrgans.empty())
     delOrgan(deadOrgans.back(), env), deadOrgans.pop_back();
 
+  update(env);
+
   _age++;
+
+  if (debug)  std::cerr << std::endl;
 
 //  std::cerr << "State at end:\n";
 //  std::cerr << *this;

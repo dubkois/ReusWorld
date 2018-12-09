@@ -39,10 +39,13 @@ public:
   void delPlantItem(float x);
 
   void mouseMoveEvent(QMouseEvent *e);
+  void mouseDoubleClickEvent(QMouseEvent *e);
 
 private:
   bool eventFilter (QObject*, QEvent *event) override;
   void resizeEvent (QResizeEvent *event) override;
+
+  void paintEvent(QPaintEvent *e) override;
 
 signals:
 

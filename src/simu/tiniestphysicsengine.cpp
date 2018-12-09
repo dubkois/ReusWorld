@@ -7,6 +7,7 @@ namespace physics {
 
 static constexpr bool debugUpperLayer = false;
 static constexpr bool debugCollision = false;
+static constexpr bool debugReproduction = false;
 
 
 // =============================================================================
@@ -297,6 +298,16 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
 // =============================================================================
 
+#ifndef NDEBUG
+std::ostream& operator<< (std::ostream &os, const Pistil &p) {
+  if (p.isValid())
+    return os << "{P:" << OrganID(p.organ) << "," << p.boundingDisk << "}";
+  else
+    return os << "{P:invalid}";
+}
+
+#endif
+
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
   return lhs.boundingDisk.center.x < rhs.boundingDisk.center.x;
 }
@@ -321,6 +332,10 @@ void CollisionData::addPistil(Organ *p) {
 void CollisionData::delPistil(const Point &pos) {
   auto it = _pistils.find(pos);
   assert(it != _pistils.end());
+
+  if (debugReproduction)
+    std::cerr << "Deleting" << *it << std::endl;
+
   _pistils.erase(it);
 }
 
@@ -333,7 +348,15 @@ void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
   assert(it != _pistils.end());
   Pistil s = *it;
   _pistils.erase(it);
+
+  if (debugReproduction)
+    std::cerr << "Updating" << s;
+
   s.boundingDisk = boundingDiskFor(p);
+
+  if (debugReproduction)
+    std::cerr << " >> " << s.boundingDisk << std::endl;
+
   _pistils.insert(s);
 }
 
@@ -357,7 +380,6 @@ CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
   auto itL = _pistils.lower_bound(LowerBound{boundingDisk});
   if (itL == _pistils.end())  return { itL, itL };
 
-  itL = std::next(itL);
   auto itR = itL;
   while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
     itR = std::next(itR);
