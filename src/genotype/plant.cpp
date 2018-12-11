@@ -289,10 +289,10 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, growthSpeed, "", 0., 1., 1.
 DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .2, .2, 1.)
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(conversionRates, 1.f),
-  MUTATION_RATE(resistors, 1.f),
-  MUTATION_RATE(growthSpeed, 1.f),
-  MUTATION_RATE(deltaWidth, 1.f)
+  MUTATION_RATE(conversionRates, 2.f),
+  MUTATION_RATE(      resistors, 2.f),
+  MUTATION_RATE(    growthSpeed, 1.f),
+  MUTATION_RATE(     deltaWidth, 1.f)
 })
 #undef GENOME
 
@@ -347,7 +347,7 @@ DEFINE_MAP_PARAMETER(Config::MutationRates, ls_mutationRates, {
 DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates, {
   { "addRule", 2.f },
   { "delRule", 1.f },
-  { "mutRule", 4.f },
+  { "mutRule", 7.f },
 })
 DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
   { "dupSymb", 1.f },
@@ -377,13 +377,13 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)
 
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(         cdata, 1.f),
-  MUTATION_RATE(         shoot, 1.f),
-  MUTATION_RATE(          root, 1.f),
-  MUTATION_RATE(    metabolism, 1.f),
+  MUTATION_RATE(         cdata, 4.f),
+  MUTATION_RATE(         shoot, 8.f),
+  MUTATION_RATE(          root, 8.f),
+  MUTATION_RATE(    metabolism, 4.f),
   MUTATION_RATE(      dethklok, 1.f),
-  MUTATION_RATE(fruitOvershoot, 1.f),
-  MUTATION_RATE( seedsPerFruit, 1.f),
+  MUTATION_RATE(fruitOvershoot, .5f),
+  MUTATION_RATE( seedsPerFruit, .5f),
 })
 
 namespace config {

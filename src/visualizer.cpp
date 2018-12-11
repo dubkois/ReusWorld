@@ -20,6 +20,9 @@ int main(int argc, char *argv[]) {
     ("c,config", "File containing configuration data", cxxopts::value<std::string>())
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value<Verbosity>())
     ("g,genome", "Genome to start from", cxxopts::value<std::string>()->default_value(""))
+    ("r,run", "Immediatly start running. Optionnally specify at which speed",
+      cxxopts::value<float>()->implicit_value("1"))
+    ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value<bool>())
     ;
 
   auto result = options.parse(argc, argv);
@@ -40,6 +43,9 @@ int main(int argc, char *argv[]) {
   if (configFile.empty()) config::Visualization::printConfig("");
 
   std::string inputFile = result["genome"].as<std::string>();
+
+  float speed = 0.f;
+  if (result.count("run"))  speed = result["run"].as<float>();
 
   // ===========================================================================
   // == Core setup
@@ -65,6 +71,14 @@ int main(int argc, char *argv[]) {
   s.init();
 
   c.nextPlant();
+  if (result.count("auto-quit")) c.setAutoQuit(true);
+
+  if (speed > 0) {
+    QTimer::singleShot(500, [&c, speed] {
+      c.setSpeed(speed);
+      c.play(true);
+    });
+  }
 
   return a.exec();
 }

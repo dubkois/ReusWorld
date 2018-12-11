@@ -150,6 +150,7 @@ class Plant {
 public:
   using Genome = genotype::Plant;
   using Sex = genotype::BOCData::Sex;
+  using ID = genotype::BOCData::GID;
 
   using Layer = Organ::Layer;
   using Element = genotype::Element;

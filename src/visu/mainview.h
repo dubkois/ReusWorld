@@ -35,7 +35,6 @@ public:
   void setController (visu::Controller *c);
 
   void addPlantItem(simu::Plant &sp);
-  void updatePlantItem(float x);
   void delPlantItem(float x);
 
   void mouseMoveEvent(QMouseEvent *e);
@@ -50,6 +49,8 @@ private:
 signals:
 
 public slots:
+  void update (void);
+
   void selectPreviousPlant (void);
   void selectNextPlant (void);
 
@@ -65,6 +66,8 @@ public slots:
     _zoom *= .5f;
     focusOnSelection();
   }
+
+  QPixmap screenshot (QSize size);
 };
 
 } // end of namespace gui

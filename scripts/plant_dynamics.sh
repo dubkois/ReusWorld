@@ -38,6 +38,7 @@ echo "   file: '$file'"
 echo "columns: '$columns'"
 
 cmd="set datafile separator ' ';
+set y2tics;
 "
 prefix="plot"
 

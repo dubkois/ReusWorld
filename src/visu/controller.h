@@ -62,6 +62,7 @@ class Controller : public QObject {
 
   QTimer _timer;
   float _speed;
+  bool _autoquit;
 
 public:
   Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v);
@@ -80,6 +81,14 @@ public:
 
   void nextPlant (void) {
     _view->selectNextPlant();
+  }
+
+  void setSpeed (float s) {
+    _speed = s;
+  }
+
+  void setAutoQuit (bool q) {
+    _autoquit = q;
   }
 
   void updateMousePosition (const QPointF &pos);

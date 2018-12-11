@@ -134,23 +134,28 @@ bool Simulation::reset (void) {
   return init();
 }
 
-void Simulation::addPlant(const PGenome &p, float x, float biomass) {
-  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(p, x, 0));
+void Simulation::addPlant(const PGenome &g, float x, float biomass) {
+  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
   if (pair.second) {
+    Plant *p = pair.first->second.get();
     pair.first->second->init(_env, biomass);
-    _env.addCollisionData(pair.first->second.get());
+    _env.addCollisionData(p);
+    _ptree.addGenome(p->genome());
 
     if (debugPlantManagement) {
-      Plant *p = pair.first->second.get();
       std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
                 << biomass << " initial biomass" << std::endl;
     }
+
+    _stats.newPlants++;
   }
 }
 
 void Simulation::delPlant(float x) {
-  if (debugPlantManagement) _plants.at(x)->autopsy();
-  _env.removeCollisionData(_plants.at(x).get());
+  Plant *p = _plants.at(x).get();
+  if (debugPlantManagement) p->autopsy();
+  _env.removeCollisionData(p);
+  _ptree.delGenome(p->genome());
   _plants.erase(x);
 }
 
@@ -185,25 +190,29 @@ void Simulation::performReproductions(void) {
       if (!s.isValid()) continue;
       if (s.organ->requiredBiomass() > 0)  continue;
 
+      float distance, compatibility;
       Plant *mother = s.organ->plant();
       Plant::Genome child;
-      bool fecundated = genotype::bailOutCrossver(mother->genome(),
-                                                  father->genome(),
-                                                  child, _env.dice());
+      bool fecundated =
+        genotype::bailOutCrossver(mother->genome(), father->genome(), child,
+                                  _env.dice(), &distance, &compatibility);
 
       if (debugReproduction) {
-        double d = distance(mother->genome(), father->genome());
-        double c = mother->genome().compatibility(d);
-        assert(c > 0);
         std::cerr << "\tMating " << mother->id() << " with " << father->id()
-                  << " (dist=" << d << ", compat=" << c << ")? "
-                  << fecundated << std::endl;
+                  << " (dist=" << distance << ", compat=" << compatibility
+                  << ")? " << fecundated << std::endl;
       }
+
+      _stats.sumDistances += distance;
+      _stats.sumCompatibilities += compatibility;
+      _stats.matings++;
 
       if (fecundated) {
         mother->replaceWithFruit(s.organ, child, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
         modifiedPlants.push_back(mother);
+
+        _stats.reproductions++;
       }
     }
   }
@@ -227,6 +236,8 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 void Simulation::step (void) {
   if (debug)
     std::cerr << "## Simulation step " << _step << " ##" << std::endl;
+
+//  _stats = Stats{};
 
   _env.step();
 
@@ -253,7 +264,8 @@ void Simulation::step (void) {
     ofs.open("global.dat", mode);
 
     if (_step == 0)
-      ofs << "Plants Biomass FM_ratio Flowers Fruits\n";
+      ofs << "Plants Females Males Biomass Flowers Fruits Matings Reproductions"
+             " dPlants AvgDist AvgCompat\n";
 
     using decimal = Plant::decimal;
     decimal biomass = 0;
@@ -267,14 +279,20 @@ void Simulation::step (void) {
       females += (plant.sex() == Plant::Sex::FEMALE);
       males += (plant.sex() == Plant::Sex::MALE);
     }
-    ofs << _plants.size() << " " << biomass << " " << float(females) / float(males)
-        << " " << flowers << " " << fruits << std::endl;
+    ofs << _plants.size() << " " << females << " " << males << " " << biomass
+        << " " << flowers << " " << fruits << " " << _stats.matings
+        << " " << _stats.reproductions << " " << _stats.newPlants
+        << " " << _stats.sumDistances / float(_stats.matings)
+        << " " << _stats.sumCompatibilities / float(_stats.matings)
+        << std::endl;
   }
 
   _step++;
-  if (finished())
+  if (finished()) {
+    _ptree.saveTo("ptree.pt");
     std::cerr << "Simulation completed in " << _step << " steps"
               << std::endl;
+  }
 }
 
 } // end of namespace simu

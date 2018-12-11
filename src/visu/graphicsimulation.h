@@ -23,8 +23,11 @@ private:
   void addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x) override;
 
+  void doScreenshot (void) const;
+
 signals:
   void initialized (bool ok);
+  void completed (void);
 };
 
 } // end of namespace visu

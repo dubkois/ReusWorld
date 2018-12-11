@@ -2,6 +2,7 @@
 *backup
 *.dat
 *log
+*.mp4
 *.pdf
 *.png
 *.scenario

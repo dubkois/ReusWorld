@@ -57,11 +57,15 @@ struct Rule_base {
     return rhs.size();
   }
 
-  auto sizeWithoutControlChars (void) const {
+  static auto sizeWithoutControlChars (const std::string &rhs) {
     size_t size = 0;
     for (char c: rhs)
       size += !isValidControl(c);
     return size;
+  }
+
+  auto sizeWithoutControlChars (void) const {
+    return sizeWithoutControlChars(rhs);
   }
 
   static bool isValidNonTerminal (char c) {

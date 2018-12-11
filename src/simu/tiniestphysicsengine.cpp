@@ -280,13 +280,15 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
               << " (" << std::distance(range.first, range.second) - 1
               << ", excluding self)" << std::endl;
 
+  bool this_isSeed = p->isInSeedState();
   for (auto it = range.first; it != range.second; ++it) {
     const Plant *p_ = it->plant;
     if (p_ == p) continue;
 
 //    if (debugCollision) std::cerr << "\t" << p_->id() << "\n";
 
-    if (narrowPhaseCollision(p, p_))
+    if (narrowPhaseCollision(p, p_) // Test for collision
+        && (this_isSeed || !p_->isInSeedState())) // Ignore plants hitting seeds
       return false;
   }
 
@@ -322,21 +324,36 @@ bool operator< (const Point &lhs, const Pistil &rhs) {
 
 Disk boundingDiskFor (const Organ *o) {
   Point c = o->globalCoordinates().center;
-  return { c, c.y * 5.f };
+  return { c, (c.y + 1) * 5.f };
 }
 
 void CollisionData::addPistil(Organ *p) {
-  _pistils.emplace(p, boundingDiskFor(p));
+#ifndef NDEBUG
+#define MAYBE_KEEP auto res =
+#else
+#define MAYBE_KEEP
+#endif
+  MAYBE_KEEP _pistils.emplace(p, boundingDiskFor(p));
+#undef MAYBE_KEEP
+#ifndef NDEBUG
+  if (debugReproduction) {
+    if (res.second)
+      std::cerr << "Added " << *res.first << std::endl;
+    else
+      std::cerr << "Unable to insert pistil " << Pistil(p, boundingDiskFor(p))
+                << " (equal to " << *res.first << ")" << std::endl;
+  }
+#endif
 }
 
 void CollisionData::delPistil(const Point &pos) {
   auto it = _pistils.find(pos);
-  assert(it != _pistils.end());
-
-  if (debugReproduction)
-    std::cerr << "Deleting" << *it << std::endl;
-
-  _pistils.erase(it);
+  if (it != _pistils.end()) {
+    if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;
+    _pistils.erase(it);
+  } else
+    if (debugReproduction)  std::cerr << "Could not find pistil at pos"
+                                      << pos << std::endl;
 }
 
 void CollisionData::delPistil(const Pistil &s) {

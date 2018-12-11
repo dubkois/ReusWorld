@@ -11,8 +11,8 @@ namespace gui {
 const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
-static constexpr int debugAABB = 1;
-static constexpr int debugLeaves = 4;
+static constexpr int debugAABB = 0;
+static constexpr int debugLeaves = 0;
 static constexpr int debugSpores = 1;
 
 void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) {
@@ -92,10 +92,11 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
     painter->save();
     pen.setColor(Qt::blue);
     painter->setPen(pen);
+    painter->setBrush(QColor::fromRgbF(0, 0, 1, .25));
 
     const auto& pistils = _object.collisionData().pistils();
     for (const simu::physics::Pistil &s: pistils)
-      if (s.organ->fullness() > .99)
+      if (s.organ->fullness() > .5)
         painter->drawEllipse(toQPoint(s.boundingDisk.center),
                              s.boundingDisk.radius, s.boundingDisk.radius);
 

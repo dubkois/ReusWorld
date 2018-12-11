@@ -170,6 +170,12 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   connect(&_simulation, &GraphicSimulation::initialized,
           this, &Controller::updateDisplays);
+
+  _autoquit = false;
+  connect(&_simulation, &GraphicSimulation::completed, [this] {
+    play(false);
+    if (_autoquit) QApplication::instance()->quit();
+  });
 }
 
 QAction* Controller::buildAction(QStyle::StandardPixmap pixmap,
@@ -216,20 +222,24 @@ void Controller::updateMousePosition (const QPointF &pos) {
 void Controller::updateDisplays(void) {
   QString string;
   QTextStream qss (&string);
-  qss << "Time: " << QString::number(_simulation.day(), 'f', 1)
+  qss << "Time: y" << QString::number(int(_simulation.year()))
+      << "d" << QString::number(_simulation.day(), 'f', 1)
       << ", Speed: " << _speed << " dps";
   _ldisplay->setText(string);
 
   string.clear();
   const auto& plants = _simulation.plants();
-  qss << plants.size();
-  uint minGen = std::numeric_limits<uint>::max(), maxGen = 0;
-  for (const auto &p: plants) {
-    uint g = p.second->genome().cdata.generation;
-    if (g < minGen) minGen = g;
-    if (maxGen < g) maxGen = g;
-  }
-  qss << " plants, Gens: [" << minGen << ";" << maxGen << "]";
+  if (plants.size() > 0) {
+    qss << plants.size();
+    uint minGen = std::numeric_limits<uint>::max(), maxGen = 0;
+    for (const auto &p: plants) {
+      uint g = p.second->genome().cdata.generation;
+      if (g < minGen) minGen = g;
+      if (maxGen < g) maxGen = g;
+    }
+    qss << " plants, Gens: [" << minGen << ";" << maxGen << "]";
+  } else
+    qss << "population died out";
   _rdisplay->setText(string);
 }
 

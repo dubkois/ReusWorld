@@ -4,8 +4,6 @@
 
 /*!
  * TODO Table of todos
- *  TODO Metabolism
- *  TODO Reproduction
  *  TODO Environment
  *    TODO Water supply
  *    TODO Topology
@@ -62,6 +60,9 @@ int main(int argc, char *argv[]) {
 
   simu::Simulation s (e);
   s.init();
+
+  while (!s.finished())
+    s.step();
 
   return 0;
 }

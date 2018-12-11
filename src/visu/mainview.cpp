@@ -25,6 +25,8 @@ MainView::MainView(const simu::Environment &e, QWidget *parent)
   setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 
   _scene->addItem(_env);
+  _scene->setSceneRect(_env->boundingRect());
+
   setRenderHint(QPainter::Antialiasing, true);
 
   installEventFilter(this);
@@ -42,13 +44,6 @@ void MainView::addPlantItem(simu::Plant &sp) {
   connect(gp, &Plant::selected, this, &MainView::updateSelection);
 }
 
-void MainView::updatePlantItem(float x) {
-  Plant *p = _plants.value(x);
-  assert(p);
-  p->updatePlantData();
-  if (p == _selection && _selection->isSelected())  focusOnSelection();
-}
-
 void MainView::delPlantItem(float x) {
   auto it = _plants.find(x);
   assert(it != _plants.end());
@@ -58,6 +53,16 @@ void MainView::delPlantItem(float x) {
   _plants.erase(it);
   _scene->removeItem(p);
   p->deleteLater();
+}
+
+void MainView::update(void) {
+  _env->update();
+  for (Plant *p: _plants) {
+    assert(p);
+    p->updatePlantData();
+
+    if (p == _selection && _selection->isSelected())  focusOnSelection();
+  }
 }
 
 bool MainView::eventFilter(QObject*, QEvent *event) {
@@ -77,11 +82,7 @@ void MainView::mouseMoveEvent(QMouseEvent *e) {
 }
 
 void MainView::mouseDoubleClickEvent(QMouseEvent *e) {
-  if (_selection) {
-    _selection->setSelected(false);
-    _selection->update();
-    _selection = nullptr;
-  }
+  updateSelection(nullptr);
   QGraphicsView::mouseDoubleClickEvent(e);
 }
 
@@ -116,9 +117,15 @@ void MainView::selectNextPlant(void) {
 }
 
 void MainView::updateSelection(Plant *that) {
-  if (_selection) _selection->setSelected(false);
+  if (_selection) {
+    _selection->setSelected(false);
+    _selection->update();
+  }
   _selection = that;
-  _selection->setSelected(true);
+  if (_selection) {
+    _selection->setSelected(true);
+    _selection->update();
+  }
   focusOnSelection();
 }
 
@@ -160,6 +167,26 @@ void MainView::paintEvent(QPaintEvent *e) {
 
   painter.drawText(QRectF(p0.x(), p0.y() -1.5*H, p1.x() - p0.x(), 1.5*H),
                    Qt::AlignCenter, QString::number(width, 'f', 2) + unit);
+}
+
+QPixmap MainView::screenshot(QSize size) {
+  if (!size.isValid() || size.isNull())
+    utils::doThrow<std::invalid_argument>(
+      "Invalid screenshots size: ", size.width(), "x", size.height());
+
+  QRect src = viewport()->rect();
+  if (size.width() > size.height())
+    size.setHeight(size.width() * src.height() / src.width());
+  else
+    size.setWidth(size.height() * src.width() / src.height());
+
+  QPixmap pixmap (size);
+  QPainter painter (&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  render(&painter, pixmap.rect(), src);
+
+  return pixmap;
 }
 
 } // end of namespace gui

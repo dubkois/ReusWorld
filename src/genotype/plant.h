@@ -99,6 +99,14 @@ public:
     return other;
   }
 
+  BOCData& crossoverData (void) {
+    return cdata;
+  }
+
+  const BOCData& crossoverData (void) const {
+    return cdata;
+  }
+
   const grammar::Successor& successor (LSystemType t, grammar::NonTerminal nt) const {
     switch (t) {
     case SHOOT:  return shoot.successor(nt);

@@ -1,6 +1,8 @@
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
+#include "kgd/apt/core/tree/phylogenictree.hpp"
+
 #include "../genotype/ecosystem.h"
 #include "../config/simuconfig.h"
 
@@ -14,7 +16,7 @@ protected:
   using PGenome = genotype::Plant;
 public:
   Simulation (const genotype::Ecosystem &genome)
-    : _ecosystem(genome), _env(genome.env), _step(0) {}
+    : _stats(), _ecosystem(genome), _env(genome.env), _step(0) {}
 
   virtual ~Simulation (void) {}
 
@@ -41,17 +43,31 @@ public:
     return _step;
   }
 
-  float day (void) const {
+  float dayCount (void) const {
     static const auto spd = config::Simulation::stepsPerDay();
     return float(_step) / spd;
   }
 
+  float day (void) const {
+    static const auto spd = config::Simulation::stepsPerDay();
+    static const auto dpy = config::Simulation::daysPerYear();
+    return std::fmod(float(_step) / spd, dpy);
+  }
+
   float year (void) const {
     static const auto dpy = config::Simulation::daysPerYear();
-    return day() / dpy;
+    return dayCount() / dpy;
   }
 
 protected:
+  struct Stats {
+    float sumDistances;
+    float sumCompatibilities;
+    uint matings;
+    uint reproductions;
+    uint newPlants;
+  } _stats;
+
   genotype::Ecosystem _ecosystem;
 
   Environment _env;
@@ -59,6 +75,8 @@ protected:
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
+
+  phylogeny::PhylogenicTree<PGenome> _ptree;
 
   uint _step;
 

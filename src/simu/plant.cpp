@@ -170,6 +170,7 @@ void Organ::updateDepth(uint newDepth) {
 }
 
 void Organ::updateParent (Organ *newParent) {
+  assert(newParent != this);
   if (_parent != newParent) {
     removeFromParent();
     if (newParent)  newParent->_children.insert(this);
@@ -267,9 +268,10 @@ float Plant::age (void) const {
 bool Plant::spontaneousDeath(void) const {
   if (_genome.dethklok <= age())  return true;
   if (_sinks.empty())  return true;
-//  for (Element e: EnumUtils<Element>::iterator())
-//    if (_reserves[Layer::SHOOT][e] + _reserves[Layer::ROOT][e] <= 0)
-//        return true;
+  for (Layer l: L_EU::iterator())
+    for (Element e: E_EU::iterator())
+      if (_reserves[l][e] < 0)
+          return true;
   return false;
 }
 
@@ -324,20 +326,27 @@ uint Plant::deriveRules(Environment &env) {
     updateGeometry();
     env.updateCollisionData(this);
 
-    bool colliding = !env.isCollisionFree(this);
-    if (colliding) {
-      // Delete new organs at the end (eg. A[l], with A -> As[l])
-      auto o_children = o_ ? o_->children() : _bases;
-      for (auto it = o_children.begin(); it != o_children.end();) {
-        auto newOrgans_it = newOrgans.find(*it);
-        if (newOrgans_it != newOrgans.end()) {
-          delOrgan(*it, env);
-          newOrgans.erase(newOrgans_it);
-          it = o_children.erase(it);
+    float sizeIncrease = 0;
+    for (auto c: succ)
+      sizeIncrease += GConfig::sizeOf(c).length;
 
-        } else
-          ++it;
-      }
+    bool colliding = !env.isCollisionFree(this);
+    if (colliding && sizeIncrease > 0) {
+      const auto deleter = [&newOrgans, &env, this] (auto collection) {
+        for (auto it = collection.begin(); it != collection.end();) {
+          auto newOrgans_it = newOrgans.find(*it);
+          if (newOrgans_it != newOrgans.end()) {
+            delOrgan(*it, env);
+            newOrgans.erase(newOrgans_it);
+            it = collection.erase(it);
+
+          } else
+            ++it;
+        }
+      };
+
+      // Delete new organs at the end (eg. A[l], with A -> As[l])
+      if (o_) deleter(o_->children());
 
       // Revert reparenting
       if (o_) updateSubtree(o_, o, -angle);
@@ -349,6 +358,9 @@ uint Plant::deriveRules(Environment &env) {
         o__ = o__->parent();
         delOrgan(tmp, env);
       }
+
+      // Delete remaining unparented organs
+      if (!o->parent()) deleter(_bases);
 
       // Re-update physical data
       updateGeometry();
@@ -492,6 +504,9 @@ void Plant::delOrgan(Organ *o, Environment &env) {
   if (o->isNonTerminal()) _nonTerminals.erase(o);
   if (o->isHair())  _hairs.erase(o);
   if (isSink(o))  _sinks.erase(o);
+
+  if (id() == ID(453) && o->id() == OID(2))
+    std::cerr << "Deleting " << OrganID(o) << std::endl;
 
   if (o->isFlower()) {
     _flowers.erase(o);
@@ -876,6 +891,14 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
   for (auto &p: _fruits) {
     Organ *fruit = p.second.fruit;
 
+    if (fruit->biomass() <= 0) {
+      if (debugReproduction)
+        std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
+                  << " rotted on its branch (" << fruit->biomass()
+                  << " available biomass)" << std::endl;
+      continue;
+    }
+
     if (debugReproduction)
       std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit) << " at "
                 << 100 * fruit->fullness() << "% capacity" << std::endl;
@@ -973,10 +996,14 @@ void Plant::step (Environment &env, Seeds &seeds) {
   metabolicStep(env);
   collectFruits(seeds, env);
 
-  std::vector<Organ*> deadOrgans;
-  for (Organ *o: _organs) if (o->biomass() < 0) deadOrgans.push_back(o);
-  while (!deadOrgans.empty())
-    delOrgan(deadOrgans.back(), env), deadOrgans.pop_back();
+  /// Recursively delete dead organs
+  auto bases = _bases;
+  std::function<void(Organ*)> destroyDeadSubtrees =
+    [&destroyDeadSubtrees, &env, this] (Organ *o) {
+      if (o->biomass() < 0) delOrgan(o, env);
+      else  for (Organ *c: o->children()) destroyDeadSubtrees(c);
+  };
+  for (Organ *o: bases)  destroyDeadSubtrees(o);
 
   update(env);
 
