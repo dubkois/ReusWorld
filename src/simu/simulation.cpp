@@ -99,17 +99,23 @@ bool Simulation::reset (void) {
 
 void Simulation::addPlant(const PGenome &g, float x, float biomass) {
   auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
+  _stats.newSeeds++;
+
   if (pair.second) {
     Plant *p = pair.first->second.get();
-    pair.first->second->init(_env, biomass);
-    _env.addCollisionData(p);
+    if (_env.addCollisionData(p)) {
 
-    if (debugPlantManagement) {
-      std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
-                << biomass << " initial biomass" << std::endl;
-    }
+      pair.first->second->init(_env, biomass);
 
-    _stats.newPlants++;
+      if (debugPlantManagement) {
+        std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
+                  << biomass << " initial biomass" << std::endl;
+      }
+
+      _stats.newPlants++;
+
+    } else
+      _plants.erase(pair.first);
   }
 }
 
@@ -197,9 +203,8 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 }
 
 void Simulation::step (void) {
-  if (debug)
-    std::cerr << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
-              << "## Simulation step " << _step << " ##" << std::endl;
+  std::cout << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
+            << "## Simulation step " << _step << " ##" << std::endl;
 
   _stats = Stats{};
 
@@ -220,7 +225,7 @@ void Simulation::step (void) {
   performReproductions();
   plantSeeds(seeds);
 
-  assert(_env.collisionData().data().size() == _plants.size());
+  assert(_env.collisionData().data().size() <= _plants.size());
 
   if (config::Simulation::logGlobalStats()) {
     std::ofstream ofs;
@@ -257,7 +262,7 @@ void Simulation::step (void) {
   _step++;
   if (finished()) {
     _ptree.saveTo("ptree.pt");
-    std::cerr << "Simulation completed in " << _step << " steps"
+    std::cout << "Simulation completed in " << _step << " steps"
               << std::endl;
   }
 }

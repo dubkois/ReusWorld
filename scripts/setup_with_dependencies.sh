@@ -1,23 +1,31 @@
-#!/bin/sh
+#!/bin/bash
 
 project=(cxxopts json Tool AgnosticPhylogenicTree ReusWorld)
 repos=(https://github.com/jarro2783/cxxopts.git https://github.com/nlohmann/json.git ssh://git@igit.odena.eu:5000/kevin/Tools.git ssh://git@igit.odena.eu:5000/kevin/AgnosticPhylogenicTree.git ssh://git@igit.odena.eu:5000/kevin/ReusWorld.git)
 
-ppath=$(readlink ".local/")
+ppath=$(readlink "./local/")
 mkdir -p $ppath
 echo "Using $ppath as local installs root"
 
+for repo in "${repos[@]}"
+do
+  echo "git clone $repo"
+done
+
 for i in "${!project[@]};"
 do
-  p=${project[$i]}
-  r=${repos[$i]}
-  
-  echo "git clone $r"
-  echo "cd $p"
-  if grep -q 'igit.odena' <<< $r
+  if grep -q 'igit.odena' <<< ${repos[$i]}
   then
+    echo "Setting up build folders"
     echo "mkdir build_debug"
     echo "cd build_debug"
-    echo "cmake .. -DCMAKE_PREFIX_PATH=$ppath -DWITH -DCMAKE_BUILD_TYPE=Debug"
+    echo "cmake .. -DCMAKE_INSTALL_PREFIX=$ppath -DWITH -DCMAKE_BUILD_TYPE=Debug -DWITH_DEBUG_INFO=ON"
+    echo "make -j5 && make install"
+    echo "cd ../"
+    echo "mkdir build_release"
+    echo "cd build_release"
+    echo "cmake .. -DCMAKE_INSTALL_PREFIX=$ppath -DWITH -DCMAKE_BUILD_TYPE=Release -DWITH_DEBUG_INFO=OFF"
+    echo "cd ../../"
+    echo "make -j5 && make install"
   fi
 done

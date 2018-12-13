@@ -33,11 +33,9 @@ class CollisionData {
       return p->translatedBoundingRect();
     }
 
-#ifndef NDEBUG
     friend std::ostream& operator<< (std::ostream &os, const CollisionObject &o) {
       return os << "{" << o.plant->id() << ": " << o.boundingRect << "}";
     }
-#endif
   };
 
   using Collisions = std::set<CollisionObject, std::less<>>;
@@ -59,7 +57,7 @@ public:
 
   const UpperLayer::Items& canopy (const Plant *p) const;
 
-  void addCollisionData (Plant *p);
+  bool addCollisionData (Plant *p);
   void removeCollisionData (Plant *p);
   bool isCollisionFree(const Plant *p) const;
 
@@ -73,6 +71,10 @@ public:
   Pistils_range sporesInRange (Organ *s);
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs);
+
+private:
+  Collisions::iterator find (const Plant *p);
+  Collisions::const_iterator find (const Plant *p) const;
 };
 
 using CObject = CollisionData::CObject;

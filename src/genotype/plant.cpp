@@ -120,7 +120,7 @@ void mutateLSystemRules (R &rules, Dice &dice) {
     while (rules.find(c) != rules.end() && c <= Config::ls_maxNonTerminal())
       c++;
 
-    rules[c] = Rule{c, grammar::Successor(1, r.rhs[i])};
+    rules[c] = Rule::fromTokens(c, grammar::Successor(1, r.rhs[i]));
     r.rhs[i] = c;
 
   } else if (field == "delRule") {

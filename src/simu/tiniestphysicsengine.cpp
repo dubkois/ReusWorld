@@ -18,8 +18,6 @@ bool fuzzyLower (float lhs, float rhs) {
 }
 
 
-#ifndef NDEBUG
-
 std::ostream& operator<< (std::ostream &os, const UpperLayer::Item &i) {
   return os << "{ " << i.l << " - " << i.r << ", " << i.y << ", "
             << i.organ->id() << " }";
@@ -31,8 +29,6 @@ std::ostream& operator<< (std::ostream &os, const Pistil &p) {
   else
     return os << "{P:invalid}";
 }
-
-#endif
 
 
 // =============================================================================
@@ -199,49 +195,53 @@ void CollisionData::reset(void) {
   _data.clear();
 }
 
-const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
+CollisionData::Collisions::iterator CollisionData::find (const Plant *p) {
   auto it = _data.find(*p);
-  assert(it != _data.end());
-  return it->layer.items;
+  if (it == _data.end())
+    utils::doThrow<std::logic_error>("No collision data for plant ", p->id());
+  return it;
 }
 
-void CollisionData::addCollisionData (Plant *p) {
-  _data.insert(CObject(p));
+CollisionData::Collisions::const_iterator CollisionData::find (const Plant *p) const {
+  auto it = _data.find(*p);
+  if (it == _data.end())
+    utils::doThrow<std::logic_error>("No collision data for plant ", p->id());
+  return it;
+}
+
+const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
+  return find(p)->layer.items;
+}
+
+bool CollisionData::addCollisionData (Plant *p) {
+  return _data.insert(CObject(p)).second;
 }
 
 void CollisionData::removeCollisionData (Plant *p) {
-  auto it = _data.find(*p);
-  if (it != _data.end()) {
-    _data.erase(it);
+  auto it = find(p);
+  _data.erase(it);
 
-    for (auto it = _pistils.begin(); it != _pistils.end();) {
-      if (it->organ->plant() == p)
-        it = _pistils.erase(it);
-      else  ++it;
-    }
+  for (auto it = _pistils.begin(); it != _pistils.end();) {
+    if (it->organ->plant() == p)
+      it = _pistils.erase(it);
+    else  ++it;
   }
 }
 
 void CollisionData::updateCollisions (Plant *p) {
-  auto it = _data.find(*p);
-  if (it != _data.end()) {
-    CObject object = *it;
-    _data.erase(it);
-    object.updateCollisions();
-    _data.insert(object);
-  } else
-    addCollisionData(p);
+  auto it = find(p);
+  CObject object = *it;
+  _data.erase(it);
+  object.updateCollisions();
+  _data.insert(object);
 }
 
 void CollisionData::updateFinal (Plant *p) {
-  auto it = _data.find(*p);
-  if (it != _data.end()) {
-    CObject object = *it;
-    _data.erase(it);
-    object.updateFinal();
-    _data.insert(object);
-  } else
-    addCollisionData(p);
+  auto it = find(p);
+  CObject object = *it;
+  _data.erase(it);
+  object.updateFinal();
+  _data.insert(object);
 
 #ifndef NDEBUG
   for (const Pistil &ps: _pistils) {
@@ -334,8 +334,7 @@ bool intersects (const CObject &lhs, const CObject &rhs) {
 }
 
 bool CollisionData::isCollisionFree (const Plant *p) const {
-  auto vit = _data.find(*p);
-  if(vit == _data.end())  return false;
+  auto vit = find(p);
 
   const auto &cv = *vit;
 

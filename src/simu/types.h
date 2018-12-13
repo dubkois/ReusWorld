@@ -3,20 +3,12 @@
 
 #include <cmath>
 
-#ifndef NDEBUG
 #include <ostream>
-#endif
 
 namespace simu {
 
 struct Point {
   float x, y;
-
-#ifndef NDEBUG
-  friend std::ostream& operator<< (std::ostream &os, const Point &p) {
-    return os << "{" << p.x << "," << p.y << "}";
-  }
-#endif
 
   static Point fromPolar (float a, float r) {
     return {  float(r * cos(a)), float(r * sin(a))  };
@@ -50,6 +42,10 @@ struct Point {
 
   friend bool operator!= (const Point &lhs, const Point &rhs) {
     return lhs.x != rhs.x || lhs.y != rhs.y;
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const Point &p) {
+    return os << "{" << p.x << "," << p.y << "}";
   }
 };
 
@@ -95,10 +91,8 @@ struct Rect {
         && lhs.t() >= rhs.b() && lhs.b() <= rhs.t();
   }
 
-#ifndef NDEBUG
   friend std::ostream& operator<< (std::ostream &os, const Rect &r) {
     return os << "{ " << r.ul << ", " << r.br << " }";
-#endif
   }
 };
 
@@ -120,11 +114,9 @@ struct Disk {
     return dXSquared + dYSquared <= sumRadiiSquared;
   }
 
-#ifndef NDEBUG
   friend std::ostream& operator<< (std::ostream &os, const Disk &d) {
     return os << "{" << d.center << ", " << d.radius << "}";
   }
-#endif
 };
 
 struct Position {

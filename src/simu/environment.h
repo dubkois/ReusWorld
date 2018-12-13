@@ -59,7 +59,7 @@ public:
   float waterAt(const Point &p);
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
-  void addCollisionData (Plant *p);
+  bool addCollisionData(Plant *p);
   void updateCollisionData (Plant *p);  ///< During plant step when testing for shape validity
   void updateCollisionDataFinal (Plant *p); ///< At the end of the step (no rollback allowed)
   void removeCollisionData (Plant *p);

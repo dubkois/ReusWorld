@@ -44,8 +44,8 @@ const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {
   return _collisionData->canopy(p);
 }
 
-void Environment::addCollisionData(Plant *p) {
-  _collisionData->addCollisionData(p);
+bool Environment::addCollisionData(Plant *p) {
+  return _collisionData->addCollisionData(p);
 }
 
 void Environment::updateCollisionData(Plant *p) {

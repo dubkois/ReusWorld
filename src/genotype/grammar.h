@@ -35,7 +35,8 @@ Successor toSuccessor (NonTerminal t);
 
 std::string extractBranch(const std::string &s, size_t start, size_t &end);
 
-void checkSuccessor (const std::string &s, const Checkers &checkers);
+void checkPremice (NonTerminal lhs, const Checkers &checkers);
+void checkSuccessor (const Successor &rhs, const Checkers &checkers);
 void checkRule (const std::string &s, const Checkers &checkers,
                 NonTerminal &lhs, Successor &rhs);
 
@@ -99,7 +100,9 @@ private:
 };
 
 template <LSystemType T>
-struct Rule_t : Rule_base {
+struct Rule_t : public Rule_base {
+  Rule_t (void) : Rule_base{'?', "?"} {}
+
   std::pair<NonTerminal, Rule_t> toPair (void) const {
     return std::make_pair(lhs, *this);
   }
@@ -131,10 +134,17 @@ struct Rule_t : Rule_base {
     return checkers;
   }
 
-  static Rule_t<T> fromString (const std::string &s) {
-    Rule_t<T> r;
+  static Rule_t fromString (const std::string &s) {
+    Rule_base r;
     checkRule(s, checkers(), r.lhs, r.rhs);
-    return r;
+    return Rule_t(r);
+  }
+
+  static Rule_t fromTokens (NonTerminal lhs, const Successor &rhs) {
+    Rule_base r{lhs,rhs};
+    checkPremice(r.lhs, checkers());
+    checkSuccessor(r.rhs, checkers());
+    return Rule_t(r);
   }
 
   friend bool operator== (const Rule_t &lhs, const Rule_t &rhs) {
@@ -151,6 +161,8 @@ struct Rule_t : Rule_base {
 
 private:
   static const Symbols terminals;
+
+  Rule_t (const Rule_base &r) : Rule_base(r) {}
 };
 
 template <LSystemType T>

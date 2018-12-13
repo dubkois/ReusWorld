@@ -196,7 +196,6 @@ void Organ::updateRotation(float d_angle) {
   updateTransformation();
 }
 
-#ifndef NDEBUG
 std::ostream& operator<< (std::ostream &os, const Organ &o) {
   std::stringstream tmpos;
   tmpos << std::setprecision(2) << std::fixed
@@ -205,7 +204,6 @@ std::ostream& operator<< (std::ostream &os, const Organ &o) {
      << o._plantCoordinates.rotation << "}";
   return os << tmpos.rdbuf();
 }
-#endif
 
 
 Plant::Plant(const Genome &g, float x, float y)
@@ -570,7 +568,7 @@ bool Plant::isSink(Organ *o) const {
 float Plant::sinkRequirement (Organ *o) const {
   assert(isSink(o));
 
-  float required;
+  float required = 0;
   if (o->isNonTerminal()) {
     required = ruleBiomassCost(o->layer(), o->symbol());
 
@@ -1014,7 +1012,8 @@ void Plant::step (Environment &env, Seeds &seeds) {
       if (debugDerivation)
         std::cerr << PlantID(this) << " Trimming non terminals for "
                   << L_EU::getName(l) << std::endl;
-      for (Organ *o: _nonTerminals) {
+      auto nonTerminals = _nonTerminals;
+      for (Organ *o: nonTerminals) {
         if (o->layer() == l) {
           updateSubtree(o, o->parent(), o->localRotation());
           delOrgan(o, env);

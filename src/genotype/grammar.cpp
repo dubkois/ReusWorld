@@ -40,25 +40,30 @@ std::string extractBranch(const std::string &s, size_t start, size_t &end) {
   return s.substr(start+1, end-start-1);
 }
 
-void checkSuccessor (const std::string &s, const Checkers &checkers) {
-  size_t size = s.size();
+void checkPremice(NonTerminal lhs, const Checkers &checkers) {
+  if (!checkers.nonTerminal(lhs))
+    doThrow("Invalid predecessor '", lhs, "'");
+}
+
+void checkSuccessor (const Successor &rhs, const Checkers &checkers) {
+  size_t size = rhs.size();
   for (size_t i=0; i<size; i++) {
-    char c = s[i];
+    char c = rhs[i];
 
     if (isupper(c)) {
       if (!checkers.nonTerminal(c))
-        doThrow("Character at pos ", i, " in ", s, " is not a valid non terminal");
+        doThrow("Character at pos ", i, " in ", rhs, " is not a valid non terminal");
     } else if (islower(c)) {
       if (!checkers.terminal(c))
-        doThrow("Character at pos ", i, " in ", s, " is not a valid terminal");
+        doThrow("Character at pos ", i, " in ", rhs, " is not a valid terminal");
     } else if (checkers.control(c)) {
       if (c == ']')
-        doThrow("Dandling closing bracket at pos ", i, " in ", s);
+        doThrow("Dandling closing bracket at pos ", i, " in ", rhs);
       else if (c == '[') {
-        checkSuccessor(extractBranch(s, i, i), checkers);
+        checkSuccessor(extractBranch(rhs, i, i), checkers);
       }
     } else
-      doThrow("Unrecognized character '", c, "' at pos ", i, " in ", s);
+      doThrow("Unrecognized character '", c, "' at pos ", i, " in ", rhs);
   }
 }
 
@@ -68,8 +73,7 @@ void checkRule (const std::string &s, const Checkers &checkers,
     doThrow("Provided rule '", s, "' is too small");
 
   lhs = s[0];
-  if (!checkers.nonTerminal(lhs))
-    doThrow("Invalid predecessor in rule '", s, "'");
+  checkPremice(lhs, checkers);
 
   if (s[1] != ' ' || s[2] != '-' || s[3] != '>' || s[4] != ' ')
     doThrow("Invalid separator in rule '", s, "'");

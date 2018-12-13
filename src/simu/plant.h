@@ -142,9 +142,7 @@ public:
     return _symbol == genotype::grammar::Rule_base::fruitSymbol();
   }
 
-#ifndef NDEBUG
   friend std::ostream& operator<< (std::ostream &os, const Organ &o);
-#endif
 };
 
 class Plant {
@@ -360,7 +358,6 @@ private:
   void collectFruits (Seeds &seeds, Environment &env);
 };
 
-#ifndef NDEBUG
 
 struct PlantID {
   const Plant *p;
@@ -384,7 +381,6 @@ struct OrganID {
               << "O" << oid.o->id() << oid.o->symbol() << "]";
   }
 };
-#endif
 
 } // end of namespace simu
 

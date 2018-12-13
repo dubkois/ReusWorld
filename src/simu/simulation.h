@@ -65,6 +65,7 @@ protected:
     float sumCompatibilities;
     uint matings;
     uint reproductions;
+    uint newSeeds;
     uint newPlants;
   } _stats;
 
