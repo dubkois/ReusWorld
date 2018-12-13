@@ -153,6 +153,16 @@ void Organ::removeFromParent(void) {
   }
 }
 
+void Organ::restoreInParent(void) {
+  if (_parent) {
+    _parent->_children.insert(this);
+    uint depth = 0;
+    for (Organ *c: _parent->_children)
+      depth = std::max(depth, c->_depth);
+    _parent->updateDepth(depth);
+  }
+}
+
 void Organ::updateParentDepth(void) {
   if (_parent)  _parent->updateDepth(_depth + (isNonTerminal() ? 0 : 1));
 }
@@ -190,9 +200,9 @@ void Organ::updateRotation(float d_angle) {
 std::ostream& operator<< (std::ostream &os, const Organ &o) {
   std::stringstream tmpos;
   tmpos << std::setprecision(2) << std::fixed
-     << "{ " << o._plantCoordinates.origin << "->"
+     << "[" << OrganID(&o) << "]{ " << o._plantCoordinates.origin << "->"
      << o._plantCoordinates.end << ", "
-     << o._plantCoordinates.rotation << ", " << o._symbol << "}";
+     << o._plantCoordinates.rotation << "}";
   return os << tmpos.rdbuf();
 }
 #endif
@@ -258,7 +268,13 @@ void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
   _dirty.set(DIRTY_METABOLISM, true);
 
   // Clean up
+  Point fpos = o->globalCoordinates().center;
   delOrgan(o, env);
+
+  // Update other flowers in case a competitor can take the freed-up space
+  for (Organ *f: _flowers)
+    if (fabs(f->globalCoordinates().center.x - fpos.x) < 1e-3)
+      env.updateGeneticMaterial(f, f->globalCoordinates().center);
 }
 
 float Plant::age (void) const {
@@ -297,40 +313,50 @@ void Plant::autopsy(void) const {
 }
 
 uint Plant::deriveRules(Environment &env) {
+  /// TODO Is this really okay ?
+  // Store current pistils location in case of an update
+  std::map<Organ*, Point> oldPistilsPositions;
+  if (sex() == Sex::FEMALE)
+    for (Organ *f: _flowers)
+      oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+
   auto nonTerminals = _nonTerminals;
   uint derivations = 0;
-  for (Organ *o: nonTerminals) {
-    LSystemType ltype = o->layer();
-    auto succ = _genome.successor(ltype, o->symbol());
+  for (Organ *apex: nonTerminals) {
+    Layer layer = apex->layer();
+    auto succ = _genome.successor(layer, apex->symbol());
 
     // Did the apex accumulate enough resources ?
-    if (o->requiredBiomass() > 0) {
+    if (apex->requiredBiomass() > 0) {
       if (debugDerivation)
-        std::cerr << OrganID(o) << " Apex is not ready (" << 100*o->fullness()
+        std::cerr << OrganID(apex) << " Apex is not ready (" << 100*apex->fullness()
                   << "%)" << std::endl;
       continue;
 
     } else if (debugDerivation)
-      std::cerr << "Applying " << o->symbol() << " -> " << succ << std::endl;
+      std::cerr << "Applying " << apex->symbol() << " -> " << succ << std::endl;
 
     auto size_before = _organs.size();
 
     // Create new organs
     Organs newOrgans;
-    float angle = o->localRotation(); // will return the remaining rotation (e.g. A -> A++)
-    Organ *o_ = turtleParse(o->parent(), succ, angle, ltype, newOrgans,
-                            _genome.checkers(ltype), env);
+    float angle = apex->localRotation(); // will return the remaining rotation (e.g. A -> A++)
+    Organ *end = turtleParse(apex->parent(), succ, angle, layer, newOrgans,
+                             _genome.checkers(layer), env);
 
     // Update physical data
-    updateSubtree(o, o_, angle);
+    apex->removeFromParent();
+    updateSubtree(apex, end, angle);
     updateGeometry();
     env.updateCollisionData(this);
 
+    /// FIXME This is a smelly piece of
     float sizeIncrease = 0;
     for (auto c: succ)
       sizeIncrease += GConfig::sizeOf(c).length;
 
     bool colliding = !env.isCollisionFree(this);
+
     if (colliding && sizeIncrease > 0) {
       const auto deleter = [&newOrgans, &env, this] (auto collection) {
         for (auto it = collection.begin(); it != collection.end();) {
@@ -346,21 +372,22 @@ uint Plant::deriveRules(Environment &env) {
       };
 
       // Delete new organs at the end (eg. A[l], with A -> As[l])
-      if (o_) deleter(o_->children());
+      if (end) deleter(end->children());
 
       // Revert reparenting
-      if (o_) updateSubtree(o_, o, -angle);
+      if (end) updateSubtree(end, apex, -angle);
+      apex->restoreInParent();
 
       // Delete newly created plant portion
-      Organ *o__ = o_;
-      while (o__ != o->parent()) {
+      Organ *o__ = end;
+      while (o__ != apex->parent()) {
         Organ *tmp = o__;
         o__ = o__->parent();
         delOrgan(tmp, env);
       }
 
       // Delete remaining unparented organs
-      if (!o->parent()) deleter(_bases);
+      if (!apex->parent()) deleter(_bases);
 
       // Re-update physical data
       updateGeometry();
@@ -376,7 +403,7 @@ uint Plant::deriveRules(Environment &env) {
     } else { // All's good
 
       // Divide remaining biomass into newly created sinks
-      float leftOverBiomass = o->biomass() - ruleBiomassCost(o->layer(), o->symbol());
+      float leftOverBiomass = apex->biomass() - ruleBiomassCost(apex->layer(), apex->symbol());
       if (leftOverBiomass > 0) {
         if (debugMetabolism || debugDerivation)
           std::cerr << PlantID(this) << "Dispatching " << leftOverBiomass
@@ -388,7 +415,25 @@ uint Plant::deriveRules(Environment &env) {
       derivations++;
 
       // Destroy
-      delOrgan(o, env);
+      delOrgan(apex, env);
+
+      // Update pistils positions cache
+      if (sex() == Sex::FEMALE)
+        for (Organ *p: _flowers)
+          if (oldPistilsPositions.find(p) == oldPistilsPositions.end())
+            oldPistilsPositions.emplace(p, p->globalCoordinates().center);
+    }
+  }
+
+  // Update pistils as needed
+  for (auto &p: oldPistilsPositions) {
+    if (p.second != p.first->globalCoordinates().center) {
+      env.updateGeneticMaterial(p.first, p.second); // If position changed
+
+      // Check if this freed up some space for others
+      for (Organ *f: _flowers)
+        if (f != p.first && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
+          env.updateGeneticMaterial(f, f->globalCoordinates().center);
     }
   }
 
@@ -504,9 +549,6 @@ void Plant::delOrgan(Organ *o, Environment &env) {
   if (o->isNonTerminal()) _nonTerminals.erase(o);
   if (o->isHair())  _hairs.erase(o);
   if (isSink(o))  _sinks.erase(o);
-
-  if (id() == ID(453) && o->id() == OID(2))
-    std::cerr << "Deleting " << OrganID(o) << std::endl;
 
   if (o->isFlower()) {
     _flowers.erase(o);
@@ -962,11 +1004,6 @@ void Plant::step (Environment &env, Seeds &seeds) {
               << std::endl;
 
   if (_age % SConfig::stepsPerDay() == 0) {
-    /// FIXME Kinda quick and dirty
-    std::map<Organ*, Point> oldPistilsPositions;
-    if (sex() == Sex::FEMALE)
-      for (Organ *f: _flowers)
-        oldPistilsPositions.emplace(f, f->globalCoordinates().center);
 
     bool derived = bool(deriveRules(env));
     _derived += derived;
@@ -985,10 +1022,6 @@ void Plant::step (Environment &env, Seeds &seeds) {
       }
     }
 
-    for (auto &p: oldPistilsPositions)
-      if (p.second != p.first->globalCoordinates().center)
-        env.updateGeneticMaterial(p.first, p.second);
-
     if (derived)  updateRequirements();
     update(env);
   }
@@ -997,6 +1030,13 @@ void Plant::step (Environment &env, Seeds &seeds) {
   collectFruits(seeds, env);
 
   /// Recursively delete dead organs
+  // First take note of the current flowers
+  std::map<Organ*, Point> oldPistilsPositions;
+  if (sex() == Sex::FEMALE)
+    for (Organ *f: _flowers)
+      oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+
+  // Perform suppressions
   auto bases = _bases;
   std::function<void(Organ*)> destroyDeadSubtrees =
     [&destroyDeadSubtrees, &env, this] (Organ *o) {
@@ -1004,6 +1044,13 @@ void Plant::step (Environment &env, Seeds &seeds) {
       else  for (Organ *c: o->children()) destroyDeadSubtrees(c);
   };
   for (Organ *o: bases)  destroyDeadSubtrees(o);
+
+  // Update remaining flowers (check if some space was freed)
+  for (auto &pair: oldPistilsPositions)
+    if (_flowers.find(pair.first) == _flowers.end())
+      for (Organ *f: _flowers)
+        if (fabs(f->globalCoordinates().center.x - pair.second.x) < 1e-3)
+          env.updateGeneticMaterial(f, f->globalCoordinates().center);
 
   update(env);
 

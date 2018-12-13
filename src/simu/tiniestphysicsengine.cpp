@@ -9,43 +9,39 @@ static constexpr bool debugUpperLayer = false;
 static constexpr bool debugCollision = false;
 static constexpr bool debugReproduction = false;
 
-
-// =============================================================================
-
-bool intersects (const CObject &lhs, const CObject &rhs) {
-  return intersects(lhs.boundingRect, rhs.boundingRect);
+static constexpr float floatPrecision = 1e6;
+bool fuzzyEqual (float lhs, float rhs) {
+  return int(lhs * floatPrecision) == int(rhs * floatPrecision);
+}
+bool fuzzyLower (float lhs, float rhs) {
+  return int(lhs * floatPrecision) < int(rhs * floatPrecision);
 }
 
-template <typename C, typename V>
-std::pair<typename C::iterator, typename C::iterator>
-intersect_range (const C &container, const V &value) {
-  auto vit = container.find(value);
-  assert(vit != container.end());
 
-  const auto &cv = *vit;
+#ifndef NDEBUG
 
-  auto itLR = typename C::reverse_iterator(vit);
-  while (itLR != container.rend() && intersects(*itLR, cv))
-    itLR = std::next(itLR);
-
-  auto itR = vit;
-  while (itR != container.end() && intersects(*itR, cv))
-    itR = std::next(itR);
-
-  return {
-    itLR.base(), // should be std::prev(itLR.base()) but we want the next
-    itR
-  };
+std::ostream& operator<< (std::ostream &os, const UpperLayer::Item &i) {
+  return os << "{ " << i.l << " - " << i.r << ", " << i.y << ", "
+            << i.organ->id() << " }";
 }
+
+std::ostream& operator<< (std::ostream &os, const Pistil &p) {
+  if (p.isValid())
+    return os << "{P:" << OrganID(p.organ) << "," << p.boundingDisk << "}";
+  else
+    return os << "{P:invalid}";
+}
+
+#endif
 
 
 // =============================================================================
 
 bool operator< (const Rect &lhs, const Rect &rhs) {
-  if (lhs.ul.x != rhs.ul.x) return lhs.ul.x < rhs.ul.x;
-  if (lhs.br.x != rhs.br.x) return lhs.br.x < rhs.br.x;
-  if (lhs.ul.y != rhs.ul.y) return lhs.ul.y < rhs.ul.y;
-  return lhs.br.y < rhs.br.y;
+  if (!fuzzyEqual(lhs.ul.x, rhs.ul.x)) return fuzzyLower(lhs.ul.x, rhs.ul.x);
+  if (!fuzzyEqual(lhs.br.x, rhs.br.x)) return fuzzyLower(lhs.br.x, rhs.br.x);
+  if (!fuzzyEqual(lhs.ul.y, rhs.ul.y)) return fuzzyLower(lhs.ul.y, rhs.ul.y);
+  return fuzzyLower(lhs.br.y, rhs.br.y);
 }
 
 using fnl = std::numeric_limits<float>;
@@ -67,8 +63,8 @@ struct XEvent {
   auto coord (void) const { return type == IN? left() : right(); }
 
   friend bool operator< (const XEvent &lhs, const XEvent &rhs) {
-    if (lhs.coord() != rhs.coord()) return lhs.coord() < rhs.coord();
-    if (lhs.top() != rhs.top()) return lhs.top() < rhs.top();
+    if (!fuzzyEqual(lhs.coord(), rhs.coord()))  return fuzzyLower(lhs.coord(), rhs.coord());
+    if (!fuzzyEqual(lhs.top(), rhs.top()))      return fuzzyLower(lhs.top(), rhs.top());
     return lhs.organ < rhs.organ;
   }
 
@@ -110,10 +106,6 @@ struct SortedStack {
   }
 };
 
-std::ostream& operator<< (std::ostream &os, const UpperLayer::Item &i) {
-  return os << "{ " << i.l << " - " << i.r << ", " << i.y << ", "
-            << i.organ->id() << " }";
-}
 
 void UpperLayer::update (const Plant *p) {
   items.clear();
@@ -219,32 +211,98 @@ void CollisionData::addCollisionData (Plant *p) {
 
 void CollisionData::removeCollisionData (Plant *p) {
   auto it = _data.find(*p);
-  assert(it != _data.end());
-  _data.erase(it);
+  if (it != _data.end()) {
+    _data.erase(it);
 
-  for (auto it = _pistils.begin(); it != _pistils.end();) {
-    if (it->organ->plant() == p)
-      it = _pistils.erase(it);
-    else  ++it;
+    for (auto it = _pistils.begin(); it != _pistils.end();) {
+      if (it->organ->plant() == p)
+        it = _pistils.erase(it);
+      else  ++it;
+    }
   }
 }
 
 void CollisionData::updateCollisions (Plant *p) {
   auto it = _data.find(*p);
-  assert(it != _data.end());
-  CObject object = *it;
-  _data.erase(it);
-  object.updateCollisions();
-  _data.insert(object);
+  if (it != _data.end()) {
+    CObject object = *it;
+    _data.erase(it);
+    object.updateCollisions();
+    _data.insert(object);
+  } else
+    addCollisionData(p);
 }
 
 void CollisionData::updateFinal (Plant *p) {
   auto it = _data.find(*p);
-  assert(it != _data.end());
-  CObject object = *it;
-  _data.erase(it);
-  object.updateFinal();
-  _data.insert(object);
+  if (it != _data.end()) {
+    CObject object = *it;
+    _data.erase(it);
+    object.updateFinal();
+    _data.insert(object);
+  } else
+    addCollisionData(p);
+
+#ifndef NDEBUG
+  for (const Pistil &ps: _pistils) {
+    if (ps.organ->plant() != p)  continue;
+
+    std::map<float, std::vector<Organ*>> pistils;
+    for (Organ *o: p->flowers())
+      pistils[int(o->globalCoordinates().center.x * floatPrecision) / floatPrecision].push_back(o);
+
+    for (auto &pair: pistils) {
+      bool found = false, matched = false;
+      for (Organ *o: pair.second) {
+        auto it = _pistils.find(o->globalCoordinates().center);
+        if (it != _pistils.end()) {
+          found = true;
+
+          Disk bd = it->boundingDisk;
+          if(bd.center == o->globalCoordinates().center) {
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!(found && matched)) {
+        std::cerr << "Something went wrong... (" << found << matched << ")\n";
+        std::cerr << "Here is the replay:\n";
+        found = false, matched = false;
+        uint i = 1;
+        for (Organ *o: pair.second) {
+          std::cerr << "Attempt " << i++ << " / " << pair.second.size() << "\n";
+          std::cerr << "\tLooking for " << OrganID(o) << " at "
+                    << o->globalCoordinates().center << "\n";
+          auto it = _pistils.find(o->globalCoordinates().center);
+          if (it != _pistils.end()) {
+            found = true;
+
+            std::cerr << "\t\tFound something!\n";
+
+            Disk bd = it->boundingDisk;
+            std::cerr << "\t\t" << bd.center << " ~= "
+                      << o->globalCoordinates().center << "? ";
+            if(bd.center == o->globalCoordinates().center) {
+              std::cerr << "Match!\n";
+              matched = true;
+              break;
+            } else
+              std::cerr << "Mismatch...\n";
+
+          } else
+            std::cerr << "\t\tNot found...\n";
+        }
+        std::cerr << "Here are the pistils for "
+                  << PlantID(p) << ":" << std::endl;
+        for (const Pistil &ps: _pistils)
+          if (ps.organ->plant() == p)
+            std::cerr << "\t" << ps << "\n";
+      }
+      assert(found && matched);
+    }
+  }
+#endif
 }
 
 
@@ -258,21 +316,42 @@ bool CollisionData::narrowPhaseCollision (const Plant *lhs, const Plant *rhs) {
 // =============================================================================
 
 bool operator< (const CObject &lhs, const CObject &rhs) {
-  return lhs.plant->pos().x < rhs.plant->pos().x;
+  return fuzzyLower(lhs.plant->pos().x, rhs.plant->pos().x);
 }
 
 bool operator< (const CObject &lhs, const Plant &rhs) {
-  return lhs.plant->pos().x < rhs.pos().x;
+  return fuzzyLower(lhs.plant->pos().x, rhs.pos().x);
 }
 
 bool operator< (const Plant &lhs, const CObject &rhs) {
-  return lhs.pos().x < rhs.plant->pos().x;
+  return fuzzyLower(lhs.pos().x, rhs.plant->pos().x);
 }
 
 // =============================================================================
 
+bool intersects (const CObject &lhs, const CObject &rhs) {
+  return intersects(lhs.boundingRect, rhs.boundingRect);
+}
+
 bool CollisionData::isCollisionFree (const Plant *p) const {
-  auto range = intersect_range(_data, *p);
+  auto vit = _data.find(*p);
+  if(vit == _data.end())  return false;
+
+  const auto &cv = *vit;
+
+  auto itLR = typename Collisions::reverse_iterator(vit);
+  while (itLR != _data.rend() && intersects(*itLR, cv))
+    itLR = std::next(itLR);
+
+  auto itR = vit;
+  while (itR != _data.end() && intersects(*itR, cv))
+    itR = std::next(itR);
+
+  auto range = std::make_pair(
+    itLR.base(), // should be std::prev(itLR.base()) but we want the next
+    itR
+  );
+
   if (debugCollision)
     std::cerr << "Possible collisions for " << p->id() << ": "
               << range.first->plant->id() << " to "
@@ -300,26 +379,16 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
 // =============================================================================
 
-#ifndef NDEBUG
-std::ostream& operator<< (std::ostream &os, const Pistil &p) {
-  if (p.isValid())
-    return os << "{P:" << OrganID(p.organ) << "," << p.boundingDisk << "}";
-  else
-    return os << "{P:invalid}";
-}
-
-#endif
-
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
-  return lhs.boundingDisk.center.x < rhs.boundingDisk.center.x;
+  return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
 }
 
 bool operator< (const Pistil &lhs, const Point &rhs) {
-  return lhs.boundingDisk.center.x < rhs.x;
+  return fuzzyLower(lhs.boundingDisk.center.x, rhs.x);
 }
 
 bool operator< (const Point &lhs, const Pistil &rhs) {
-  return lhs.x < rhs.boundingDisk.center.x;
+  return fuzzyLower(lhs.x, rhs.boundingDisk.center.x);
 }
 
 Disk boundingDiskFor (const Organ *o) {
@@ -336,6 +405,7 @@ void CollisionData::addPistil(Organ *p) {
   MAYBE_KEEP _pistils.emplace(p, boundingDiskFor(p));
 #undef MAYBE_KEEP
 #ifndef NDEBUG
+  assert(p->globalCoordinates().center == boundingDiskFor(p).center);
   if (debugReproduction) {
     if (res.second)
       std::cerr << "Added " << *res.first << std::endl;
@@ -352,8 +422,8 @@ void CollisionData::delPistil(const Point &pos) {
     if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;
     _pistils.erase(it);
   } else
-    if (debugReproduction)  std::cerr << "Could not find pistil at pos"
-                                      << pos << std::endl;
+    if (debugReproduction)  std::cerr << "Could not delete pistil at pos"
+                                      << pos << ": not found" << std::endl;
 }
 
 void CollisionData::delPistil(const Pistil &s) {
@@ -362,26 +432,31 @@ void CollisionData::delPistil(const Pistil &s) {
 
 void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
   auto it = _pistils.find(oldPos);
-  assert(it != _pistils.end());
-  Pistil s = *it;
-  _pistils.erase(it);
+  if (it != _pistils.end()) {
+    Pistil s = *it;
+    _pistils.erase(it);
 
-  if (debugReproduction)
-    std::cerr << "Updating" << s;
+    if (debugReproduction)
+      std::cerr << "Updating" << s;
 
-  s.boundingDisk = boundingDiskFor(p);
+    s.boundingDisk = boundingDiskFor(p);
 
-  if (debugReproduction)
-    std::cerr << " >> " << s.boundingDisk << std::endl;
+    if (debugReproduction)
+      std::cerr << " >> " << s.boundingDisk << std::endl;
 
-  _pistils.insert(s);
+    _pistils.insert(s);
+  } else {
+    if (debugReproduction)
+      std::cerr << "Could not find pistil at pos " << oldPos << " thus ";
+    addPistil(p);
+  }
 }
 
 struct LowerBound {
   Disk boundingDisk;
 
   static bool leftOf (const Disk &lhs, const Disk &rhs) {
-    return lhs.center.x + lhs.radius < rhs.center.x - rhs.radius;
+    return fuzzyLower(lhs.center.x + lhs.radius, rhs.center.x - rhs.radius);
   }
 
   friend bool operator< (const LowerBound &lhs, const Pistil &rhs) {

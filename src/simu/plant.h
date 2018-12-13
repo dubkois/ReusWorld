@@ -77,6 +77,7 @@ public:
   void updateRotation (float d_angle);
 
   void removeFromParent(void);
+  void restoreInParent(void);
 
   auto id (void) const {    return _id;     }
   auto plant (void) const { return _plant;  }

@@ -2,12 +2,14 @@
 
 #include "simulation.h"
 
+#include "tiniestphysicsengine.h" /// TODO Remove
+
 namespace simu {
 
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
 
-static constexpr bool debug = false
+static constexpr bool debug = true
   | debugPlantManagement | debugReproduction;
 
 bool Simulation::init (void) {
@@ -69,6 +71,7 @@ bool Simulation::init (void) {
 //  _ecosystem.plant.root.recursivity = 5;
 
   _env.init();
+  _ptree.addGenome(_ecosystem.plant);
 
   uint N = _ecosystem.initSeeds;
   float dx = .5; // m
@@ -76,49 +79,9 @@ bool Simulation::init (void) {
   for (uint i=0; i<N; i++) {
     auto pg = _ecosystem.plant.clone();
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
-
-//    switch (i) {
-//    case 0:
-//      pg.shoot.rules = {
-//        SRule::fromString("S -> ABC+l").toPair(),
-//        SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
-//        SRule::fromString("B -> Bs").toPair(),
-//        SRule::fromString("C -> [f]").toPair(),
-//      };
-//      pg.shoot.recursivity = 5;
-//      pg.dethklok = 101;
-//      break;
-//    case 1:
-//      pg.shoot.rules = {
-//        SRule::fromString("S -> ABC+l").toPair(),
-//        SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
-//        SRule::fromString("B -> Bs").toPair(),
-//        SRule::fromString("C -> [f]").toPair(),
-//      };
-//      pg.shoot.recursivity = 5;
-//      pg.root.rules = {
-//        RRule::fromString("S -> AB[+h][-h]").toPair(),
-//        RRule::fromString("A -> AB[-ABh][+ABh]").toPair(),
-//        RRule::fromString("B -> Bt").toPair(),
-//      };
-//      pg.root.recursivity = 5;
-//      pg.dethklok = 101;
-//      break;
-//    case 2:
-//      pg.root.rules = {
-//        RRule::fromString("S -> AB[+h][-h]").toPair(),
-//        RRule::fromString("A -> AB[-ABh][+ABh]").toPair(),
-//        RRule::fromString("B -> Bt").toPair(),
-//      };
-//      pg.root.recursivity = 5;
-//      pg.dethklok = 101;
-//      break;
-//    }
-
-//    for (uint j=0; j<100; j++)  pg.mutate(_env.dice());
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
+
     addPlant(pg, x0 + i * dx, initBiomass);
-//    std::cerr << "genome " << i << ": " << pg << std::endl;
   }
   return true;
 }
@@ -140,7 +103,6 @@ void Simulation::addPlant(const PGenome &g, float x, float biomass) {
     Plant *p = pair.first->second.get();
     pair.first->second->init(_env, biomass);
     _env.addCollisionData(p);
-    _ptree.addGenome(p->genome());
 
     if (debugPlantManagement) {
       std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
@@ -155,7 +117,7 @@ void Simulation::delPlant(float x) {
   Plant *p = _plants.at(x).get();
   if (debugPlantManagement) p->autopsy();
   _env.removeCollisionData(p);
-  _ptree.delGenome(p->genome());
+//  _ptree.delGenome(p->genome());
   _plants.erase(x);
 }
 
@@ -208,6 +170,7 @@ void Simulation::performReproductions(void) {
       _stats.matings++;
 
       if (fecundated) {
+//        _ptree.addGenome(p->genome());
         mother->replaceWithFruit(s.organ, child, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
         modifiedPlants.push_back(mother);
@@ -235,9 +198,10 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 
 void Simulation::step (void) {
   if (debug)
-    std::cerr << "## Simulation step " << _step << " ##" << std::endl;
+    std::cerr << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
+              << "## Simulation step " << _step << " ##" << std::endl;
 
-//  _stats = Stats{};
+  _stats = Stats{};
 
   _env.step();
 
@@ -256,6 +220,8 @@ void Simulation::step (void) {
   performReproductions();
   plantSeeds(seeds);
 
+  assert(_env.collisionData().data().size() == _plants.size());
+
   if (config::Simulation::logGlobalStats()) {
     std::ofstream ofs;
     std::ios_base::openmode mode = std::fstream::out;
@@ -264,7 +230,7 @@ void Simulation::step (void) {
     ofs.open("global.dat", mode);
 
     if (_step == 0)
-      ofs << "Plants Females Males Biomass Flowers Fruits Matings Reproductions"
+      ofs << "Time Plants Females Males Biomass Flowers Fruits Matings Reproductions"
              " dPlants AvgDist AvgCompat\n";
 
     using decimal = Plant::decimal;
@@ -279,9 +245,10 @@ void Simulation::step (void) {
       females += (plant.sex() == Plant::Sex::FEMALE);
       males += (plant.sex() == Plant::Sex::MALE);
     }
-    ofs << _plants.size() << " " << females << " " << males << " " << biomass
-        << " " << flowers << " " << fruits << " " << _stats.matings
-        << " " << _stats.reproductions << " " << _stats.newPlants
+    ofs << dayCount() << " " << _plants.size() << " " << females << " " << males
+        << " " << biomass << " " << flowers << " " << fruits
+        << " " << _stats.matings << " " << _stats.reproductions
+        << " " << _stats.newPlants
         << " " << _stats.sumDistances / float(_stats.matings)
         << " " << _stats.sumCompatibilities / float(_stats.matings)
         << std::endl;

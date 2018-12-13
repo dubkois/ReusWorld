@@ -27,8 +27,12 @@ void Environment::destroy (void) {
 void Environment::step (void) {}
 
 float Environment::waterAt(const Point &p) {
-  assert(-xextent() <= p.x && p.x <= xextent());
-  assert(-yextent() <= p.y && p.y <= 0);
+  // No water outside the boundaries
+  if (p.x < -xextent()) return 0;
+  if (xextent() < p.x)  return 0;
+  if (p.y < -yextent()) return 0;
+  if (0 < p.y)          return 0;
+
   uint v = (p.x + xextent()) * float(_genome.voxels) / width();
   assert(v < _genome.voxels);
   float d = - p.y / yextent();
