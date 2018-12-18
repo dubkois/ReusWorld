@@ -39,24 +39,38 @@ public:
     return _plants;
   }
 
-  uint step (void) const {
+  uint currentStep (void) const {
     return _step;
   }
 
-  float dayCount (void) const {
-    static const auto spd = config::Simulation::stepsPerDay();
-    return float(_step) / spd;
-  }
-
-  float day (void) const {
+  uint maxStep (void) const {
     static const auto spd = config::Simulation::stepsPerDay();
     static const auto dpy = config::Simulation::daysPerYear();
-    return std::fmod(float(_step) / spd, dpy);
+    return _ecosystem.maxYearDuration * dpy * spd;
   }
 
-  float year (void) const {
+  static float dayCount (uint step) {
+    static const auto spd = config::Simulation::stepsPerDay();
+    return float(step) / spd;
+  }
+  float dayCount (void) const { return dayCount(_step); }
+
+  static float day (uint step) {
+    static const auto spd = config::Simulation::stepsPerDay();
     static const auto dpy = config::Simulation::daysPerYear();
-    return dayCount() / dpy;
+    return std::fmod(float(step) / spd, dpy);
+  }
+  float day (void) const {  return day(_step);  }
+
+  static float year (uint step) {
+    static const auto dpy = config::Simulation::daysPerYear();
+    return dayCount(step) / dpy;
+  }
+  float year (void) const { return year(_step); }
+
+  static std::string prettyTime (uint step);
+  std::string prettyTime (void) const {
+    return prettyTime(_step);
   }
 
 protected:
@@ -67,6 +81,7 @@ protected:
     uint reproductions;
     uint newSeeds;
     uint newPlants;
+    uint deadPlants;
   } _stats;
 
   genotype::Ecosystem _ecosystem;
@@ -81,7 +96,7 @@ protected:
 
   uint _step;
 
-  virtual void addPlant (const PGenome &g, float x, float biomass);
+  virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x);
 
   virtual void performReproductions (void);

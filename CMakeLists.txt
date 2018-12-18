@@ -92,6 +92,9 @@ set(VISU_SRC
     "graphicsimulation.cpp"
     "controller.h"
     "controller.cpp"
+    "tools/fastforwarddialog.h"
+    "tools/fastforwarddialog.cpp"
+    "tools/smoothdurations.hpp"
 )
 PREPEND(VISU_SRC "src/visu" ${VISU_SRC})
 

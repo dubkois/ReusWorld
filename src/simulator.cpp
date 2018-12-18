@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
   // == Command line arguments parsing
 
   using Verbosity = config::Verbosity;
+  using Seed_t = rng::AbstractDice::Seed_t;
 
   cxxopts::Options options("ReusWorld (headless)",
                            "2D simulation of plants in a changing environment (no gui output)");
@@ -28,7 +29,9 @@ int main(int argc, char *argv[]) {
     ("a,auto-config", "Load configuration data from default location", cxxopts::value<bool>())
     ("c,config", "File containing configuration data", cxxopts::value<std::string>())
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value<Verbosity>())
-    ("g,genome", "Genome to start from", cxxopts::value<std::string>()->default_value(""))
+    ("g,genome", "Genome to start from", cxxopts::value<std::string>())
+    ("r,random", "Random starting genome. Either using provided seed or current"
+                 "time", cxxopts::value<Seed_t>()->implicit_value("-1"))
     ;
 
   auto result = options.parse(argc, argv);
@@ -48,17 +51,32 @@ int main(int argc, char *argv[]) {
   config::Simulation::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Simulation::printConfig("");
 
-  std::string inputFile = result["genome"].as<std::string>();
+  genotype::Ecosystem genome;
+  if (result.count("genome") == result.count("random"))
+    utils::doThrow<std::invalid_argument>(
+      "You must either provide a starting genome or declare a random run");
+
+  else if (result.count("genome")) {
+    std::string inputFile = result["genome"].as<std::string>();
+    std::cerr << "Reading genome for input file " << inputFile << std::endl;
+    genome = genotype::Ecosystem::fromFile(inputFile);
+
+  } else {
+    rng::FastDice dice;
+    if (result["random"].as<Seed_t>() != Seed_t(-1))
+      dice.reset(result["random"].as<Seed_t>());
+    std::cerr << "Generating genome from rng seed " << dice.getSeed() << std::endl;
+    genome = genotype::Ecosystem::random(dice);
+    genome.toFile("last.gtp", 2);
+  }
+
 
   // ===========================================================================
   // == Core setup
 
-  rng::FastDice dice (0);
-  genotype::Ecosystem e = inputFile.empty() ?
-        genotype::Ecosystem::random(dice)
-      : genotype::Ecosystem::fromFile(inputFile);
+  std::cerr << "Starting from genome: " << genome << std::endl;
 
-  simu::Simulation s (e);
+  simu::Simulation s (genome);
   s.init();
 
   while (!s.finished())

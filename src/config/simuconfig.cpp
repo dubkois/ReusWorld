@@ -14,6 +14,9 @@ DEFINE_PARAMETER(bool, logGlobalStats, false)
 DEFINE_PARAMETER(uint, stepsPerDay, 10)
 DEFINE_PARAMETER(uint, daysPerYear, 100)
 
+DEFINE_PARAMETER(float, trimmingProba, .0001)
+DEFINE_PARAMETER(float, maxPlantDensity, 10)
+
 DEFINE_PARAMETER(float, assimilationRate, .01)
 DEFINE_PARAMETER(float, saturationRate, 1)
 DEFINE_PARAMETER(float, lifeCost, .05)

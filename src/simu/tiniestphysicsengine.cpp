@@ -214,7 +214,11 @@ const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
 }
 
 bool CollisionData::addCollisionData (Plant *p) {
-  return _data.insert(CObject(p)).second;
+  CObject object (p);
+  if (debugCollision) std::cerr << "Inserted collision data "
+                                << object.boundingRect << " for " << p->id()
+                                << std::endl;
+  return _data.insert(object).second;
 }
 
 void CollisionData::removeCollisionData (Plant *p) {
@@ -232,7 +236,10 @@ void CollisionData::updateCollisions (Plant *p) {
   auto it = find(p);
   CObject object = *it;
   _data.erase(it);
+  if (debugCollision) std::cerr << "Updated collision data for " << p->id()
+                                << " from " << object.boundingRect;
   object.updateCollisions();
+  if (debugCollision) std::cerr << " to " << object.boundingRect << std::endl;
   _data.insert(object);
 }
 
@@ -299,7 +306,8 @@ void CollisionData::updateFinal (Plant *p) {
           if (ps.organ->plant() == p)
             std::cerr << "\t" << ps << "\n";
       }
-      assert(found && matched);
+      if(!(found && matched))
+        utils::doThrow<std::logic_error>("Something went wrong...");
     }
   }
 #endif
@@ -352,7 +360,8 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
   );
 
   if (debugCollision)
-    std::cerr << "Possible collisions for " << p->id() << ": "
+    std::cerr << "Possible collisions for " << p->id() << " ("
+              << cv.boundingRect << "): "
               << range.first->plant->id() << " to "
               << std::prev(range.second)->plant->id()
               << " (" << std::distance(range.first, range.second) - 1
@@ -363,7 +372,8 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
     const Plant *p_ = it->plant;
     if (p_ == p) continue;
 
-//    if (debugCollision) std::cerr << "\t" << p_->id() << "\n";
+    if (debugCollision)
+      std::cerr << "\t" << p_->id() << ": " << it->boundingRect << "\n";
 
     if (narrowPhaseCollision(p, p_) // Test for collision
         && (this_isSeed || !p_->isInSeedState())) // Ignore plants hitting seeds
@@ -377,6 +387,35 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
 
 // =============================================================================
+
+/// TODO REMoVE
+bool CollisionData::valid (const Pistil &p) {
+  return p.organ->id() <= 1000
+      && uint(p.organ->plant()->id()) <= 1000000
+      && p.organ->plant()->genome().seedsPerFruit <= 10
+      && find(p.organ->plant()) != _data.end();
+}
+
+bool CollisionData::checkAll (void) {
+  bool ok = true;
+//  for (const Pistil &p: _pistils)
+//    ok &= valid(p);
+//  if (!ok) {
+//    std::cerr << "Got errors!" << std::endl;
+//    uint i = 0;
+//    for (const Pistil &p: _pistils) {
+//      if (valid(p)) i++;
+//      else {
+//        std::cerr << "..." << i << "..." << p;
+//        i = 0;
+//      }
+//    }
+//    std::cerr << "..." << i << "..." << std::endl;
+//    utils::doThrow<std::logic_error>("Got invalid pistils...");
+//  }
+  return ok;
+}
+
 
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
   return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
@@ -396,14 +435,9 @@ Disk boundingDiskFor (const Organ *o) {
 }
 
 void CollisionData::addPistil(Organ *p) {
+  _pistils.emplace(p, boundingDiskFor(p));
 #ifndef NDEBUG
-#define MAYBE_KEEP auto res =
-#else
-#define MAYBE_KEEP
-#endif
-  MAYBE_KEEP _pistils.emplace(p, boundingDiskFor(p));
-#undef MAYBE_KEEP
-#ifndef NDEBUG
+  auto res = _pistils.emplace(p, boundingDiskFor(p));
   assert(p->globalCoordinates().center == boundingDiskFor(p).center);
   if (debugReproduction) {
     if (res.second)
@@ -467,6 +501,8 @@ struct LowerBound {
   }
 };
 CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
+  checkAll();
+
   Disk boundingDisk = boundingDiskFor(s);
   auto itL = _pistils.lower_bound(LowerBound{boundingDisk});
   if (itL == _pistils.end())  return { itL, itL };
@@ -474,6 +510,24 @@ CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
   auto itR = itL;
   while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
     itR = std::next(itR);
+
+
+  bool ok = true;
+  for (auto it = itL; it != itR; ++it)
+    ok &= valid(*it);
+
+  if (!ok) {
+    std::cerr << "Got an error!" << std::endl;
+    std::cerr << "Seeds in range:";
+    for (auto it = itL; it != itR; ++it) {
+      std::cerr << " " << *it;
+      if (!valid(*it))
+        std::cerr << "(invalid!)";
+    }
+    std::cerr << std::endl;
+    utils::doThrow<std::logic_error>("Accessed out-of-bounds pistil...");
+  }
+
   return { itL, itR };
 }
 

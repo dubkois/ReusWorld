@@ -188,7 +188,7 @@ private:
 
   using OID = Organ::OID;
   struct FruitData {
-    Genome genome;
+    std::vector<Genome> genomes;
     Organ *fruit;
   };
   using Fruits = std::map<OID, FruitData>;
@@ -209,7 +209,8 @@ public:
 
   void init (Environment &env, float biomass);
 
-  void replaceWithFruit (Organ *o, const Genome &g, Environment &env);
+  void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
+                         Environment &env);
 
   void update (Environment &env);
 

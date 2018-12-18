@@ -17,10 +17,11 @@ public:
   void setController (Controller *_controller);
 
   bool init (void) override;
-  void step (void) override;
+
+  void graphicalStep (void);
 
 private:
-  void addPlant (const PGenome &p, float x, float biomass) override;
+  bool addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x) override;
 
   void doScreenshot (void) const;

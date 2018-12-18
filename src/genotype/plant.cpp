@@ -196,10 +196,15 @@ bool checkLSystemRules (const R &r) {
   static const auto &checkers = Rule::checkers();
   if (r.size() > maxRuleCount())  return false;
   for (auto &p: r) {
-    if (!Rule::isValidTerminal(p.first))
+    if (!Rule::isValidNonTerminal(p.first)) {
+      std::cerr << "ERROR: " << p.first << " is not a valid non terminal" << std::endl;
       return false;
-    if (p.second.sizeWithoutControlChars() > Config::ls_maxRuleSize())
+    }
+    if (p.second.sizeWithoutControlChars() > Config::ls_maxRuleSize()) {
+      std::cerr << "ERROR: " << p.second << " is longer than limit ("
+                << Config::ls_maxRuleSize() << ")" << std::endl;
       return false;
+    }
     grammar::checkSuccessor(p.second.rhs, checkers);
   }
   return true;

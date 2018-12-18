@@ -19,6 +19,9 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(uint, stepsPerDay)
   DECLARE_PARAMETER(uint, daysPerYear)
 
+  DECLARE_PARAMETER(float, trimmingProba)
+  DECLARE_PARAMETER(float, maxPlantDensity) // Per meter
+
   DECLARE_PARAMETER(float, assimilationRate)
   DECLARE_PARAMETER(float, saturationRate)
   DECLARE_PARAMETER(float, lifeCost)

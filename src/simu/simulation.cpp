@@ -9,7 +9,7 @@ namespace simu {
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
 
-static constexpr bool debug = true
+static constexpr bool debug = false
   | debugPlantManagement | debugReproduction;
 
 bool Simulation::init (void) {
@@ -97,7 +97,7 @@ bool Simulation::reset (void) {
   return init();
 }
 
-void Simulation::addPlant(const PGenome &g, float x, float biomass) {
+bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
   _stats.newSeeds++;
 
@@ -113,10 +113,13 @@ void Simulation::addPlant(const PGenome &g, float x, float biomass) {
       }
 
       _stats.newPlants++;
+      return true;
 
     } else
       _plants.erase(pair.first);
   }
+
+  return false;
 }
 
 void Simulation::delPlant(float x) {
@@ -126,6 +129,14 @@ void Simulation::delPlant(float x) {
 //  _ptree.delGenome(p->genome());
   _plants.erase(x);
 }
+
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+void breakpoint (void) {
+  std::cerr << "Debugging..." << std::endl;
+}
+#pragma GCC pop_options
+
 
 void Simulation::performReproductions(void) {
   std::vector<Plant*> modifiedPlants;
@@ -158,11 +169,26 @@ void Simulation::performReproductions(void) {
       if (!s.isValid()) continue;
       if (s.organ->requiredBiomass() > 0)  continue;
 
+      bool breakHere = fabs(s.boundingDisk.center.x + 138.21) < 1e-2
+          && fabs(s.boundingDisk.center.y - 0.194856) < 1e-2
+          && fabs(s.boundingDisk.radius - 5.97428) < 1e-2;
+      if (breakHere) {
+        std::cerr << __PRETTY_FUNCTION__ << " Problematic pistil: "
+                  << OrganID(s.organ) << " at " << s.boundingDisk.center
+                  << " (=? " << s.organ->globalCoordinates().center
+                  << ")" << std::endl;
+        breakpoint();
+      }
+
+      if (s.organ->plant()->genome().seedsPerFruit > 10)
+        utils::doThrow<std::logic_error>("Way too high number of seeds: ",
+                                         s.organ->plant()->genome().seedsPerFruit);
+
       float distance, compatibility;
       Plant *mother = s.organ->plant();
-      Plant::Genome child;
+      std::vector<Plant::Genome> litter (mother->genome().seedsPerFruit);
       bool fecundated =
-        genotype::bailOutCrossver(mother->genome(), father->genome(), child,
+        genotype::bailOutCrossver(mother->genome(), father->genome(), litter,
                                   _env.dice(), &distance, &compatibility);
 
       if (debugReproduction) {
@@ -177,13 +203,14 @@ void Simulation::performReproductions(void) {
 
       if (fecundated) {
 //        _ptree.addGenome(p->genome());
-        mother->replaceWithFruit(s.organ, child, _env);
+        mother->replaceWithFruit(s.organ, litter, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
         modifiedPlants.push_back(mother);
 
         _stats.reproductions++;
       }
     }
+
   }
 
   for (Plant *p: modifiedPlants)
@@ -203,8 +230,10 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 }
 
 void Simulation::step (void) {
+  auto started = std::chrono::high_resolution_clock::now();
   std::cout << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
-            << "## Simulation step " << _step << " ##" << std::endl;
+            << "## Simulation step " << prettyTime() << " ("
+            << _step << ") ##" << std::endl;
 
   _stats = Stats{};
 
@@ -219,6 +248,26 @@ void Simulation::step (void) {
       corpses.insert(p->pos().x);
   }
 
+  // Perfom soft trimming
+  uint trimmed = 0;
+  if (_env.dice()(config::Simulation::trimmingProba())) {
+    /// TODO FIXME I'M BROKEN
+//    int excess = _plants.size()
+//        - config::Simulation::maxPlantDensity() * _env.width()
+//        - corpses.size();
+    uint excess = config::Simulation::maxPlantDensity() * _env.width()
+        - _plants.size() - corpses.size();
+    std::cerr << "Clearing out " << excess << " out of "
+              << _plants.size() + corpses.size() << " totals" << std::endl;
+    while (excess > 0) {
+      Plant *p = _env.dice()(_plants)->second.get();
+      p->kill();
+      corpses.insert(p->pos().x);
+      excess--; trimmed++;
+    }
+  }
+
+  _stats.deadPlants = corpses.size();
   for (float x: corpses)
     delPlant(x);
 
@@ -235,25 +284,31 @@ void Simulation::step (void) {
     ofs.open("global.dat", mode);
 
     if (_step == 0)
-      ofs << "Time Plants Females Males Biomass Flowers Fruits Matings Reproductions"
-             " dPlants AvgDist AvgCompat\n";
+      ofs << "Date Time Plants Seeds Females Males Biomass Flowers Fruits Matings"
+             " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat\n";
 
     using decimal = Plant::decimal;
     decimal biomass = 0;
+    uint seeds = 0;
     uint flowers = 0, fruits = 0;
     uint females = 0, males = 0;
     for (const auto &p: _plants) {
       const Plant &plant = *p.second;
+      seeds += plant.isInSeedState();
       biomass += plant.biomass();
       flowers += plant.flowers().size();
       fruits += plant.fruits().size();
       females += (plant.sex() == Plant::Sex::FEMALE);
       males += (plant.sex() == Plant::Sex::MALE);
     }
-    ofs << dayCount() << " " << _plants.size() << " " << females << " " << males
-        << " " << biomass << " " << flowers << " " << fruits
+    ofs << dayCount()
+        << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::high_resolution_clock::now()-started).count()
+        << " " << _plants.size() << " " << seeds << " " << females
+        << " " << males << " " << biomass << " " << flowers << " " << fruits
         << " " << _stats.matings << " " << _stats.reproductions
-        << " " << _stats.newPlants
+        << " " << _stats.newSeeds << " " << _stats.newPlants
+        << " " << _stats.deadPlants << " " << trimmed
         << " " << _stats.sumDistances / float(_stats.matings)
         << " " << _stats.sumCompatibilities / float(_stats.matings)
         << std::endl;
@@ -265,6 +320,13 @@ void Simulation::step (void) {
     std::cout << "Simulation completed in " << _step << " steps"
               << std::endl;
   }
+}
+
+std::string Simulation::prettyTime(uint step) {
+  std::ostringstream oss;
+  oss << "y" << std::fixed << int(year(step))
+      << "d" << std::setprecision(1) << day(step);
+  return oss.str();
 }
 
 } // end of namespace simu
