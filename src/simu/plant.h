@@ -9,13 +9,13 @@
 ///   TODO water:check
 ///   TODO glucose:check
 /// TODO transport:check
-/// TODO starvation:
-///   FIXME How do you die?
+/// TODO starvation:check
 /// TODO biomass production:
 ///   FIXME Numerical traps (bandaged for now)
-/// TODO allocation:
-///   FIXME Repartition between root and shoot apexes
-/// TODO reproduction
+/// TODO allocation: check
+/// TODO reproduction: check
+///
+/// FIXME Too fast reproductions
 
 namespace simu {
 

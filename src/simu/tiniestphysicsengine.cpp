@@ -388,34 +388,6 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
 // =============================================================================
 
-/// TODO REMoVE
-bool CollisionData::valid (const Pistil &p) {
-  return p.organ->id() <= 1000
-      && uint(p.organ->plant()->id()) <= 1000000
-      && p.organ->plant()->genome().seedsPerFruit <= 10
-      && find(p.organ->plant()) != _data.end();
-}
-
-bool CollisionData::checkAll (void) {
-  bool ok = true;
-//  for (const Pistil &p: _pistils)
-//    ok &= valid(p);
-//  if (!ok) {
-//    std::cerr << "Got errors!" << std::endl;
-//    uint i = 0;
-//    for (const Pistil &p: _pistils) {
-//      if (valid(p)) i++;
-//      else {
-//        std::cerr << "..." << i << "..." << p;
-//        i = 0;
-//      }
-//    }
-//    std::cerr << "..." << i << "..." << std::endl;
-//    utils::doThrow<std::logic_error>("Got invalid pistils...");
-//  }
-  return ok;
-}
-
 
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
   return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
@@ -435,11 +407,12 @@ Disk boundingDiskFor (const Organ *o) {
 }
 
 void CollisionData::addPistil(Organ *p) {
+#ifdef NDEBUG
   _pistils.emplace(p, boundingDiskFor(p));
-#ifndef NDEBUG
+#else
   auto res = _pistils.emplace(p, boundingDiskFor(p));
   assert(p->globalCoordinates().center == boundingDiskFor(p).center);
-  if (debugReproduction) {
+  if (debug) {
     if (res.second)
       std::cerr << "Added " << *res.first << std::endl;
     else
@@ -465,7 +438,7 @@ void CollisionData::delPistil(const Pistil &s) {
 
 void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
   auto it = _pistils.find(oldPos);
-  if (it != _pistils.end()) {
+  if (it != _pistils.end() && it->organ == p) {
     Pistil s = *it;
     _pistils.erase(it);
 
@@ -480,7 +453,8 @@ void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
     _pistils.insert(s);
   } else {
     if (debugReproduction)
-      std::cerr << "Could not find pistil at pos " << oldPos << " thus ";
+      std::cerr << "Could not find pistil for " << OrganID(p) << " at pos "
+                << oldPos << " thus ";
     addPistil(p);
   }
 }
@@ -501,8 +475,6 @@ struct LowerBound {
   }
 };
 CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
-  checkAll();
-
   Disk boundingDisk = boundingDiskFor(s);
   auto itL = _pistils.lower_bound(LowerBound{boundingDisk});
   if (itL == _pistils.end())  return { itL, itL };
@@ -510,23 +482,6 @@ CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
   auto itR = itL;
   while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
     itR = std::next(itR);
-
-
-  bool ok = true;
-  for (auto it = itL; it != itR; ++it)
-    ok &= valid(*it);
-
-  if (!ok) {
-    std::cerr << "Got an error!" << std::endl;
-    std::cerr << "Seeds in range:";
-    for (auto it = itL; it != itR; ++it) {
-      std::cerr << " " << *it;
-      if (!valid(*it))
-        std::cerr << "(invalid!)";
-    }
-    std::cerr << std::endl;
-    utils::doThrow<std::logic_error>("Accessed out-of-bounds pistil...");
-  }
 
   return { itL, itR };
 }

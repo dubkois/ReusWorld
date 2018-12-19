@@ -6,6 +6,8 @@
 
 namespace simu {
 
+using Config = config::Simulation;
+
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
 
@@ -130,14 +132,6 @@ void Simulation::delPlant(float x) {
   _plants.erase(x);
 }
 
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-void breakpoint (void) {
-  std::cerr << "Debugging..." << std::endl;
-}
-#pragma GCC pop_options
-
-
 void Simulation::performReproductions(void) {
   std::vector<Plant*> modifiedPlants;
   if (debugReproduction)
@@ -169,21 +163,6 @@ void Simulation::performReproductions(void) {
       if (!s.isValid()) continue;
       if (s.organ->requiredBiomass() > 0)  continue;
 
-      bool breakHere = fabs(s.boundingDisk.center.x + 138.21) < 1e-2
-          && fabs(s.boundingDisk.center.y - 0.194856) < 1e-2
-          && fabs(s.boundingDisk.radius - 5.97428) < 1e-2;
-      if (breakHere) {
-        std::cerr << __PRETTY_FUNCTION__ << " Problematic pistil: "
-                  << OrganID(s.organ) << " at " << s.boundingDisk.center
-                  << " (=? " << s.organ->globalCoordinates().center
-                  << ")" << std::endl;
-        breakpoint();
-      }
-
-      if (s.organ->plant()->genome().seedsPerFruit > 10)
-        utils::doThrow<std::logic_error>("Way too high number of seeds: ",
-                                         s.organ->plant()->genome().seedsPerFruit);
-
       float distance, compatibility;
       Plant *mother = s.organ->plant();
       std::vector<Plant::Genome> litter (mother->genome().seedsPerFruit);
@@ -210,7 +189,6 @@ void Simulation::performReproductions(void) {
         _stats.reproductions++;
       }
     }
-
   }
 
   for (Plant *p: modifiedPlants)
@@ -248,35 +226,29 @@ void Simulation::step (void) {
       corpses.insert(p->pos().x);
   }
 
-  // Perfom soft trimming
-  uint trimmed = 0;
-  if (_env.dice()(config::Simulation::trimmingProba())) {
-    /// TODO FIXME I'M BROKEN
-//    int excess = _plants.size()
-//        - config::Simulation::maxPlantDensity() * _env.width()
-//        - corpses.size();
-    uint excess = config::Simulation::maxPlantDensity() * _env.width()
-        - _plants.size() - corpses.size();
-    std::cerr << "Clearing out " << excess << " out of "
-              << _plants.size() + corpses.size() << " totals" << std::endl;
-    while (excess > 0) {
-      Plant *p = _env.dice()(_plants)->second.get();
-      p->kill();
-      corpses.insert(p->pos().x);
-      excess--; trimmed++;
-    }
-  }
-
   _stats.deadPlants = corpses.size();
   for (float x: corpses)
     delPlant(x);
+
+  // Perfom soft trimming
+  uint trimmed = 0;
+  const uint softLimit = Config::maxPlantDensity() * _env.width();
+  if (_env.dice()(Config::trimmingProba()) && _plants.size() > softLimit) {
+    std::cerr << "Clearing out " << _plants.size() - softLimit << " out of "
+              << _plants.size() << " totals" << std::endl;
+    while (_plants.size() > softLimit) {
+      auto it = _env.dice()(_plants);
+      delPlant(it->second->pos().x);
+      trimmed++;
+    }
+  }
 
   performReproductions();
   plantSeeds(seeds);
 
   assert(_env.collisionData().data().size() <= _plants.size());
 
-  if (config::Simulation::logGlobalStats()) {
+  if (Config::logGlobalStats()) {
     std::ofstream ofs;
     std::ios_base::openmode mode = std::fstream::out;
     if (_step > 0)  mode |= std::fstream::app;
@@ -285,13 +257,15 @@ void Simulation::step (void) {
 
     if (_step == 0)
       ofs << "Date Time Plants Seeds Females Males Biomass Flowers Fruits Matings"
-             " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat\n";
+             " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
+             " MinX MaxX\n";
 
     using decimal = Plant::decimal;
     decimal biomass = 0;
     uint seeds = 0;
     uint flowers = 0, fruits = 0;
     uint females = 0, males = 0;
+    float minx = _env.xextent(), maxx = -_env.xextent();
     for (const auto &p: _plants) {
       const Plant &plant = *p.second;
       seeds += plant.isInSeedState();
@@ -300,6 +274,8 @@ void Simulation::step (void) {
       fruits += plant.fruits().size();
       females += (plant.sex() == Plant::Sex::FEMALE);
       males += (plant.sex() == Plant::Sex::MALE);
+      minx = std::min(minx, plant.pos().x);
+      maxx = std::max(maxx, plant.pos().x);
     }
     ofs << dayCount()
         << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -311,6 +287,7 @@ void Simulation::step (void) {
         << " " << _stats.deadPlants << " " << trimmed
         << " " << _stats.sumDistances / float(_stats.matings)
         << " " << _stats.sumCompatibilities / float(_stats.matings)
+        << " " << minx << " " << maxx
         << std::endl;
   }
 

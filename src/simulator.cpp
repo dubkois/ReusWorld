@@ -4,6 +4,8 @@
 
 /*!
  * TODO Table of todos
+ *  TODO trap SIGINT to gracefully exit
+ *  TODO see simu/plant.h
  *  TODO Environment
  *    TODO Water supply
  *    TODO Topology
