@@ -1,3 +1,5 @@
+#include <csignal>
+
 #include "simu/simulation.h"
 
 #include "kgd/external/cxxopts.hpp"
@@ -14,7 +16,12 @@
  *    TODO Effect on plants ?
  */
 
-
+std::atomic<bool> aborted = false;
+void sigint_manager (int) {
+  std::cerr << "Gracefully exiting simulation "
+               "(please wait for end of current step)" << std::endl;
+  aborted = true;
+}
 
 
 int main(int argc, char *argv[]) {
@@ -47,7 +54,7 @@ int main(int argc, char *argv[]) {
   if (result.count("config"))    configFile = result["config"].as<std::string>();
   if (result.count("auto-config"))  configFile = "auto";
 
-  Verbosity verbosity = Verbosity::QUIET;
+  Verbosity verbosity = Verbosity::SHOW;
   if (result.count("verbosity")) verbosity = result["verbosity"].as<Verbosity>();
 
   config::Simulation::setupConfig(configFile, verbosity);
@@ -69,9 +76,17 @@ int main(int argc, char *argv[]) {
       dice.reset(result["random"].as<Seed_t>());
     std::cerr << "Generating genome from rng seed " << dice.getSeed() << std::endl;
     genome = genotype::Ecosystem::random(dice);
-    genome.toFile("last.gtp", 2);
+    genome.toFile("last", 2);
   }
 
+
+  // ===========================================================================
+  // == SIGINT management
+
+  struct sigaction act = {};
+  act.sa_handler = &sigint_manager;
+  if (0 != sigaction(SIGINT, &act, nullptr))
+    utils::doThrow<std::logic_error>("Failed to trap SIGINT");
 
   // ===========================================================================
   // == Core setup
@@ -81,8 +96,11 @@ int main(int argc, char *argv[]) {
   simu::Simulation s (genome);
   s.init();
 
-  while (!s.finished())
+  while (!s.finished()) {
+    if (aborted)  s.abort();
     s.step();
+  }
 
+  s.destroy();
   return 0;
 }

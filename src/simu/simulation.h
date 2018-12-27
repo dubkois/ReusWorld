@@ -16,7 +16,8 @@ protected:
   using PGenome = genotype::Plant;
 public:
   Simulation (const genotype::Ecosystem &genome)
-    : _stats(), _ecosystem(genome), _env(genome.env), _step(0) {}
+    : _stats(), _ecosystem(genome), _env(genome.env),
+      _step(0), _aborted(false) {}
 
   virtual ~Simulation (void) {}
 
@@ -26,8 +27,9 @@ public:
 
   virtual void step (void);
 
+  void abort (void) { _aborted = true; }
   bool finished (void) const {
-    return _plants.empty()
+    return _aborted || _plants.empty()
         || _ecosystem.maxYearDuration < year();
   }
 
@@ -75,6 +77,9 @@ public:
 
 protected:
   struct Stats {
+    using clock = std::chrono::high_resolution_clock;
+    clock::time_point start;
+
     float sumDistances;
     float sumCompatibilities;
     uint matings;
@@ -82,6 +87,7 @@ protected:
     uint newSeeds;
     uint newPlants;
     uint deadPlants;
+    uint trimmed;
   } _stats;
 
   genotype::Ecosystem _ecosystem;
@@ -95,12 +101,15 @@ protected:
   phylogeny::PhylogenicTree<PGenome> _ptree;
 
   uint _step;
+  bool _aborted;
 
   virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x);
 
   virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);
+
+  void logGlobalStats (void) const;
 };
 
 } // end of namespace simu

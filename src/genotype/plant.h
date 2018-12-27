@@ -139,6 +139,10 @@ public:
     __builtin_unreachable();
   }
 
+  std::string extension (void) const override {
+    return ".plant.json";
+  }
+
 //  Plant();
 };
 

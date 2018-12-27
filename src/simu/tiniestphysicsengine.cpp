@@ -316,7 +316,8 @@ void CollisionData::updateFinal (Plant *p) {
 
 // =============================================================================
 
-bool CollisionData::narrowPhaseCollision (const Plant *lhs, const Plant *rhs) {
+bool CollisionData::narrowPhaseCollision (const Plant */*lhs*/, const Plant */*rhs*/) {
+#warning No narrow phase collision
   return true;
 }
 

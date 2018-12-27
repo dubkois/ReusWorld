@@ -338,7 +338,9 @@ uint Plant::deriveRules(Environment &env) {
     } else if (debugDerivation)
       std::cerr << "Applying " << apex->symbol() << " -> " << succ << std::endl;
 
+#ifndef NDEBUG
     auto size_before = _organs.size();
+#endif
 
     // Create new organs
     Organs newOrgans;
@@ -399,8 +401,10 @@ uint Plant::deriveRules(Environment &env) {
         std::cerr << "\tCanceled due to collision with another plant\n"
                   << std::endl;
 
+#ifndef NDEBUG
       auto size_after = _organs.size();
       assert(size_before == size_after);
+#endif
 
     } else { // All's good
 
@@ -935,23 +939,25 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
   for (auto &p: _fruits) {
     Organ *fruit = p.second.fruit;
 
-    if (fruit->biomass() <= 0) {
-      if (debugReproduction)
+    bool collect = dead // collect if plant is on its dying breath
+        || fabs(fruit->fullness() - 1) < 1e-3;
+
+    if (debugReproduction) {
+      if (fruit->biomass() <= 0)
         std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
                   << " rotted on its branch (" << fruit->biomass()
                   << " available biomass)" << std::endl;
-      continue;
+      else
+        std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
+                  << " at " << 100 * fruit->fullness() << "% capacity"
+                  << std::endl;
     }
 
-    if (debugReproduction)
-      std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit) << " at "
-                << 100 * fruit->fullness() << "% capacity" << std::endl;
-
-    if (dead || fabs(fruit->fullness() - 1) < 1e-3) {
+    if (collect) {
       uint S = p.second.genomes.size();
       float biomass = fruit->biomass();
       Point pos = fruit->globalCoordinates().center;
-      for (uint i=0; i<S && biomass > 0; i++) {
+      for (uint i=0; i<S; i++) {
         const Genome &g = p.second.genomes[i];
         float requestedBiomass = seedBiomassRequirements(_genome, g);
         float obtainedBiomass = std::min(biomass, requestedBiomass);
@@ -964,6 +970,7 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
                     << " at " << 100 * obtainedBiomass / requestedBiomass
                     << "% capacity" << std::endl;
       }
+
       collectedFruits.push_back(fruit);
     }
   }
