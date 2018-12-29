@@ -1,6 +1,5 @@
 #!/bin/bash
 
-project=(cxxopts json Tool AgnosticPhylogenicTree ReusWorld)
 repos=(https://github.com/jarro2783/cxxopts.git https://github.com/nlohmann/json.git ssh://git@igit.odena.eu:5000/kevin/Tools.git ssh://git@igit.odena.eu:5000/kevin/AgnosticPhylogenicTree.git ssh://git@igit.odena.eu:5000/kevin/ReusWorld.git)
 
 ppath=$(readlink "./local/")
@@ -12,9 +11,9 @@ do
   echo "git clone $repo"
 done
 
-for i in "${!project[@]};"
+for repo in "${repos[@]};"
 do
-  if grep -q 'igit.odena' <<< ${repos[$i]}
+  if grep -q 'kevin' <<< ${repos[$i]}
   then
     echo "Setting up build folders"
     echo "mkdir build_debug"
