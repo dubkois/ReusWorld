@@ -25,6 +25,10 @@ public:
   Plant plant;
   Environment env;
   uint maxYearDuration;
+
+  std::string extension (void) const override {
+    return ".eco.json";
+  }
 };
 
 DECLARE_GENOME_FIELD(Ecosystem, uint, initSeeds)

@@ -6,15 +6,20 @@
 
 namespace simu {
 
+std::set<genotype::BOCData::GID> GENOMES;
+
+using Config = config::Simulation;
+
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
 
-static constexpr bool debug = true
+static constexpr bool debug = false
   | debugPlantManagement | debugReproduction;
 
 bool Simulation::init (void) {
   _step = 0;
 
+#if 0
   using SRule = genotype::LSystem<genotype::SHOOT>::Rule;
   using RRule = genotype::LSystem<genotype::ROOT>::Rule;
 
@@ -69,6 +74,7 @@ bool Simulation::init (void) {
 //    RRule::fromString("S -> A[Bhh][Dh]").toPair()
 //  };
 //  _ecosystem.plant.root.recursivity = 5;
+#endif
 
   _env.init();
   _ptree.addGenome(_ecosystem.plant);
@@ -81,6 +87,7 @@ bool Simulation::init (void) {
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
 
+    _ptree.addGenome(pg);
     addPlant(pg, x0 + i * dx, initBiomass);
   }
   return true;
@@ -90,6 +97,14 @@ void Simulation::destroy(void) {
   while (!_plants.empty())
     delPlant(_plants.begin()->first);
   _env.destroy();
+
+  if (!GENOMES.empty()) {
+    std::ostringstream oss;
+    oss << "Dandling genomes:";
+    for (auto id: GENOMES)  oss << " " << id;
+    utils::doThrow<std::logic_error>(oss.str());
+  } else
+    std::cerr << "All genomes were processed" << std::endl;
 }
 
 bool Simulation::reset (void) {
@@ -97,7 +112,7 @@ bool Simulation::reset (void) {
   return init();
 }
 
-void Simulation::addPlant(const PGenome &g, float x, float biomass) {
+bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
   _stats.newSeeds++;
 
@@ -113,17 +128,21 @@ void Simulation::addPlant(const PGenome &g, float x, float biomass) {
       }
 
       _stats.newPlants++;
+      return true;
 
     } else
       _plants.erase(pair.first);
   }
+
+  return false;
 }
 
 void Simulation::delPlant(float x) {
   Plant *p = _plants.at(x).get();
   if (debugPlantManagement) p->autopsy();
   _env.removeCollisionData(p);
-//  _ptree.delGenome(p->genome());
+  _ptree.delGenome(p->genome());
+  GENOMES.erase(p->genome().cdata.id);
   _plants.erase(x);
 }
 
@@ -160,9 +179,9 @@ void Simulation::performReproductions(void) {
 
       float distance, compatibility;
       Plant *mother = s.organ->plant();
-      Plant::Genome child;
+      std::vector<Plant::Genome> litter (mother->genome().seedsPerFruit);
       bool fecundated =
-        genotype::bailOutCrossver(mother->genome(), father->genome(), child,
+        genotype::bailOutCrossver(mother->genome(), father->genome(), litter,
                                   _env.dice(), &distance, &compatibility);
 
       if (debugReproduction) {
@@ -176,8 +195,12 @@ void Simulation::performReproductions(void) {
       _stats.matings++;
 
       if (fecundated) {
-//        _ptree.addGenome(p->genome());
-        mother->replaceWithFruit(s.organ, child, _env);
+        for (const auto &g: litter) {
+          _ptree.addGenome(g);
+          GENOMES.insert(g.cdata.id);
+        }
+
+        mother->replaceWithFruit(s.organ, litter, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
         modifiedPlants.push_back(mother);
 
@@ -195,6 +218,12 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
   for (const Plant::Seed &seed: seeds) {
+    if (seed.biomass <= 0) {
+      _ptree.delGenome(seed.genome);
+      GENOMES.erase(seed.genome.cdata.id);
+      continue;
+    }
+
     float dx = 1 + 5 * seed.position.y;
     float x = seed.position.x
         + _env.dice().toss(1.f, -1.f) * _env.dice()(rng::ndist(dx, dx/3));
@@ -204,9 +233,11 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 
 void Simulation::step (void) {
   std::cout << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
-            << "## Simulation step " << _step << " ##" << std::endl;
+            << "## Simulation step " << prettyTime() << " ("
+            << _step << ") ##" << std::endl;
 
   _stats = Stats{};
+  _stats.start = std::chrono::high_resolution_clock::now();
 
   _env.step();
 
@@ -219,52 +250,95 @@ void Simulation::step (void) {
       corpses.insert(p->pos().x);
   }
 
+  _stats.deadPlants = corpses.size();
   for (float x: corpses)
     delPlant(x);
+
+  // Perfom soft trimming
+  _stats.trimmed = 0;
+  const uint softLimit = Config::maxPlantDensity() * _env.width();
+  if (_env.dice()(Config::trimmingProba()) && _plants.size() > softLimit) {
+    std::cerr << "Clearing out " << _plants.size() - softLimit << " out of "
+              << _plants.size() << " totals" << std::endl;
+    while (_plants.size() > softLimit) {
+      auto it = _env.dice()(_plants);
+      delPlant(it->second->pos().x);
+      _stats.trimmed++;
+    }
+  }
 
   performReproductions();
   plantSeeds(seeds);
 
+  _ptree.step(_step, _plants.begin(), _plants.end(),
+              [] (const Plants::value_type &pair) {
+    return pair.second->genome().cdata.id;
+  });
+
   assert(_env.collisionData().data().size() <= _plants.size());
 
-  if (config::Simulation::logGlobalStats()) {
-    std::ofstream ofs;
-    std::ios_base::openmode mode = std::fstream::out;
-    if (_step > 0)  mode |= std::fstream::app;
-    else            mode |= std::fstream::trunc;
-    ofs.open("global.dat", mode);
-
-    if (_step == 0)
-      ofs << "Time Plants Females Males Biomass Flowers Fruits Matings Reproductions"
-             " dPlants AvgDist AvgCompat\n";
-
-    using decimal = Plant::decimal;
-    decimal biomass = 0;
-    uint flowers = 0, fruits = 0;
-    uint females = 0, males = 0;
-    for (const auto &p: _plants) {
-      const Plant &plant = *p.second;
-      biomass += plant.biomass();
-      flowers += plant.flowers().size();
-      fruits += plant.fruits().size();
-      females += (plant.sex() == Plant::Sex::FEMALE);
-      males += (plant.sex() == Plant::Sex::MALE);
-    }
-    ofs << dayCount() << " " << _plants.size() << " " << females << " " << males
-        << " " << biomass << " " << flowers << " " << fruits
-        << " " << _stats.matings << " " << _stats.reproductions
-        << " " << _stats.newPlants
-        << " " << _stats.sumDistances / float(_stats.matings)
-        << " " << _stats.sumCompatibilities / float(_stats.matings)
-        << std::endl;
-  }
+  if (Config::logGlobalStats())
+    logGlobalStats();
 
   _step++;
   if (finished()) {
     _ptree.saveTo("ptree.pt");
-    std::cout << "Simulation completed in " << _step << " steps"
+    std::cout << "Simulation " << (_aborted ? "aborted" : "completed")
+              << " in " << _step << " steps"
               << std::endl;
   }
+}
+
+std::string Simulation::prettyTime(uint step) {
+  std::ostringstream oss;
+  oss << "y" << std::fixed << int(year(step))
+      << "d" << std::setprecision(1) << day(step);
+  return oss.str();
+}
+
+void Simulation::logGlobalStats(void) const {
+  std::ofstream ofs;
+  std::ios_base::openmode mode = std::fstream::out;
+  if (_step > 0)  mode |= std::fstream::app;
+  else            mode |= std::fstream::trunc;
+  ofs.open("global.dat", mode);
+
+  if (_step == 0)
+    ofs << "Date Time Plants Seeds Females Males Biomass Flowers Fruits Matings"
+           " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
+           " MinX MaxX\n";
+
+  using decimal = Plant::decimal;
+  decimal biomass = 0;
+  uint seeds = 0;
+  uint flowers = 0, fruits = 0;
+  uint females = 0, males = 0;
+  float minx = _env.xextent(), maxx = -_env.xextent();
+
+  for (const auto &p: _plants) {
+    const Plant &plant = *p.second;
+    seeds += plant.isInSeedState();
+    biomass += plant.biomass();
+    flowers += plant.flowers().size();
+    fruits += plant.fruits().size();
+    females += (plant.sex() == Plant::Sex::FEMALE);
+    males += (plant.sex() == Plant::Sex::MALE);
+    minx = std::min(minx, plant.pos().x);
+    maxx = std::max(maxx, plant.pos().x);
+  }
+
+  ofs << dayCount()
+      << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
+           Stats::clock::now() - _stats.start).count()
+      << " " << _plants.size() << " " << seeds << " " << females
+      << " " << males << " " << biomass << " " << flowers << " " << fruits
+      << " " << _stats.matings << " " << _stats.reproductions
+      << " " << _stats.newSeeds << " " << _stats.newPlants
+      << " " << _stats.deadPlants << " " << _stats.trimmed
+      << " " << _stats.sumDistances / float(_stats.matings)
+      << " " << _stats.sumCompatibilities / float(_stats.matings)
+      << " " << minx << " " << maxx
+      << std::endl;
 }
 
 } // end of namespace simu

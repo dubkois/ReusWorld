@@ -16,7 +16,8 @@ protected:
   using PGenome = genotype::Plant;
 public:
   Simulation (const genotype::Ecosystem &genome)
-    : _stats(), _ecosystem(genome), _env(genome.env), _step(0) {}
+    : _stats(), _ecosystem(genome), _env(genome.env),
+      _step(0), _aborted(false) {}
 
   virtual ~Simulation (void) {}
 
@@ -26,8 +27,9 @@ public:
 
   virtual void step (void);
 
+  void abort (void) { _aborted = true; }
   bool finished (void) const {
-    return _plants.empty()
+    return _aborted || _plants.empty()
         || _ecosystem.maxYearDuration < year();
   }
 
@@ -39,34 +41,53 @@ public:
     return _plants;
   }
 
-  uint step (void) const {
+  uint currentStep (void) const {
     return _step;
   }
 
-  float dayCount (void) const {
-    static const auto spd = config::Simulation::stepsPerDay();
-    return float(_step) / spd;
-  }
-
-  float day (void) const {
+  uint maxStep (void) const {
     static const auto spd = config::Simulation::stepsPerDay();
     static const auto dpy = config::Simulation::daysPerYear();
-    return std::fmod(float(_step) / spd, dpy);
+    return _ecosystem.maxYearDuration * dpy * spd;
   }
 
-  float year (void) const {
+  static float dayCount (uint step) {
+    static const auto spd = config::Simulation::stepsPerDay();
+    return float(step) / spd;
+  }
+  float dayCount (void) const { return dayCount(_step); }
+
+  static float day (uint step) {
+    static const auto spd = config::Simulation::stepsPerDay();
     static const auto dpy = config::Simulation::daysPerYear();
-    return dayCount() / dpy;
+    return std::fmod(float(step) / spd, dpy);
+  }
+  float day (void) const {  return day(_step);  }
+
+  static float year (uint step) {
+    static const auto dpy = config::Simulation::daysPerYear();
+    return dayCount(step) / dpy;
+  }
+  float year (void) const { return year(_step); }
+
+  static std::string prettyTime (uint step);
+  std::string prettyTime (void) const {
+    return prettyTime(_step);
   }
 
 protected:
   struct Stats {
+    using clock = std::chrono::high_resolution_clock;
+    clock::time_point start;
+
     float sumDistances;
     float sumCompatibilities;
     uint matings;
     uint reproductions;
     uint newSeeds;
     uint newPlants;
+    uint deadPlants;
+    uint trimmed;
   } _stats;
 
   genotype::Ecosystem _ecosystem;
@@ -80,12 +101,15 @@ protected:
   phylogeny::PhylogenicTree<PGenome> _ptree;
 
   uint _step;
+  bool _aborted;
 
-  virtual void addPlant (const PGenome &g, float x, float biomass);
+  virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x);
 
   virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);
+
+  void logGlobalStats (void) const;
 };
 
 } // end of namespace simu

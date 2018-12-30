@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     ("a,auto-config", "Load configuration data from default location", cxxopts::value<bool>())
     ("c,config", "File containing configuration data", cxxopts::value<std::string>())
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value<Verbosity>())
-    ("g,genome", "Genome to start from", cxxopts::value<std::string>()->default_value(""))
+    ("g,genome", "Genome to start from", cxxopts::value<std::string>())
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
       cxxopts::value<float>()->implicit_value("1"))
     ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value<bool>())
@@ -42,6 +42,8 @@ int main(int argc, char *argv[]) {
   config::Visualization::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Visualization::printConfig("");
 
+  if (!result.count("genome"))
+    utils::doThrow<std::invalid_argument>("You must provide a starting genome file!");
   std::string inputFile = result["genome"].as<std::string>();
 
   float speed = 0.f;
@@ -50,11 +52,7 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  rng::FastDice dice (0);
-  genotype::Ecosystem e = inputFile.empty() ?
-        genotype::Ecosystem::random(dice)
-      : genotype::Ecosystem::fromFile(inputFile);
-
+  genotype::Ecosystem e = genotype::Ecosystem::fromFile(inputFile);
   visu::GraphicSimulation s (e);
 
   // ===========================================================================

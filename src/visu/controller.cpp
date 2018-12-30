@@ -3,6 +3,7 @@
 #include <QMenuBar>
 
 #include "controller.h"
+#include "tools/fastforwarddialog.h"
 
 #include <QDebug>
 
@@ -80,6 +81,9 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   QAction *step = buildAction(QStyle::SP_MediaSkipForward, "Step",
                               QKeySequence("N"));
 
+  QAction *jumpto = buildAction(QIcon::fromTheme("go-jump"), "Go to time",
+                                QKeySequence("Ctrl+T"));
+
   QAction *nextPlant = buildAction(QStyle::SP_ArrowRight, "Next",
                                    QKeySequence::MoveToNextChar);
 
@@ -102,6 +106,7 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   menuSimulation->addAction(reset);
   menuSimulation->addAction(playPause);
   menuSimulation->addAction(step);
+  menuSimulation->addAction(jumpto);
   menuSimulation->addSeparator();
   menuSimulation->addAction(slower);
   menuSimulation->addAction(faster);
@@ -153,6 +158,13 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
     _speed *= 2.f; play(_timer.isActive());
   });
   connect(step, &QAction::triggered, this, &Controller::step);
+  connect(jumpto, &QAction::triggered, [this] {
+    play(false);
+    gui::FastForwardDialog ffd (_view, _simulation);
+    ffd.exec();
+    updateDisplays();
+    _view->update();
+  });
   connect(nextPlant, &QAction::triggered, _view, &gui::MainView::selectNextPlant);
   connect(prevPlant, &QAction::triggered, _view, &gui::MainView::selectPreviousPlant);
 
@@ -207,7 +219,7 @@ void Controller::playInternal(bool b) {
 }
 
 void Controller::step(void) {
-  _simulation.step();
+  _simulation.graphicalStep();
   updateDisplays();
 }
 
@@ -222,8 +234,7 @@ void Controller::updateMousePosition (const QPointF &pos) {
 void Controller::updateDisplays(void) {
   QString string;
   QTextStream qss (&string);
-  qss << "Time: y" << QString::number(int(_simulation.year()))
-      << "d" << QString::number(_simulation.day(), 'f', 1)
+  qss << "Time: " << QString::fromStdString(_simulation.prettyTime())
       << ", Speed: " << _speed << " dps";
   _ldisplay->setText(string);
 

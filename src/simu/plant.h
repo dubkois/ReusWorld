@@ -9,13 +9,13 @@
 ///   TODO water:check
 ///   TODO glucose:check
 /// TODO transport:check
-/// TODO starvation:
-///   FIXME How do you die?
+/// TODO starvation:check
 /// TODO biomass production:
 ///   FIXME Numerical traps (bandaged for now)
-/// TODO allocation:
-///   FIXME Repartition between root and shoot apexes
-/// TODO reproduction
+/// TODO allocation: check
+/// TODO reproduction: check
+///
+/// FIXME Too fast reproductions
 
 namespace simu {
 
@@ -188,7 +188,7 @@ private:
 
   using OID = Organ::OID;
   struct FruitData {
-    Genome genome;
+    std::vector<Genome> genomes;
     Organ *fruit;
   };
   using Fruits = std::map<OID, FruitData>;
@@ -209,7 +209,8 @@ public:
 
   void init (Environment &env, float biomass);
 
-  void replaceWithFruit (Organ *o, const Genome &g, Environment &env);
+  void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
+                         Environment &env);
 
   void update (Environment &env);
 
