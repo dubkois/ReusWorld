@@ -213,6 +213,8 @@ Plant::Plant(const Genome &g, float x, float y)
 
   _biomasses.fill(0);
 
+  _boundingRect = {0,0,0,0};
+
   auto _r = _reserves[Layer::SHOOT];
   _r.fill(0);
   _reserves.fill(_r);
@@ -244,7 +246,9 @@ void Plant::init (Environment &env, float biomass) {
               << std::endl;
 }
 
-void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
+void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
+                              Environment &env) {
+
   using genotype::grammar::toSuccessor;
   using Rule = genotype::grammar::Rule_base;
 
@@ -255,7 +259,7 @@ void Plant::replaceWithFruit (Organ *o, const Genome &g, Environment &env) {
   Layer l = o->layer();
   assert(l == Layer::SHOOT);
 
-  auto p = _fruits.insert({_nextOrganID, {g, nullptr}});
+  auto p = _fruits.insert({_nextOrganID, {litter, nullptr}});
   assert(p.second);
 
   Organ *fruit = turtleParse(parent, toSuccessor(Rule::fruitSymbol()), rotation,
@@ -334,7 +338,9 @@ uint Plant::deriveRules(Environment &env) {
     } else if (debugDerivation)
       std::cerr << "Applying " << apex->symbol() << " -> " << succ << std::endl;
 
+#ifndef NDEBUG
     auto size_before = _organs.size();
+#endif
 
     // Create new organs
     Organs newOrgans;
@@ -395,8 +401,10 @@ uint Plant::deriveRules(Environment &env) {
         std::cerr << "\tCanceled due to collision with another plant\n"
                   << std::endl;
 
+#ifndef NDEBUG
       auto size_after = _organs.size();
       assert(size_before == size_after);
+#endif
 
     } else { // All's good
 
@@ -576,8 +584,8 @@ float Plant::sinkRequirement (Organ *o) const {
     required = (1 + SConfig::floweringCost()) * o->biomass();
 
   } else if (o->isFruit()) {
-    required = seedBiomassRequirements(_genome, _fruits.at(o->id()).genome)
-      * _genome.seedsPerFruit;
+    for (const Genome &g: _fruits.at(o->id()).genomes)
+      required += seedBiomassRequirements(_genome, g);
 
   } else if (o->isStructural()) {
     const auto &size = GConfig::sizeOf(o->symbol());
@@ -931,36 +939,38 @@ void Plant::collectFruits(Seeds &seeds, Environment &env) {
   for (auto &p: _fruits) {
     Organ *fruit = p.second.fruit;
 
-    if (fruit->biomass() <= 0) {
-      if (debugReproduction)
+    bool collect = dead // collect if plant is on its dying breath
+        || fabs(fruit->fullness() - 1) < 1e-3;
+
+    if (debugReproduction) {
+      if (fruit->biomass() <= 0)
         std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
                   << " rotted on its branch (" << fruit->biomass()
                   << " available biomass)" << std::endl;
-      continue;
+      else
+        std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
+                  << " at " << 100 * fruit->fullness() << "% capacity"
+                  << std::endl;
     }
 
-    if (debugReproduction)
-      std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit) << " at "
-                << 100 * fruit->fullness() << "% capacity" << std::endl;
-
-    if (dead || fabs(fruit->fullness() - 1) < 1e-3) {
-      uint S = _genome.seedsPerFruit;
+    if (collect) {
+      uint S = p.second.genomes.size();
       float biomass = fruit->biomass();
-      float requestedBiomass = seedBiomassRequirements(_genome, p.second.genome);
-      float biomassPerSeed = std::min(biomass, requestedBiomass);
-      for (uint i=0; i<S && biomass > 0; i++) {
-        Genome g = p.second.genome;
-        Point pos = fruit->globalCoordinates().center;
+      Point pos = fruit->globalCoordinates().center;
+      for (uint i=0; i<S; i++) {
+        const Genome &g = p.second.genomes[i];
+        float requestedBiomass = seedBiomassRequirements(_genome, g);
+        float obtainedBiomass = std::min(biomass, requestedBiomass);
 
-        g.cdata.id = genotype::BOCData::nextID();
-        seeds.push_back({biomassPerSeed, g, pos});
-        biomass -= biomassPerSeed;
+        seeds.push_back({obtainedBiomass, g, pos});
+        biomass -= obtainedBiomass;
 
         if (debugReproduction)
           std::cerr << PlantID(this) << " Created seed from " << OrganID(fruit)
-                    << " at " << 100 * biomassPerSeed / requestedBiomass
+                    << " at " << 100 * obtainedBiomass / requestedBiomass
                     << "% capacity" << std::endl;
       }
+
       collectedFruits.push_back(fruit);
     }
   }

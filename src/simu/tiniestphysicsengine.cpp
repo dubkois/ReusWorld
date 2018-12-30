@@ -214,7 +214,11 @@ const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
 }
 
 bool CollisionData::addCollisionData (Plant *p) {
-  return _data.insert(CObject(p)).second;
+  CObject object (p);
+  if (debugCollision) std::cerr << "Inserted collision data "
+                                << object.boundingRect << " for " << p->id()
+                                << std::endl;
+  return _data.insert(object).second;
 }
 
 void CollisionData::removeCollisionData (Plant *p) {
@@ -232,7 +236,10 @@ void CollisionData::updateCollisions (Plant *p) {
   auto it = find(p);
   CObject object = *it;
   _data.erase(it);
+  if (debugCollision) std::cerr << "Updated collision data for " << p->id()
+                                << " from " << object.boundingRect;
   object.updateCollisions();
+  if (debugCollision) std::cerr << " to " << object.boundingRect << std::endl;
   _data.insert(object);
 }
 
@@ -299,7 +306,8 @@ void CollisionData::updateFinal (Plant *p) {
           if (ps.organ->plant() == p)
             std::cerr << "\t" << ps << "\n";
       }
-      assert(found && matched);
+      if(!(found && matched))
+        utils::doThrow<std::logic_error>("Something went wrong...");
     }
   }
 #endif
@@ -308,7 +316,8 @@ void CollisionData::updateFinal (Plant *p) {
 
 // =============================================================================
 
-bool CollisionData::narrowPhaseCollision (const Plant *lhs, const Plant *rhs) {
+bool CollisionData::narrowPhaseCollision (const Plant */*lhs*/, const Plant */*rhs*/) {
+#warning No narrow phase collision
   return true;
 }
 
@@ -352,7 +361,8 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
   );
 
   if (debugCollision)
-    std::cerr << "Possible collisions for " << p->id() << ": "
+    std::cerr << "Possible collisions for " << p->id() << " ("
+              << cv.boundingRect << "): "
               << range.first->plant->id() << " to "
               << std::prev(range.second)->plant->id()
               << " (" << std::distance(range.first, range.second) - 1
@@ -363,7 +373,8 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
     const Plant *p_ = it->plant;
     if (p_ == p) continue;
 
-//    if (debugCollision) std::cerr << "\t" << p_->id() << "\n";
+    if (debugCollision)
+      std::cerr << "\t" << p_->id() << ": " << it->boundingRect << "\n";
 
     if (narrowPhaseCollision(p, p_) // Test for collision
         && (this_isSeed || !p_->isInSeedState())) // Ignore plants hitting seeds
@@ -377,6 +388,7 @@ bool CollisionData::isCollisionFree (const Plant *p) const {
 
 
 // =============================================================================
+
 
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
   return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
@@ -396,16 +408,12 @@ Disk boundingDiskFor (const Organ *o) {
 }
 
 void CollisionData::addPistil(Organ *p) {
-#ifndef NDEBUG
-#define MAYBE_KEEP auto res =
+#ifdef NDEBUG
+  _pistils.emplace(p, boundingDiskFor(p));
 #else
-#define MAYBE_KEEP
-#endif
-  MAYBE_KEEP _pistils.emplace(p, boundingDiskFor(p));
-#undef MAYBE_KEEP
-#ifndef NDEBUG
+  auto res = _pistils.emplace(p, boundingDiskFor(p));
   assert(p->globalCoordinates().center == boundingDiskFor(p).center);
-  if (debugReproduction) {
+  if (debug) {
     if (res.second)
       std::cerr << "Added " << *res.first << std::endl;
     else
@@ -431,7 +439,7 @@ void CollisionData::delPistil(const Pistil &s) {
 
 void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
   auto it = _pistils.find(oldPos);
-  if (it != _pistils.end()) {
+  if (it != _pistils.end() && it->organ == p) {
     Pistil s = *it;
     _pistils.erase(it);
 
@@ -446,7 +454,8 @@ void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
     _pistils.insert(s);
   } else {
     if (debugReproduction)
-      std::cerr << "Could not find pistil at pos " << oldPos << " thus ";
+      std::cerr << "Could not find pistil for " << OrganID(p) << " at pos "
+                << oldPos << " thus ";
     addPistil(p);
   }
 }
@@ -474,6 +483,7 @@ CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
   auto itR = itL;
   while (itR != _pistils.end() && intersects(itR->boundingDisk, boundingDisk))
     itR = std::next(itR);
+
   return { itL, itR };
 }
 

@@ -75,6 +75,9 @@ public:
 private:
   Collisions::iterator find (const Plant *p);
   Collisions::const_iterator find (const Plant *p) const;
+
+  bool valid (const Pistil &p);
+  bool checkAll (void);
 };
 
 using CObject = CollisionData::CObject;

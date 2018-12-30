@@ -9,9 +9,10 @@ void GraphicSimulation::setController(visu::Controller *c) {
   _controller = c;
 }
 
-void GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
-  Simulation::addPlant(p, x, biomass);
-  _controller->view()->addPlantItem(*_plants.at(x));
+bool GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
+  bool added = Simulation::addPlant(p, x, biomass);
+  if (added)  _controller->view()->addPlantItem(*_plants.at(x));
+  return added;
 }
 
 void GraphicSimulation::delPlant(float x) {
@@ -26,11 +27,11 @@ bool GraphicSimulation::init(void) {
   return ok;
 }
 
-void GraphicSimulation::step (void) {
+void GraphicSimulation::graphicalStep (void) {
   if (_step == 0 && config::Visualization::withScreenshots())
     doScreenshot();
 
-  Simulation::step();
+  step();
 
   _controller->view()->update();
 

@@ -79,7 +79,7 @@ void Environment::removeGeneticMaterial(const Point &pos) {
 physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
   auto itP = _collisionData->sporesInRange(f);
   if (std::distance(itP.first, itP.second) >= 1)
-    return *_dice(itP.first, itP.second);
+    return *dice()(itP.first, itP.second);
 
   else
     return physics::Pistil();
