@@ -364,8 +364,8 @@ DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
 
 
 /// Config file hierarchy
-DEFINE_SUBCONFIG(Config::Crossover, crossoverConfig)
-DEFINE_SUBCONFIG(Config::Metabolism, metabolismConfig)
+DEFINE_SUBCONFIG(Config::Crossover, genotypeCrossoverConfig)
+DEFINE_SUBCONFIG(Config::Metabolism, genotypeMetabolismConfig)
 #undef CFILE
 
 

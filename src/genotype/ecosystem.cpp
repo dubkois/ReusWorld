@@ -28,4 +28,11 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(            env, 0.f),
   MUTATION_RATE(maxYearDuration, 0.f)
 })
+
+namespace config {
+#define CFILE config::SAGConfigFile<genotype::Ecosystem>
+DEFINE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
+#undef CFILE
+}
+
 #undef GENOME

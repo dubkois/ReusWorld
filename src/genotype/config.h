@@ -53,10 +53,10 @@ struct SAG_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(MutationRates, mutationRates)
 
   using Crossover = genotype::BOCData::config_t;
-  DECLARE_SUBCONFIG(Crossover, crossoverConfig)
+  DECLARE_SUBCONFIG(Crossover, genotypeCrossoverConfig)
 
   using Metabolism = SAGConfigFile<genotype::Metabolism>;
-  DECLARE_SUBCONFIG(Metabolism, metabolismConfig)
+  DECLARE_SUBCONFIG(Metabolism, genotypeMetabolismConfig)
 
   DECLARE_PARAMETER(NonTerminal, ls_axiom)
   DECLARE_PARAMETER(Successor, ls_shootInitRule)

@@ -72,11 +72,9 @@ do
       then
         echo ">> Setting up release build folder"
         mkdir build_release
-        cd build_release
-        cmake .. -DCMAKE_INSTALL_PREFIX=$ppath -DCMAKE_BUILD_TYPE=Release $cmake
-      else
-        cd build_release
       fi
+      cd build_release
+      cmake .. -DCMAKE_INSTALL_PREFIX=$ppath -DCMAKE_BUILD_TYPE=Release $cmake
       make $make
     fi
   else

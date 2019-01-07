@@ -10,8 +10,8 @@ struct PTree;
 struct CONFIG_FILE(Simulation) {
   DECLARE_SUBCONFIG(PTree, ptreeConfig)
 
-  DECLARE_SUBCONFIG(genotype::Plant::config_t, plantGenotypeConfig)
-  DECLARE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
+  DECLARE_SUBCONFIG(genotype::Plant::config_t, genotypePlantConfig)
+  DECLARE_SUBCONFIG(genotype::Ecosystem::config_t, genotypeEcosystemConfig)
 
   DECLARE_PARAMETER(bool, logIndividualStats)
   DECLARE_PARAMETER(bool, logGlobalStats)

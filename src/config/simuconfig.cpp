@@ -5,8 +5,8 @@
 namespace config {
 #define CFILE Simulation
 DEFINE_SUBCONFIG(PTree, ptreeConfig)
-DEFINE_SUBCONFIG(genotype::Plant::config_t, plantGenotypeConfig)
-DEFINE_SUBCONFIG(genotype::Environment::config_t, environmentGenotypeConfig)
+DEFINE_SUBCONFIG(genotype::Plant::config_t, genotypePlantConfig)
+DEFINE_SUBCONFIG(genotype::Ecosystem::config_t, genotypeEcosystemConfig)
 
 DEFINE_PARAMETER(bool, logIndividualStats, false)
 DEFINE_PARAMETER(bool, logGlobalStats, false)

@@ -58,6 +58,8 @@ struct SAG_CONFIG_FILE(Ecosystem) {
   DECLARE_PARAMETER(Bui, initSeedsBounds)
   DECLARE_PARAMETER(Bui, maxYearDurationBounds)
 
+  DECLARE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
+
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };
 
