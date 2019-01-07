@@ -50,9 +50,9 @@ Organ::Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
 float Organ::fullness(void) const {
   if (_requiredBiomass == 0)  return 1;
   float f = 1 - _requiredBiomass / (biomass() + _requiredBiomass);
-  assert(biomass() > 0);
+//  assert(biomass() > 0);
   assert(_requiredBiomass != 0 || f == 1);
-  assert(isSeed() || (0 <= f && f <= 1));
+  assert(isSeed() || isFruit() || (0 <= f && f <= 1));
   utils::iclip_max(f, 1.f);
   return f;
 }
@@ -221,6 +221,15 @@ Plant::Plant(const Genome &g, float x, float y)
 }
 
 Plant::~Plant (void) {
+  if (!_fruits.empty()) {
+    std::ostringstream oss;
+    oss << PlantID(this) << " destroyed with unprocessed seeds:";
+    for (auto &fd: _fruits)
+      for (auto &g: fd.second.genomes)
+        oss << " " << g.cdata.id;
+    autopsy();
+    utils::doThrow<std::logic_error>(oss.str());
+  }
   for (Organ *o: _organs)
     delete o;
 }
@@ -244,6 +253,11 @@ void Plant::init (Environment &env, float biomass) {
   if (debugInit)
     std::cerr << PlantID(this) << " Initialized. Genome is " << _genome
               << std::endl;
+}
+
+void Plant::destroy(void) {
+  while (!_fruits.empty())
+    collectSeedsFrom(_fruits.begin()->second.fruit);
 }
 
 void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
@@ -311,7 +325,8 @@ void Plant::autopsy(void) const {
               << "\n\tOrgans: " << _organs.size()
               << " (" << _sinks.size() << " of which are sinks)"
               << std::endl;
-  }
+  } else
+    std::cerr << std::endl;
 }
 
 uint Plant::deriveRules(Environment &env) {
@@ -558,14 +573,23 @@ void Plant::delOrgan(Organ *o, Environment &env) {
 
   if (o->isFlower()) {
     _flowers.erase(o);
-    if (sex() == Sex::FEMALE)
-      env.removeGeneticMaterial(o->globalCoordinates().center);
+    if (sex() == Sex::FEMALE) env.removeGeneticMaterial(o);
   }
 
-  if (o->isFruit()) _fruits.erase(o->id());
+  if (o->isFruit()) collectSeedsFrom(o);
 
   _dirty.set(DIRTY_COLLISION, true);
   delete o;
+}
+
+void Plant::destroyDeadSubtree(Organ *o, Environment &env) {
+  if (o->isDead())
+    delOrgan(o, env);
+  else {
+    auto subtrees = o->children();
+    for (Organ *st: subtrees)
+      destroyDeadSubtree(st, env);
+  }
 }
 
 bool Plant::isSink(Organ *o) const {
@@ -930,49 +954,38 @@ float Plant::initialBiomassFor (const Genome &g) {
        + ruleBiomassCost(g, Layer::ROOT, GConfig::ls_axiom());
 }
 
-void Plant::collectFruits(Seeds &seeds, Environment &env) {
-  bool dead = this->isDead();
-  if (debugReproduction && dead)
-    std::cerr << PlantID(this) << " Dead. Force collecting fruits" << std::endl;
+void Plant::collectSeedsFrom(Organ *fruit) {
+  FruitData fd = utils::take(_fruits, fruit->id());
+  uint S = fd.genomes.size();
+  float biomass = fruit->biomass();
+  Point pos = fruit->globalCoordinates().center;
+  for (uint i=0; i<S; i++) {
+    const Genome &g = fd.genomes[i];
+    float requestedBiomass = seedBiomassRequirements(_genome, g);
+    float obtainedBiomass = std::min(biomass, requestedBiomass);
 
+    _currentStepSeeds.push_back({obtainedBiomass, g, pos});
+    biomass -= obtainedBiomass;
+
+    if (debugReproduction)
+      std::cerr << PlantID(this) << " Created seed from " << OrganID(fruit)
+                << " at " << 100 * obtainedBiomass / requestedBiomass
+                << "% capacity" << std::endl;
+  }
+}
+
+void Plant::processFruits(Environment &env) {
   std::vector<Organ*> collectedFruits;
   for (auto &p: _fruits) {
     Organ *fruit = p.second.fruit;
 
-    bool collect = dead // collect if plant is on its dying breath
-        || fabs(fruit->fullness() - 1) < 1e-3;
+    if (debugReproduction)
+      std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
+                << " at " << 100 * fruit->fullness() << "% capacity"
+                << std::endl;
 
-    if (debugReproduction) {
-      if (fruit->biomass() <= 0)
-        std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
-                  << " rotted on its branch (" << fruit->biomass()
-                  << " available biomass)" << std::endl;
-      else
-        std::cerr << PlantID(this) << " Pending fruit " << OrganID(fruit)
-                  << " at " << 100 * fruit->fullness() << "% capacity"
-                  << std::endl;
-    }
-
-    if (collect) {
-      uint S = p.second.genomes.size();
-      float biomass = fruit->biomass();
-      Point pos = fruit->globalCoordinates().center;
-      for (uint i=0; i<S; i++) {
-        const Genome &g = p.second.genomes[i];
-        float requestedBiomass = seedBiomassRequirements(_genome, g);
-        float obtainedBiomass = std::min(biomass, requestedBiomass);
-
-        seeds.push_back({obtainedBiomass, g, pos});
-        biomass -= obtainedBiomass;
-
-        if (debugReproduction)
-          std::cerr << PlantID(this) << " Created seed from " << OrganID(fruit)
-                    << " at " << 100 * obtainedBiomass / requestedBiomass
-                    << "% capacity" << std::endl;
-      }
-
+    if (fabs(fruit->fullness() - 1) < 1e-3)
       collectedFruits.push_back(fruit);
-    }
   }
 
   while (!collectedFruits.empty()) {
@@ -1006,7 +1019,7 @@ void Plant::update (Environment &env) {
   }
 }
 
-void Plant::step (Environment &env, Seeds &seeds) {
+void Plant::step (Environment &env) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
@@ -1036,7 +1049,8 @@ void Plant::step (Environment &env, Seeds &seeds) {
   }
 
   metabolicStep(env);
-  collectFruits(seeds, env);
+
+  processFruits(env);
 
   /// Recursively delete dead organs
   // First take note of the current flowers
@@ -1047,12 +1061,7 @@ void Plant::step (Environment &env, Seeds &seeds) {
 
   // Perform suppressions
   auto bases = _bases;
-  std::function<void(Organ*)> destroyDeadSubtrees =
-    [&destroyDeadSubtrees, &env, this] (Organ *o) {
-      if (o->biomass() < 0) delOrgan(o, env);
-      else  for (Organ *c: o->children()) destroyDeadSubtrees(c);
-  };
-  for (Organ *o: bases)  destroyDeadSubtrees(o);
+  for (Organ *o: bases)  destroyDeadSubtree(o, env);
 
   // Update remaining flowers (check if some space was freed)
   for (auto &pair: oldPistilsPositions)
@@ -1063,7 +1072,7 @@ void Plant::step (Environment &env, Seeds &seeds) {
 
   update(env);
 
-  _age++;
+  _age++; // Update age before collecting fruits to detect death from old age
 
   if (debug)  std::cerr << std::endl;
 

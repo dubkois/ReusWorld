@@ -68,7 +68,7 @@ public:
 
   void disseminateGeneticMaterial (Organ *f);
   void updateGeneticMaterial (Organ *f, const Point &oldPos);
-  void removeGeneticMaterial(const Point &pos);
+  void removeGeneticMaterial(Organ *p);
   physics::Pistil collectGeneticMaterial (Organ *f);
 
   const auto& collisionData (void) const {

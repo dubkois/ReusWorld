@@ -195,6 +195,83 @@ void CollisionData::reset(void) {
   _data.clear();
 }
 
+#ifndef NDEBUG
+void CollisionData::debug (void) const {
+#if 1
+  // Check that no pistil outlive its plant
+  for (const Pistil &ps: _pistils) {
+    if (find(ps.organ->plant()) == _data.end())
+      utils::doThrow<std::logic_error>("Leftover pistil!");
+  }
+#endif
+#if 1
+  // Check that every pistil is correctly placed
+  for (const CollisionObject &co: _data) {
+    const Plant *p = co.plant;
+    for (const Pistil &ps: _pistils) {
+      if (ps.organ->plant() != p)  continue;
+
+      std::map<float, std::vector<Organ*>> pistils;
+      for (Organ *o: p->flowers())
+        pistils[int(o->globalCoordinates().center.x * floatPrecision) / floatPrecision].push_back(o);
+
+      for (auto &pair: pistils) {
+        bool found = false, matched = false;
+        for (Organ *o: pair.second) {
+          auto it = _pistils.find(o->globalCoordinates().center);
+          if (it != _pistils.end()) {
+            found = true;
+
+            Disk bd = it->boundingDisk;
+            if(bd.center == o->globalCoordinates().center) {
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!(found && matched)) {
+          std::cerr << "Something went wrong... (" << found << matched << ")\n";
+          std::cerr << "Here is the replay:\n";
+          found = false, matched = false;
+          uint i = 1;
+          for (Organ *o: pair.second) {
+            std::cerr << "Attempt " << i++ << " / " << pair.second.size() << "\n";
+            std::cerr << "\tLooking for " << OrganID(o) << " at "
+                      << o->globalCoordinates().center << "\n";
+            auto it = _pistils.find(o->globalCoordinates().center);
+            if (it != _pistils.end()) {
+              found = true;
+
+              std::cerr << "\t\tFound something!\n";
+
+              Disk bd = it->boundingDisk;
+              std::cerr << "\t\t" << bd.center << " ~= "
+                        << o->globalCoordinates().center << "? ";
+              if(bd.center == o->globalCoordinates().center) {
+                std::cerr << "Match!\n";
+                matched = true;
+                break;
+              } else
+                std::cerr << "Mismatch...\n";
+
+            } else
+              std::cerr << "\t\tNot found...\n";
+          }
+          std::cerr << "Here are the pistils for "
+                    << PlantID(p) << ":" << std::endl;
+          for (const Pistil &ps: _pistils)
+            if (ps.organ->plant() == p)
+              std::cerr << "\t" << ps << "\n";
+        }
+        if(!(found && matched))
+          utils::doThrow<std::logic_error>("Something went wrong...");
+      }
+    }
+  }
+#endif
+}
+#endif
+
 CollisionData::Collisions::iterator CollisionData::find (const Plant *p) {
   auto it = _data.find(*p);
   if (it == _data.end())
@@ -249,68 +326,6 @@ void CollisionData::updateFinal (Plant *p) {
   _data.erase(it);
   object.updateFinal();
   _data.insert(object);
-
-#ifndef NDEBUG
-  for (const Pistil &ps: _pistils) {
-    if (ps.organ->plant() != p)  continue;
-
-    std::map<float, std::vector<Organ*>> pistils;
-    for (Organ *o: p->flowers())
-      pistils[int(o->globalCoordinates().center.x * floatPrecision) / floatPrecision].push_back(o);
-
-    for (auto &pair: pistils) {
-      bool found = false, matched = false;
-      for (Organ *o: pair.second) {
-        auto it = _pistils.find(o->globalCoordinates().center);
-        if (it != _pistils.end()) {
-          found = true;
-
-          Disk bd = it->boundingDisk;
-          if(bd.center == o->globalCoordinates().center) {
-            matched = true;
-            break;
-          }
-        }
-      }
-      if (!(found && matched)) {
-        std::cerr << "Something went wrong... (" << found << matched << ")\n";
-        std::cerr << "Here is the replay:\n";
-        found = false, matched = false;
-        uint i = 1;
-        for (Organ *o: pair.second) {
-          std::cerr << "Attempt " << i++ << " / " << pair.second.size() << "\n";
-          std::cerr << "\tLooking for " << OrganID(o) << " at "
-                    << o->globalCoordinates().center << "\n";
-          auto it = _pistils.find(o->globalCoordinates().center);
-          if (it != _pistils.end()) {
-            found = true;
-
-            std::cerr << "\t\tFound something!\n";
-
-            Disk bd = it->boundingDisk;
-            std::cerr << "\t\t" << bd.center << " ~= "
-                      << o->globalCoordinates().center << "? ";
-            if(bd.center == o->globalCoordinates().center) {
-              std::cerr << "Match!\n";
-              matched = true;
-              break;
-            } else
-              std::cerr << "Mismatch...\n";
-
-          } else
-            std::cerr << "\t\tNot found...\n";
-        }
-        std::cerr << "Here are the pistils for "
-                  << PlantID(p) << ":" << std::endl;
-        for (const Pistil &ps: _pistils)
-          if (ps.organ->plant() == p)
-            std::cerr << "\t" << ps << "\n";
-      }
-      if(!(found && matched))
-        utils::doThrow<std::logic_error>("Something went wrong...");
-    }
-  }
-#endif
 }
 
 
@@ -413,7 +428,7 @@ void CollisionData::addPistil(Organ *p) {
 #else
   auto res = _pistils.emplace(p, boundingDiskFor(p));
   assert(p->globalCoordinates().center == boundingDiskFor(p).center);
-  if (debug) {
+  if (debugReproduction) {
     if (res.second)
       std::cerr << "Added " << *res.first << std::endl;
     else
@@ -423,18 +438,16 @@ void CollisionData::addPistil(Organ *p) {
 #endif
 }
 
-void CollisionData::delPistil(const Point &pos) {
-  auto it = _pistils.find(pos);
-  if (it != _pistils.end()) {
+void CollisionData::delPistil(Organ *p) {
+  auto it = _pistils.find(p->globalCoordinates().center);
+  if (it != _pistils.end() && it->organ == p) {
     if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;
+
     _pistils.erase(it);
   } else
-    if (debugReproduction)  std::cerr << "Could not delete pistil at pos"
-                                      << pos << ": not found" << std::endl;
-}
-
-void CollisionData::delPistil(const Pistil &s) {
-  delPistil(s.boundingDisk.center);
+    if (debugReproduction)  std::cerr << "Could not delete pistil for " << OrganID(p)
+                                      << " at " << p->globalCoordinates().center
+                                      << ": not found" << std::endl;
 }
 
 void CollisionData::updatePistil (Organ *p, const Point &oldPos) {

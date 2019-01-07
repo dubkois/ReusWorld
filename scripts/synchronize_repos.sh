@@ -1,62 +1,92 @@
 #!/bin/bash
 
+usage(){
+  echo "Usage: $0 <data-file> [pull|push]"
+  echo
+  echo
+  echo "# Data-file"
+  echo "contains rows repositories configuration formatted as follow"
+  echo "Name;URL;Version;CMake options;Make options"
+  echo
+  echo "         Name: folder name for the cloned repository"
+  echo "          URL: Repository location"
+  echo "       Target: Branch or tag to checkout"
+  echo "CMake options: Build setup options"
+  echo " Make options: Compilation options (not covered by cmake)"
+  echo 
+  echo "# Dependencies"
+  echo "If A > B (depends on) and C > (A, B) then the data-file should be ordered as"
+  echo "B"
+  echo "A"
+  echo "C"
+}
+
+if [ $# -lt 1 -o $# -gt 2 ]
+then
+  usage
+  exit 1
+fi
+
 now=$(LC_ALL=C date | tr " :" "_-")
 log="reposync_log_$now"
 echo "## $(LC_ALL=C date) ##" | tee $log
-echo "Synchronizing repositiories" | tee -a $log
+printf "Synchronizing repositiories (" | tee -a $log
+if [ "$1" = "push" ]
+then
+  printf "pushing" | tee -a $log
+else
+  printf "pulling" | tee -a $log
+fi
+printf " changes)\n" | tee -a $log
 
 ppath=$(readlink -m "./local/")
 mkdir -p $ppath
 echo "Using '$ppath' as local installs root" | tee -a $log
-cmakeopts="-DCMAKE_INSTALL_PREFIX=$ppath -DCMAKE_BUILD_TYPE=Release -DWITH_DEBUG_INFO=OFF"
-makeopts="-j5"
-makeinstall="$makeopts install"
-
-#Name;URL;Version;CMake options;Make options;
-data="\
-cxxopts;https://github.com/jarro2783/cxxopts.git;v2.1.1;-;-
-json;https://github.com/nlohmann/json.git;v3.5.0;-;-
-Tools;ssh://git@igit.odena.eu:5000/kevin/Tools.git;-;$cmakeopts;$makeinstall
-AgnosticPhylogenicTree;ssh://git@igit.odena.eu:5000/kevin/AgnosticPhylogenicTree.git;-;$cmakeopts;$makeinstall
-ReusWorld;ssh://git@igit.odena.eu:5000/kevin/ReusWorld.git;-;$cmakeopts;$makeopts"
 
 echo
 wd=$(pwd)
-while IFS=';' read name url version cmake make
+while IFS=';' read name url target cmake make
 do
   echo "Processing $name"
   
   if [ ! -d "$name" ]
   then
-    git clone $url
+    git clone $url $name
   fi
 
   cd $name
   
-  if [ "$version" != "-" ]
+  if [ "$1" != "push" ]
   then
-    git fetch --tags
-    git checkout $version --detach
-  else
-    git pull
-  fi  
-
-  if [ "$cmake" != "-" ]
-  then
-    if [ ! -d "build" ]
+    if [ "$target" != "-" ]
     then
-      echo ">> Setting up release build folder"
-      mkdir build
-      cd build
-      cmake .. $cmake
+      git fetch --tags
+      git checkout $target
     else
-      cd build
+      git pull
+    fi  
+
+    if [ "$cmake" != "-" ]
+    then
+      if [ ! -d "build_release" ]
+      then
+        echo ">> Setting up release build folder"
+        mkdir build_release
+        cd build_release
+        cmake .. -DCMAKE_INSTALL_PREFIX=$ppath -DCMAKE_BUILD_TYPE=Release $cmake
+      else
+        cd build_release
+      fi
+      make $make
     fi
-    make $make
+  else
+    git commit -a
+    git status
   fi
+  
   cd $wd
   printf "Done.\n\n"
 
-done <<< "$data" | tee -a $log
+done < "$1" | tee -a $log
 
 printf "All done\n" | tee -a $log

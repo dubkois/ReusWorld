@@ -24,7 +24,11 @@ void Environment::destroy (void) {
   _collisionData->reset();
 }
 
-void Environment::step (void) {}
+void Environment::step (void) {
+#ifndef NDEBUG
+  _collisionData->debug();
+#endif
+}
 
 float Environment::waterAt(const Point &p) {
   // No water outside the boundaries
@@ -72,12 +76,22 @@ void Environment::updateGeneticMaterial(Organ *f, const Point &oldPos) {
   _collisionData->updatePistil(f, oldPos);
 }
 
-void Environment::removeGeneticMaterial(const Point &pos) {
-  _collisionData->delPistil(pos);
+void Environment::removeGeneticMaterial(Organ *f) {
+  _collisionData->delPistil(f);
 }
 
 physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
   auto itP = _collisionData->sporesInRange(f);
+
+  if (f->plant()->id() == Plant::ID(152182)) {
+    std::cerr << OrganID(f) << " found spores: ";
+    for (auto it=itP.first; it != itP.second; ++it)
+      std::cerr << " " << OrganID(it->organ);
+    std::cerr << std::endl;
+  }
+
+
+
   if (std::distance(itP.first, itP.second) >= 1)
     return *dice()(itP.first, itP.second);
 

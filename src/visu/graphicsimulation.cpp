@@ -15,9 +15,9 @@ bool GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
   return added;
 }
 
-void GraphicSimulation::delPlant(float x) {
+void GraphicSimulation::delPlant(float x, simu::Plant::Seeds &seeds) {
   _controller->view()->delPlantItem(x);
-  Simulation::delPlant(x);
+  Simulation::delPlant(x, seeds);
 }
 
 bool GraphicSimulation::init(void) {

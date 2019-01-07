@@ -52,6 +52,10 @@ public:
   void init (void) {}
   void reset (void);
 
+#ifndef NDEBUG
+  void debug (void) const;
+#endif
+
   const auto& data (void) const {     return _data;     }
   const auto& pistils (void) const {  return _pistils;  }
 
@@ -66,8 +70,7 @@ public:
 
   void addPistil (Organ *p);
   void updatePistil (Organ *p, const Point &oldPos);
-  void delPistil (const Pistil &s);
-  void delPistil (const Point &pos);
+  void delPistil (Organ *p);
   Pistils_range sporesInRange (Organ *s);
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs);

@@ -78,6 +78,7 @@ bool Simulation::init (void) {
 
   _env.init();
   _ptree.addGenome(_ecosystem.plant);
+  genotype::BOCData::setFirstID(_ecosystem.plant.cdata.id);
 
   uint N = _ecosystem.initSeeds;
   float dx = .5; // m
@@ -94,13 +95,19 @@ bool Simulation::init (void) {
 }
 
 void Simulation::destroy(void) {
+  Plant::Seeds discardedSeeds;
   while (!_plants.empty())
-    delPlant(_plants.begin()->first);
+    delPlant(_plants.begin()->first, discardedSeeds);
   _env.destroy();
+
+  for (Plant::Seed &s: discardedSeeds) {
+    _ptree.delGenome(s.genome);
+    GENOMES.erase(s.genome.cdata.id);
+  }
 
   if (!GENOMES.empty()) {
     std::ostringstream oss;
-    oss << "Dandling genomes:";
+    oss << "Dandling genomes (" << GENOMES.size() << "):";
     for (auto id: GENOMES)  oss << " " << id;
     utils::doThrow<std::logic_error>(oss.str());
   } else
@@ -122,10 +129,9 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
 
       pair.first->second->init(_env, biomass);
 
-      if (debugPlantManagement) {
+      if (debugPlantManagement)
         std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
                   << biomass << " initial biomass" << std::endl;
-      }
 
       _stats.newPlants++;
       return true;
@@ -134,15 +140,24 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
       _plants.erase(pair.first);
   }
 
+  _ptree.delGenome(g);
+  GENOMES.erase(g.cdata.id);
+
   return false;
 }
 
-void Simulation::delPlant(float x) {
+void Simulation::delPlant(float x, Plant::Seeds &seeds) {
   Plant *p = _plants.at(x).get();
+
+  p->destroy();
+  p->collectCurrentStepSeeds(seeds);
+
   if (debugPlantManagement) p->autopsy();
   _env.removeCollisionData(p);
+
   _ptree.delGenome(p->genome());
   GENOMES.erase(p->genome().cdata.id);
+
   _plants.erase(x);
 }
 
@@ -245,14 +260,14 @@ void Simulation::step (void) {
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
-    p->step(_env, seeds);
+    p->step(_env);
     if (p->isDead())
       corpses.insert(p->pos().x);
   }
 
   _stats.deadPlants = corpses.size();
   for (float x: corpses)
-    delPlant(x);
+    delPlant(x, seeds);
 
   // Perfom soft trimming
   _stats.trimmed = 0;
@@ -262,12 +277,14 @@ void Simulation::step (void) {
               << _plants.size() << " totals" << std::endl;
     while (_plants.size() > softLimit) {
       auto it = _env.dice()(_plants);
-      delPlant(it->second->pos().x);
+      delPlant(it->second->pos().x, seeds);
       _stats.trimmed++;
     }
   }
 
   performReproductions();
+
+  for (const auto &p: _plants)  p.second->collectCurrentStepSeeds(seeds);
   plantSeeds(seeds);
 
   _ptree.step(_step, _plants.begin(), _plants.end(),

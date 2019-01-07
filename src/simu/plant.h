@@ -125,6 +125,10 @@ public:
     return _depth;
   }
 
+  bool isDead (void) const {
+    return biomass() < 0;
+  }
+
   bool isSeed (void) const {
     return _symbol == config::PlantGenome::ls_axiom();
   }
@@ -194,6 +198,8 @@ private:
   using Fruits = std::map<OID, FruitData>;
   Fruits _fruits;
 
+  Seeds _currentStepSeeds;
+
   OID _nextOrganID;
 
   bool _killed;
@@ -208,6 +214,7 @@ public:
   ~Plant (void);
 
   void init (Environment &env, float biomass);
+  void destroy (void);
 
   void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
                          Environment &env);
@@ -241,6 +248,11 @@ public:
 
   const auto& fruits (void) const {
     return _fruits;
+  }
+
+  void collectCurrentStepSeeds (Seeds &seeds) {
+    seeds.insert(seeds.end(), _currentStepSeeds.begin(), _currentStepSeeds.end());
+    _currentStepSeeds.clear();
   }
 
   float age (void) const;
@@ -283,7 +295,7 @@ public:
   bool spontaneousDeath (void) const;
   void autopsy (void) const;
 
-  void step (Environment &env, Seeds &seeds);
+  void step (Environment &env);
 
   void kill (void) {
     _killed = true;
@@ -339,6 +351,7 @@ private:
                    Environment &env);
 
   void delOrgan (Organ *o, Environment &env);
+  void destroyDeadSubtree (Organ *o, Environment &env);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
                       Layer type, Organs &newOrgans,
@@ -356,7 +369,8 @@ private:
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
 
-  void collectFruits (Seeds &seeds, Environment &env);
+  void collectSeedsFrom(Organ *fruit);
+  void processFruits (Environment &env);
 };
 
 
