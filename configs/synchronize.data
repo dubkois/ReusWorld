@@ -1,0 +1,5 @@
+cxxopts;https://github.com/jarro2783/cxxopts.git;v2.1.1;-;-
+json;https://github.com/nlohmann/json.git;v3.5.0;-;-
+Tools;ssh://git@igit.odena.eu:5000/kevin/Tools.git;-;-DWITH_DEBUG_INFO=OFF;-j5 install
+AgnosticPhylogenicTree;ssh://git@igit.odena.eu:5000/kevin/AgnosticPhylogenicTree.git;-;-DWITH_DEBUG_INFO=OFF;-j5 install
+ReusWorld;ssh://git@igit.odena.eu:5000/kevin/ReusWorld.git;-;-DWITH_DEBUG_INFO=OFF;-j5
