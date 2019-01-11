@@ -50,6 +50,10 @@ public:
     return _genome.depth;
   }
 
+  auto insideXRange (float x) const {
+    return -xextent() <= x && x <= xextent();
+  }
+
   auto& dice (void) {
     return _dice;
   }

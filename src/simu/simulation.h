@@ -19,7 +19,9 @@ public:
     : _stats(), _ecosystem(genome), _env(genome.env),
       _step(0), _aborted(false) {}
 
-  virtual ~Simulation (void) {}
+  virtual ~Simulation (void) {
+    destroy();
+  }
 
   virtual bool init (void);
   virtual void destroy (void);
@@ -30,7 +32,7 @@ public:
   void abort (void) { _aborted = true; }
   bool finished (void) const {
     return _aborted || _plants.empty()
-        || _ecosystem.maxYearDuration < year();
+        || config::Simulation::maxYear() < year(_step);
   }
 
   const Environment& environment (void) const {
@@ -45,33 +47,31 @@ public:
     return _step;
   }
 
-  uint maxStep (void) const {
-    static const auto spd = config::Simulation::stepsPerDay();
-    static const auto dpy = config::Simulation::daysPerYear();
-    return _ecosystem.maxYearDuration * dpy * spd;
+  static uint maxStep (void) {
+    static const auto ms = config::Simulation::maxYear()
+                         * config::Simulation::stepsPerDay()
+                         * config::Simulation::daysPerYear();
+    return ms;
   }
 
   static float dayCount (uint step) {
     static const auto spd = config::Simulation::stepsPerDay();
     return float(step) / spd;
   }
-  float dayCount (void) const { return dayCount(_step); }
 
   static float day (uint step) {
     static const auto spd = config::Simulation::stepsPerDay();
     static const auto dpy = config::Simulation::daysPerYear();
     return std::fmod(float(step) / spd, dpy);
   }
-  float day (void) const {  return day(_step);  }
 
   static float year (uint step) {
     static const auto dpy = config::Simulation::daysPerYear();
     return dayCount(step) / dpy;
   }
-  float year (void) const { return year(_step); }
 
   static std::string prettyTime (uint step);
-  std::string prettyTime (void) const {
+  auto prettyTime (void) const {
     return prettyTime(_step);
   }
 

@@ -80,7 +80,7 @@ bool Simulation::init (void) {
   _ptree.addGenome(_ecosystem.plant);
   genotype::BOCData::setFirstID(_ecosystem.plant.cdata.id);
 
-  uint N = _ecosystem.initSeeds;
+  uint N = Config::initSeeds();
   float dx = .5; // m
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
@@ -120,30 +120,55 @@ bool Simulation::reset (void) {
 }
 
 bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
-  auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
+  bool aborted = false;
+  Plant *plant = nullptr;
+  Plants::iterator pit = _plants.end();
+
   _stats.newSeeds++;
 
-  if (pair.second) {
-    Plant *p = pair.first->second.get();
-    if (_env.addCollisionData(p)) {
+  // Is the coordinate inside the world ?
+  if (!_env.insideXRange(x)) {
+    if (Config::taurusWorld()) {  // Wrap around
+      while (x < -_env.xextent())  x += _env.width();
+      while (x >  _env.xextent())  x -= _env.width();
 
-      pair.first->second->init(_env, biomass);
+    } else  aborted = true; // Reject
+  }
+
+  if (!aborted) { // Is there room left in the main container? (should be)
+    auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
+
+    if (pair.second) {
+      pit = pair.first;
+      plant = pit->second.get();
+
+    } else
+      aborted = true;
+  }
+
+  // Is there room left in the environment?
+  if (!aborted) {
+    if (_env.addCollisionData(plant)) {
+      plant->init(_env, biomass);
 
       if (debugPlantManagement)
-        std::cerr << PlantID(p) << " Added at " << p->pos() << " with "
+        std::cerr << PlantID(plant) << " Added at " << plant->pos() << " with "
                   << biomass << " initial biomass" << std::endl;
 
       _stats.newPlants++;
-      return true;
 
-    } else
-      _plants.erase(pair.first);
+    } else {
+      _aborted = true;
+      _plants.erase(pit);
+    }
   }
 
-  _ptree.delGenome(g);
-  GENOMES.erase(g.cdata.id);
+  if (aborted) {
+    _ptree.delGenome(g);
+    GENOMES.erase(g.cdata.id);
+  }
 
-  return false;
+  return !aborted;
 }
 
 void Simulation::delPlant(float x, Plant::Seeds &seeds) {
@@ -247,9 +272,10 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 }
 
 void Simulation::step (void) {
-  std::cout << std::string(22 + std::ceil(log10(_step+1)), '#') << "\n"
-            << "## Simulation step " << prettyTime() << " ("
-            << _step << ") ##" << std::endl;
+  std::string ptime = prettyTime(_step);
+  std::cout << std::string(22 + ptime.size(), '#') << "\n"
+            << "## Simulation step " << ptime << " ##"
+            << std::endl;
 
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
@@ -299,9 +325,11 @@ void Simulation::step (void) {
 
   _step++;
   if (finished()) {
-    _ptree.saveTo("ptree.pt");
-    std::cout << "Simulation " << (_aborted ? "aborted" : "completed")
-              << " in " << _step << " steps"
+    _ptree.saveTo("phylogeny.ptree.json");
+    std::cout << "Simulation ";
+    if (_aborted) std::cout << "canceled by user after";
+    else          std::cout << "completed in";
+    std::cout << " " << _step << " steps"
               << std::endl;
   }
 }
@@ -309,7 +337,7 @@ void Simulation::step (void) {
 std::string Simulation::prettyTime(uint step) {
   std::ostringstream oss;
   oss << "y" << std::fixed << int(year(step))
-      << "d" << std::setprecision(1) << day(step);
+      << "d" << std::setw(4) << std::setfill('0') << std::setprecision(1) << day(step);
   return oss.str();
 }
 
@@ -344,7 +372,7 @@ void Simulation::logGlobalStats(void) const {
     maxx = std::max(maxx, plant.pos().x);
   }
 
-  ofs << dayCount()
+  ofs << prettyTime(_step)
       << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
            Stats::clock::now() - _stats.start).count()
       << " " << _plants.size() << " " << seeds << " " << females

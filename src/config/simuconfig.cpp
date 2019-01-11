@@ -11,10 +11,13 @@ DEFINE_SUBCONFIG(genotype::Ecosystem::config_t, genotypeEcosystemConfig)
 DEFINE_PARAMETER(bool, logIndividualStats, false)
 DEFINE_PARAMETER(bool, logGlobalStats, false)
 
+DEFINE_PARAMETER(uint, initSeeds, 100)
+DEFINE_PARAMETER(uint, maxYear, 100)
 DEFINE_PARAMETER(uint, stepsPerDay, 10)
 DEFINE_PARAMETER(uint, daysPerYear, 100)
+DEFINE_PARAMETER(bool, taurusWorld, false)
 
-DEFINE_PARAMETER(float, trimmingProba, .001)
+DEFINE_PARAMETER(float, trimmingProba, 0)
 DEFINE_PARAMETER(float, maxPlantDensity, 10)
 
 DEFINE_PARAMETER(float, assimilationRate, .01)

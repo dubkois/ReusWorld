@@ -21,20 +21,16 @@ DECLARE_GENOME_FIELD(Environment, uint, voxels)
 class Ecosystem : public SelfAwareGenome<Ecosystem> {
   APT_SAG()
 public:
-  uint initSeeds;
   Plant plant;
   Environment env;
-  uint maxYearDuration;
 
   std::string extension (void) const override {
     return ".eco.json";
   }
 };
 
-DECLARE_GENOME_FIELD(Ecosystem, uint, initSeeds)
 DECLARE_GENOME_FIELD(Ecosystem, Plant, plant)
 DECLARE_GENOME_FIELD(Ecosystem, Environment, env)
-DECLARE_GENOME_FIELD(Ecosystem, uint, maxYearDuration)
 
 } // end of namespace genotype
 
