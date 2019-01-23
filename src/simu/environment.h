@@ -61,6 +61,7 @@ public:
   void step (void);
 
   float waterAt(const Point &p);
+  float lightAt (const Point &p);
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
   bool addCollisionData(Plant *p);

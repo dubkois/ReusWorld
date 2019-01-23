@@ -1,6 +1,8 @@
 #include "environment.h"
 #include "tiniestphysicsengine.h"
 
+#include "../config/simuconfig.h"
+
 namespace simu {
 
 using UL_EU = EnumUtils<UndergroundLayers>;
@@ -10,8 +12,8 @@ using UL_EU = EnumUtils<UndergroundLayers>;
 Environment::Environment(const Genome &g)
   : _genome(g), _collisionData(std::make_unique<physics::CollisionData>()) {
 
-  for (UndergroundLayers l: UL_EU::iterator())
-    _layers[l].resize(_genome.voxels, .5 * (1 + l));
+  _layers[UndergroundLayers::SHALLOW].resize(_genome.voxels, config::Simulation::baselineShallowWater());
+  _layers[UndergroundLayers::DEEP].resize(_genome.voxels, 1.f);
 }
 
 Environment::~Environment(void) {}
@@ -42,6 +44,10 @@ float Environment::waterAt(const Point &p) {
   float d = - p.y / yextent();
   assert(0 <= d && d <= 1);
   return _layers[SHALLOW][v] * uint(d) + _layers[DEEP][v] * (1.f - uint(d));
+}
+
+float Environment::lightAt(const Point &p) {
+  return config::Simulation::baselineLight();
 }
 
 const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {

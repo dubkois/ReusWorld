@@ -101,6 +101,17 @@ add_executable(
 )
 target_link_libraries(simulator ${apt_LIBRARIES})
 
+option(AUTO_CALIBRATION_TOOL "Whether or not to build the (slighlty) automatic calibration tool" OFF)
+message("Building automatic calibration tool: " ${AUTO_CALIBRATION_TOOL})
+if (AUTO_CALIBRATION_TOOL)
+  add_executable(
+    auto-calibrator
+    $<TARGET_OBJECTS:SIMU_OBJS>
+    "src/misc/autocalibrator.cpp"
+  )
+  target_link_libraries(auto-calibrator ${apt_LIBRARIES})
+endif()
+
 if (NOT CLUSTER_BUILD)
 ################################################################################
 ## Sources files (visualizer)

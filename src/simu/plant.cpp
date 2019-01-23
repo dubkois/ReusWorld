@@ -646,9 +646,8 @@ float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
 }
 
 void Plant::biomassRequirements (Masses &wastes, Masses &growth) {
-  static const auto &k_lit = SConfig::lifeCost();
   for (Layer l: EnumUtils<Layer>::iterator())
-    wastes[l] = k_lit * _biomasses[l];
+    wastes[l] = SConfig::lifeCost() * _biomasses[l];
 
   growth.fill(0);
   for (Organ *o: _sinks)
@@ -686,9 +685,9 @@ float Plant::seedBiomassRequirements(const Genome &mother, const Genome &child) 
 void Plant::metabolicStep(Environment &env) {
   using genotype::Element;
 
-  static const auto &k_E = SConfig::assimilationRate();
-  static const auto &J_E = SConfig::saturationRate();
-  static const auto &f_E = SConfig::resourceCost();
+  const auto &k_E = SConfig::assimilationRate();
+  const auto &J_E = SConfig::saturationRate();
+  const auto &f_E = SConfig::resourceCost();
 
   if (debugMetabolism > 1) {
     std::cerr << PlantID(this) << " state at start:\n\t"
@@ -752,10 +751,10 @@ void Plant::metabolicStep(Environment &env) {
   // Produce glucose
   decimal U_g = 0;
   decimal ug_k = 1 + concentration(Layer::SHOOT, Element::GLUCOSE) * J_E; assert(ug_k >= 1);
+  decimal light = env.lightAt(pos());
   for (const physics::UpperLayer::Item &i: env.canopy(this)) {
     if (!i.organ->isLeaf()) continue;
 
-    static constexpr decimal light = 1;
     U_g += light * k_E * (i.r - i.l) / ug_k;
 
     if (debugMetabolism)

@@ -2,11 +2,11 @@
 
 #include "simulation.h"
 
-#include "tiniestphysicsengine.h" /// TODO Remove
+#ifndef NDEBUG  /// TODO REMOVE
+#include "tiniestphysicsengine.h"
+#endif
 
 namespace simu {
-
-std::set<genotype::BOCData::GID> GENOMES;
 
 using Config = config::Simulation;
 
@@ -91,6 +91,8 @@ bool Simulation::init (void) {
     _ptree.addGenome(pg);
     addPlant(pg, x0 + i * dx, initBiomass);
   }
+
+  updateGenStats();
   return true;
 }
 
@@ -100,18 +102,7 @@ void Simulation::destroy(void) {
     delPlant(_plants.begin()->first, discardedSeeds);
   _env.destroy();
 
-  for (Plant::Seed &s: discardedSeeds) {
-    _ptree.delGenome(s.genome);
-    GENOMES.erase(s.genome.cdata.id);
-  }
-
-  if (!GENOMES.empty()) {
-    std::ostringstream oss;
-    oss << "Dandling genomes (" << GENOMES.size() << "):";
-    for (auto id: GENOMES)  oss << " " << id;
-    utils::doThrow<std::logic_error>(oss.str());
-  } else
-    std::cerr << "All genomes were processed" << std::endl;
+  for (Plant::Seed &s: discardedSeeds)  _ptree.delGenome(s.genome);
 }
 
 bool Simulation::reset (void) {
@@ -163,10 +154,7 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
     }
   }
 
-  if (aborted) {
-    _ptree.delGenome(g);
-    GENOMES.erase(g.cdata.id);
-  }
+  if (aborted)  _ptree.delGenome(g);
 
   return !aborted;
 }
@@ -181,7 +169,6 @@ void Simulation::delPlant(float x, Plant::Seeds &seeds) {
   _env.removeCollisionData(p);
 
   _ptree.delGenome(p->genome());
-  GENOMES.erase(p->genome().cdata.id);
 
   _plants.erase(x);
 }
@@ -235,10 +222,7 @@ void Simulation::performReproductions(void) {
       _stats.matings++;
 
       if (fecundated) {
-        for (const auto &g: litter) {
-          _ptree.addGenome(g);
-          GENOMES.insert(g.cdata.id);
-        }
+        for (const auto &g: litter) _ptree.addGenome(g);
 
         mother->replaceWithFruit(s.organ, litter, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
@@ -260,7 +244,6 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
   for (const Plant::Seed &seed: seeds) {
     if (seed.biomass <= 0) {
       _ptree.delGenome(seed.genome);
-      GENOMES.erase(seed.genome.cdata.id);
       continue;
     }
 
@@ -273,9 +256,10 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 
 void Simulation::step (void) {
   std::string ptime = prettyTime(_step);
-  std::cout << std::string(22 + ptime.size(), '#') << "\n"
-            << "## Simulation step " << ptime << " ##"
-            << std::endl;
+  if (Config::verbosity() > 0)
+    std::cout << std::string(22 + ptime.size(), '#') << "\n"
+              << "## Simulation step " << ptime << " ##"
+              << std::endl;
 
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
@@ -320,17 +304,30 @@ void Simulation::step (void) {
 
   assert(_env.collisionData().data().size() <= _plants.size());
 
+  updateGenStats();
   if (Config::logGlobalStats())
     logGlobalStats();
 
   _step++;
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
-    std::cout << "Simulation ";
-    if (_aborted) std::cout << "canceled by user after";
-    else          std::cout << "completed in";
-    std::cout << " " << _step << " steps"
-              << std::endl;
+
+    if (Config::verbosity() > 0) {
+      std::cout << "Simulation ";
+      if (_aborted) std::cout << "canceled by user after";
+      else          std::cout << "completed in";
+      std::cout << " " << _step << " steps"
+                << std::endl;
+    }
+  }
+}
+
+void Simulation::updateGenStats (void) {
+  for (const auto &p: _plants) {
+    const Plant &plant = *p.second;
+    auto gen = plant.genome().cdata.generation;
+    _stats.minGeneration = std::min(_stats.minGeneration, gen);
+    _stats.maxGeneration = std::max(_stats.maxGeneration, gen);
   }
 }
 
@@ -341,7 +338,7 @@ std::string Simulation::prettyTime(uint step) {
   return oss.str();
 }
 
-void Simulation::logGlobalStats(void) const {
+void Simulation::logGlobalStats(void) {
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
   if (_step > 0)  mode |= std::fstream::app;
@@ -349,14 +346,14 @@ void Simulation::logGlobalStats(void) const {
   ofs.open("global.dat", mode);
 
   if (_step == 0)
-    ofs << "Date Time Plants Seeds Females Males Biomass Flowers Fruits Matings"
+    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass Organs Flowers Fruits Matings"
            " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
            " MinX MaxX\n";
 
   using decimal = Plant::decimal;
   decimal biomass = 0;
   uint seeds = 0;
-  uint flowers = 0, fruits = 0;
+  uint organs = 0, flowers = 0, fruits = 0;
   uint females = 0, males = 0;
   float minx = _env.xextent(), maxx = -_env.xextent();
 
@@ -364,24 +361,36 @@ void Simulation::logGlobalStats(void) const {
     const Plant &plant = *p.second;
     seeds += plant.isInSeedState();
     biomass += plant.biomass();
+
+    organs += plant.organs().size();
     flowers += plant.flowers().size();
     fruits += plant.fruits().size();
+
     females += (plant.sex() == Plant::Sex::FEMALE);
     males += (plant.sex() == Plant::Sex::MALE);
-    minx = std::min(minx, plant.pos().x);
-    maxx = std::max(maxx, plant.pos().x);
+
+    float x = plant.pos().x;
+    minx = std::min(minx, x);
+    maxx = std::max(maxx, x);
   }
 
   ofs << prettyTime(_step)
       << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
            Stats::clock::now() - _stats.start).count()
-      << " " << _plants.size() << " " << seeds << " " << females
-      << " " << males << " " << biomass << " " << flowers << " " << fruits
+      << " " << _stats.minGeneration << " " << _stats.maxGeneration
+      << " " << _plants.size() << " " << seeds
+      << " " << females << " " << males
+      << " " << biomass
+
+      << " " << organs << " " << flowers << " " << fruits
+
       << " " << _stats.matings << " " << _stats.reproductions
       << " " << _stats.newSeeds << " " << _stats.newPlants
       << " " << _stats.deadPlants << " " << _stats.trimmed
+
       << " " << _stats.sumDistances / float(_stats.matings)
       << " " << _stats.sumCompatibilities / float(_stats.matings)
+
       << " " << minx << " " << maxx
       << std::endl;
 }

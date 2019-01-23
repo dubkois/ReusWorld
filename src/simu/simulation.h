@@ -32,7 +32,9 @@ public:
   void abort (void) { _aborted = true; }
   bool finished (void) const {
     return _aborted || _plants.empty()
-        || config::Simulation::maxYear() < year(_step);
+        || year(_step) > config::Simulation::stopAtYear()
+        || _stats.minGeneration > config::Simulation::stopAtMinGen()
+        || _stats.maxGeneration > config::Simulation::stopAtMaxGen();
   }
 
   const Environment& environment (void) const {
@@ -48,7 +50,7 @@ public:
   }
 
   static uint maxStep (void) {
-    static const auto ms = config::Simulation::maxYear()
+    static const auto ms = config::Simulation::stopAtYear()
                          * config::Simulation::stepsPerDay()
                          * config::Simulation::daysPerYear();
     return ms;
@@ -80,14 +82,18 @@ protected:
     using clock = std::chrono::high_resolution_clock;
     clock::time_point start;
 
-    float sumDistances;
-    float sumCompatibilities;
-    uint matings;
-    uint reproductions;
-    uint newSeeds;
-    uint newPlants;
-    uint deadPlants;
-    uint trimmed;
+    float sumDistances = 0;
+    float sumCompatibilities = 0;
+    uint matings = 0;
+    uint reproductions = 0;
+    uint newSeeds = 0;
+    uint newPlants = 0;
+    uint deadPlants = 0;
+    uint trimmed = 0;
+
+    uint minGeneration = std::numeric_limits<decltype(minGeneration)>::max();
+    uint maxGeneration = 0;
+
   } _stats;
 
   genotype::Ecosystem _ecosystem;
@@ -109,7 +115,8 @@ protected:
   virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);
 
-  void logGlobalStats (void) const;
+  void updateGenStats (void);
+  void logGlobalStats (void);
 };
 
 } // end of namespace simu
