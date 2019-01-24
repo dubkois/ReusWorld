@@ -82,7 +82,11 @@ struct Test : public ITest {
 
   std::string finalState (void) const override {
     std::ostringstream oss;
-    oss << name() << ": " << finalValue;
+    oss << name() << ": " << finalValue << " ("
+        << (decreasing ? "min" : "max")
+        << "(" << currVal << " "
+        << (decreasing ? "*" : "/") << " " << (1.f + margin);
+    oss << "))";
     return oss.str();
   }
 };
@@ -102,7 +106,12 @@ using SConfig = config::Simulation;
 int main(void) {
   static constexpr uint SEEDS = 20;
   static const std::unique_ptr<ITest> tests[] {
-    upperBoundTest(SConfig::lifeCost, 1, .2)
+    upperBoundTest(SConfig::lifeCost, 1, .2),
+    lowerBoundTest(SConfig::assimilationRate, 0, .2),
+    upperBoundTest(SConfig::saturationRate, 10, .2),
+    lowerBoundTest(SConfig::baselineShallowWater, 0, .2),
+    lowerBoundTest(SConfig::baselineLight, 0, .2),
+    upperBoundTest(SConfig::floweringCost, 9, 0),
   };
   static const auto genomes = [] {
     std::vector<genotype::Ecosystem> genomes;
@@ -113,31 +122,30 @@ int main(void) {
     return genomes;
   }();
 
-  SConfig::stopAtYear.overrideWith(1);
+  SConfig::stopAtYear.overrideWith(5);
   SConfig::stopAtMinGen.overrideWith(10);
   SConfig::stopAtMaxGen.overrideWith(20);
   SConfig::verbosity.overrideWith(0);
-  SConfig::setupConfig("auto");
+  SConfig::setupConfig("auto", config::Verbosity::SHOW);
 
-//  std::cout << "Genomes are: " << std::endl;
-//  {
-//    uint i=0;
-//    for (const auto &g: genomes)
-//      std::cout << i++ << "/" << SEEDS << ": " << g << std::endl;
-//  }
+  std::cout << "\nGenomes are: " << std::endl;
+  {
+    uint i=0;
+    for (const auto &g: genomes)
+      std::cout << i++ << "/" << SEEDS << ": " << g << std::endl;
+  }
 
-
+  const auto &initSeeds = SConfig::initSeeds();
   for (const auto &test_ptr: tests) {
     const ITest &test = *test_ptr;
     bool success = false;
 
-    config::Simulation::printConfig();
-
+    std::cout << std::endl;
     while (!(test.preciseEnough() && success)) {
       test();
 
-      std::cout << "## Testing " << test << ": ";
-      uint successCount = 0, totalSteps = 0;
+      std::cout << "## Testing " << test << ": " << std::flush;
+      uint successCount = 0, totalPlants = 0, totalSteps = 0;
       for (uint i=0; i<SEEDS; i++) { // Various rng seeds
         simu::Simulation s (genomes[i]);
         s.init();
@@ -145,12 +153,13 @@ int main(void) {
         while (!s.finished())
           s.step();
 
-        bool thisSuccess = s.plants().size() > 0;
+        bool thisSuccess = (s.plants().size() >= initSeeds);
         successCount += thisSuccess;
 
+        totalPlants += s.plants().size();
         totalSteps += s.currentStep();
 
-        std::cout << (thisSuccess ? '+' : '-');
+        std::cout << (thisSuccess ? '+' : '-') << std::flush;
 
         s.destroy();
       }
@@ -160,7 +169,9 @@ int main(void) {
 
       std::cout << " ";
       if (success) {
-        std::cout << "success (" << float(totalSteps) / SEEDS << " avg steps)";
+        std::cout << "success (" << float(totalSteps) / SEEDS
+                  << " avg steps and " << float(totalPlants) / SEEDS
+                  << " plants)";
         if (test.preciseEnough())  std::cout << ". Precise enough, stopping here";
       } else
         std::cout << "failure.";
@@ -171,7 +182,13 @@ int main(void) {
     std::cout << "# Final value for " << test.finalState() << std::endl;
   }
 
-  config::Simulation::printConfig();
+  stdfs::path configPath ("configs/auto-calibration/");
+  std::cout << "\nWriting calibrated config file(s) to " << configPath << std::endl;
+  config::Simulation::printConfig(configPath);
+
+  std::cout << "\nAuto-calibration summary:\n";
+  for (const auto &test_ptr: tests)
+    std::cout << "\t- " << test_ptr->finalState() << std::endl;
 
   return 0;
 }

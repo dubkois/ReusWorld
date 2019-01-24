@@ -43,7 +43,7 @@ float Environment::waterAt(const Point &p) {
   assert(v < _genome.voxels);
   float d = - p.y / yextent();
   assert(0 <= d && d <= 1);
-  return _layers[SHALLOW][v] * uint(d) + _layers[DEEP][v] * (1.f - uint(d));
+  return _layers[SHALLOW][v] * (1.f - uint(d) + _layers[DEEP][v] * d);
 }
 
 float Environment::lightAt(const Point &p) {
