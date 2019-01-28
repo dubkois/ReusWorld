@@ -46,13 +46,13 @@ int main(int argc, char *argv[]) {
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
-      std::cout << options.help() << std::endl;
-      return 0;
+    std::cout << options.help() << std::endl;
+    return 0;
   }
 
   std::string configFile;
-  if (result.count("config"))    configFile = result["config"].as<std::string>();
   if (result.count("auto-config"))  configFile = "auto";
+  if (result.count("config"))    configFile = result["config"].as<std::string>();
 
   Verbosity verbosity = Verbosity::SHOW;
   if (result.count("verbosity")) verbosity = result["verbosity"].as<Verbosity>();
@@ -67,14 +67,14 @@ int main(int argc, char *argv[]) {
 
   else if (result.count("genome")) {
     std::string inputFile = result["genome"].as<std::string>();
-    std::cerr << "Reading genome for input file " << inputFile << std::endl;
+    std::cout << "Reading genome from input file " << inputFile << std::endl;
     genome = genotype::Ecosystem::fromFile(inputFile);
 
   } else {
     rng::FastDice dice;
     if (result["random"].as<Seed_t>() != Seed_t(-1))
       dice.reset(result["random"].as<Seed_t>());
-    std::cerr << "Generating genome from rng seed " << dice.getSeed() << std::endl;
+    std::cout << "Generating genome from rng seed " << dice.getSeed() << std::endl;
     genome = genotype::Ecosystem::random(dice);
     genome.toFile("last", 2);
   }
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  std::cerr << "Starting from genome: " << genome << std::endl;
+  std::cout << "Starting from genome: " << genome << std::endl;
 
   simu::Simulation s (genome);
   s.init();

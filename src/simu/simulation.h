@@ -104,7 +104,7 @@ protected:
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
 
-  phylogeny::PhylogenicTree<PGenome> _ptree;
+  phylogeny::PhylogenicTree<PGenome, PStats> _ptree;
 
   uint _step;
   bool _aborted;

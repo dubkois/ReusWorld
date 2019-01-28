@@ -140,7 +140,8 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   // Is there room left in the environment?
   if (!aborted) {
     if (_env.addCollisionData(plant)) {
-      plant->init(_env, biomass);
+      PStats *pstats = _ptree.getUserData(plant->id());
+      plant->init(_env, biomass, pstats);
 
       if (debugPlantManagement)
         std::cerr << PlantID(plant) << " Added at " << plant->pos() << " with "
@@ -308,7 +309,6 @@ void Simulation::step (void) {
   if (Config::logGlobalStats())
     logGlobalStats();
 
-  _step++;
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
 
@@ -320,6 +320,8 @@ void Simulation::step (void) {
                 << std::endl;
     }
   }
+
+  _step++;
 }
 
 void Simulation::updateGenStats (void) {

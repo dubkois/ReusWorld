@@ -67,6 +67,7 @@ struct Test : public ITest {
     if (decreasing)
           finalValue *= r;
     else  finalValue /= r;
+    finalValue = std::max(min, std::min(finalValue, max));
     cvalue.overrideWith(finalValue);
     converged = true;
   }
@@ -83,10 +84,10 @@ struct Test : public ITest {
   std::string finalState (void) const override {
     std::ostringstream oss;
     oss << name() << ": " << finalValue << " ("
-        << (decreasing ? "min" : "max")
-        << "(" << currVal << " "
-        << (decreasing ? "*" : "/") << " " << (1.f + margin);
-    oss << "))";
+        << currVal << " "
+        << (decreasing ? "*" : "/")
+        << " " << (1.f + margin)
+        << ")";
     return oss.str();
   }
 };
@@ -122,10 +123,10 @@ int main(void) {
     return genomes;
   }();
 
-  SConfig::stopAtYear.overrideWith(5);
-  SConfig::stopAtMinGen.overrideWith(10);
-  SConfig::stopAtMaxGen.overrideWith(20);
-  SConfig::verbosity.overrideWith(0);
+  auto oldStopAtYear = SConfig::stopAtYear.overrideWith(5);
+  auto oldStopAtMinGen = SConfig::stopAtMinGen.overrideWith(10);
+  auto oldStopAtMaxGen = SConfig::stopAtMaxGen.overrideWith(20);
+  auto oldVerbosity = SConfig::verbosity.overrideWith(0);
   SConfig::setupConfig("auto", config::Verbosity::SHOW);
 
   std::cout << "\nGenomes are: " << std::endl;
@@ -184,6 +185,10 @@ int main(void) {
 
   stdfs::path configPath ("configs/auto-calibration/");
   std::cout << "\nWriting calibrated config file(s) to " << configPath << std::endl;
+  SConfig::stopAtYear.overrideWith(oldStopAtYear);
+  SConfig::stopAtMinGen.overrideWith(oldStopAtMinGen);
+  SConfig::stopAtMaxGen.overrideWith(oldStopAtMaxGen);
+  SConfig::verbosity.overrideWith(oldVerbosity);
   config::Simulation::printConfig(configPath);
 
   std::cout << "\nAuto-calibration summary:\n";

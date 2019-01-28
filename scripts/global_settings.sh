@@ -36,7 +36,7 @@ olympe[hostname]="olympe"
 olympe[host]="${olympe[hostname]}.calmip.univ-toulouse.fr"
 olympe[user]="dubois"
 olympe[port]="22"
-olympe[evos]="${olympe[hostname]}:$project/tmp/"
+olympe[evos]="${olympe[hostname]}:code/$project/tmp/"
 olympe[localMount]="$projectPath/olympe/"
 
 sshConfig="$HOME/.ssh/config"

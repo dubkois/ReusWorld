@@ -78,5 +78,10 @@ int main(int argc, char *argv[]) {
     });
   }
 
-  return a.exec();
+  auto ret = a.exec();
+
+  s.abort();
+  s.step();
+
+  return ret;
 }
