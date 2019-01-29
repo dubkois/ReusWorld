@@ -27,6 +27,10 @@ class Environment {
   using Layers = std::array<std::vector<float>, EnumUtils<UndergroundLayers>::size()>;
   Layers _layers;
 
+  Time _time;
+
+  std::unique_ptr<physics::CollisionData> _collisionData;
+
 public:
   Environment(const Genome &g);
   ~Environment(void);
@@ -58,6 +62,10 @@ public:
     return _dice;
   }
 
+  const auto& time (void) const {
+    return _time;
+  }
+
   void step (void);
 
   float waterAt(const Point &p);
@@ -79,9 +87,6 @@ public:
   const auto& collisionData (void) const {
     return *_collisionData;
   }
-
-private:
-  std::unique_ptr<physics::CollisionData> _collisionData;
 };
 
 } // end of namespace simu

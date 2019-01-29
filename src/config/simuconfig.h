@@ -26,6 +26,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(uint, daysPerYear)
   DECLARE_PARAMETER(bool, taurusWorld)
 
+  DECLARE_PARAMETER(bool, killSeedsEarly)
   DECLARE_PARAMETER(float, trimmingProba)
   DECLARE_PARAMETER(float, maxPlantDensity) // Per meter
 

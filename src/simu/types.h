@@ -5,6 +5,8 @@
 
 #include <ostream>
 
+#include "kgd/external/json.hpp"
+
 namespace simu {
 
 struct Point {
@@ -122,6 +124,39 @@ struct Disk {
 struct Position {
   Point start, end;
   float rotation;
+};
+
+struct Time {
+  Time (void);
+
+  const auto& year (void) const { return _year; }
+  const auto& hour (void) const { return _hour; }
+  const auto& day (void) const {  return _day;  }
+
+  Time& next (void);
+  std::string pretty (void) const;
+
+  static const Time &startOf(void);
+  static const Time &endOf(void);
+
+  bool isStartOf (void) const;
+  bool isEndOf (void) const;
+
+  static Time fromTimestamp (uint step);
+  uint toTimestamp (void) const;
+
+  friend bool operator== (const Time &lhs, const Time &rhs);
+
+  friend std::ostream& operator<< (std::ostream &os, const Time &t);
+  friend std::istream& operator>> (std::istream &os, Time &t);
+
+  friend void to_json (nlohmann::json &j, const Time &t);
+  friend void from_json (const nlohmann::json &j, Time &t);
+
+private:
+  uint _year, _day, _hour;
+
+  Time (uint y, uint d, uint h) : _year(y), _day(d), _hour(h) {}
 };
 
 } // end of namespace simu

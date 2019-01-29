@@ -28,7 +28,7 @@ bool GraphicSimulation::init(void) {
 }
 
 void GraphicSimulation::graphicalStep (void) {
-  if (_step == 0 && config::Visualization::withScreenshots())
+  if (_env.time().isStartOf() && config::Visualization::withScreenshots())
     doScreenshot();
 
   step();
@@ -45,13 +45,13 @@ void GraphicSimulation::doScreenshot(void) const {
   static const std::string screenshotFolder = "screenshots/";
   static const QSize screenshotSize = config::Visualization::screenshotResolution();
 
-  if (_step == 0) stdfs::remove_all(screenshotFolder);
+  if (_env.time().isStartOf()) stdfs::remove_all(screenshotFolder);
   stdfs::create_directory(screenshotFolder);
 
   QPixmap p = _controller->view()->screenshot(screenshotSize);
 
   std::ostringstream oss;
-  oss << screenshotFolder << "step_" << _step << ".png";
+  oss << screenshotFolder << "sc_" << _env.time().pretty() << ".png";
   p.save(QString::fromStdString(oss.str()));
 }
 

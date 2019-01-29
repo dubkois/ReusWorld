@@ -17,8 +17,6 @@ static constexpr bool debug = false
   | debugPlantManagement | debugReproduction;
 
 bool Simulation::init (void) {
-  _step = 0;
-
 #if 0
   using SRule = genotype::LSystem<genotype::SHOOT>::Rule;
   using RRule = genotype::LSystem<genotype::ROOT>::Rule;
@@ -111,7 +109,7 @@ bool Simulation::reset (void) {
 }
 
 bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
-  bool aborted = false;
+  bool insertionAborted = false;
   Plant *plant = nullptr;
   Plants::iterator pit = _plants.end();
 
@@ -123,10 +121,10 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
       while (x < -_env.xextent())  x += _env.width();
       while (x >  _env.xextent())  x -= _env.width();
 
-    } else  aborted = true; // Reject
+    } else  insertionAborted = true; // Reject
   }
 
-  if (!aborted) { // Is there room left in the main container? (should be)
+  if (!insertionAborted) { // Is there room left in the main container? (should be)
     auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
 
     if (pair.second) {
@@ -134,11 +132,11 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
       plant = pit->second.get();
 
     } else
-      aborted = true;
+      insertionAborted = true;
   }
 
   // Is there room left in the environment?
-  if (!aborted) {
+  if (!insertionAborted) {
     if (_env.addCollisionData(plant)) {
       PStats *pstats = _ptree.getUserData(plant->id());
       plant->init(_env, biomass, pstats);
@@ -150,14 +148,14 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
       _stats.newPlants++;
 
     } else {
-      _aborted = true;
+      insertionAborted = true;
       _plants.erase(pit);
     }
   }
 
-  if (aborted)  _ptree.delGenome(g);
+  if (insertionAborted)  _ptree.delGenome(g);
 
-  return !aborted;
+  return !insertionAborted;
 }
 
 void Simulation::delPlant(float x, Plant::Seeds &seeds) {
@@ -256,7 +254,7 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 }
 
 void Simulation::step (void) {
-  std::string ptime = prettyTime(_step);
+  std::string ptime = _env.time().pretty();
   if (Config::verbosity() > 0)
     std::cout << std::string(22 + ptime.size(), '#') << "\n"
               << "## Simulation step " << ptime << " ##"
@@ -264,8 +262,6 @@ void Simulation::step (void) {
 
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
-
-  _env.step();
 
   Plant::Seeds seeds;
   std::set<float> corpses;
@@ -298,7 +294,7 @@ void Simulation::step (void) {
   for (const auto &p: _plants)  p.second->collectCurrentStepSeeds(seeds);
   plantSeeds(seeds);
 
-  _ptree.step(_step, _plants.begin(), _plants.end(),
+  _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
     return pair.second->genome().cdata.id;
   });
@@ -309,6 +305,8 @@ void Simulation::step (void) {
   if (Config::logGlobalStats())
     logGlobalStats();
 
+  _env.step();
+
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
 
@@ -316,12 +314,17 @@ void Simulation::step (void) {
       std::cout << "Simulation ";
       if (_aborted) std::cout << "canceled by user after";
       else          std::cout << "completed in";
-      std::cout << " " << _step << " steps"
-                << std::endl;
+
+      const Time &time = _env.time();
+      std::cout << " " << time.year() << " year";
+      if (time.year() > 1)  std::cout << "s";
+      std::cout << " " << time.day() << " day";
+      if (time.day() > 1)   std::cout << "s";
+      std::cout << " " << time.hour() << " hour";
+      if (time.hour() > 1)  std::cout << "s";
+      std::cout << " (" << time.toTimestamp() << " steps)" << std::endl;
     }
   }
-
-  _step++;
 }
 
 void Simulation::updateGenStats (void) {
@@ -333,21 +336,17 @@ void Simulation::updateGenStats (void) {
   }
 }
 
-std::string Simulation::prettyTime(uint step) {
-  std::ostringstream oss;
-  oss << "y" << std::fixed << int(year(step))
-      << "d" << std::setw(4) << std::setfill('0') << std::setprecision(1) << day(step);
-  return oss.str();
-}
-
 void Simulation::logGlobalStats(void) {
+  const auto &time = _env.time();
+  bool first = time.isStartOf();
+
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
-  if (_step > 0)  mode |= std::fstream::app;
-  else            mode |= std::fstream::trunc;
+  if (first)  mode |= std::fstream::trunc;
+  else        mode |= std::fstream::app;
   ofs.open("global.dat", mode);
 
-  if (_step == 0)
+  if (first)
     ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass Organs Flowers Fruits Matings"
            " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
            " MinX MaxX\n";
@@ -376,7 +375,7 @@ void Simulation::logGlobalStats(void) {
     maxx = std::max(maxx, x);
   }
 
-  ofs << prettyTime(_step)
+  ofs << time.pretty()
       << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
            Stats::clock::now() - _stats.start).count()
       << " " << _stats.minGeneration << " " << _stats.maxGeneration

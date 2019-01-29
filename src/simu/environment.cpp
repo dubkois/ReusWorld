@@ -20,6 +20,7 @@ Environment::~Environment(void) {}
 
 void Environment::init (void) {
   _dice.reset(_genome.rngSeed);
+  _time = Time();
 }
 
 void Environment::destroy (void) {
@@ -30,6 +31,7 @@ void Environment::step (void) {
 #ifndef NDEBUG
   _collisionData->debug();
 #endif
+  _time.next();
 }
 
 float Environment::waterAt(const Point &p) {

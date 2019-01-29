@@ -215,7 +215,7 @@ private:
                    Environment &env);
 
   void delOrgan (Organ *o, Environment &env);
-  void destroyDeadSubtree (Organ *o, Environment &env);
+  bool destroyDeadSubtree(Organ *o, Environment &env);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
                       Layer type, Organs &newOrgans,
@@ -233,7 +233,7 @@ private:
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
 
-  void updatePStats (void);
+  void updatePStats (Environment &env);
 
   void collectSeedsFrom(Organ *fruit);
   void processFruits (Environment &env);

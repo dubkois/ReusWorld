@@ -17,7 +17,7 @@ protected:
 public:
   Simulation (const genotype::Ecosystem &genome)
     : _stats(), _ecosystem(genome), _env(genome.env),
-      _step(0), _aborted(false) {}
+      _aborted(false) {}
 
   virtual ~Simulation (void) {
     destroy();
@@ -32,7 +32,7 @@ public:
   void abort (void) { _aborted = true; }
   bool finished (void) const {
     return _aborted || _plants.empty()
-        || year(_step) > config::Simulation::stopAtYear()
+        || _env.time().isEndOf()
         || _stats.minGeneration > config::Simulation::stopAtMinGen()
         || _stats.maxGeneration > config::Simulation::stopAtMaxGen();
   }
@@ -45,36 +45,8 @@ public:
     return _plants;
   }
 
-  uint currentStep (void) const {
-    return _step;
-  }
-
-  static uint maxStep (void) {
-    static const auto ms = config::Simulation::stopAtYear()
-                         * config::Simulation::stepsPerDay()
-                         * config::Simulation::daysPerYear();
-    return ms;
-  }
-
-  static float dayCount (uint step) {
-    static const auto spd = config::Simulation::stepsPerDay();
-    return float(step) / spd;
-  }
-
-  static float day (uint step) {
-    static const auto spd = config::Simulation::stepsPerDay();
-    static const auto dpy = config::Simulation::daysPerYear();
-    return std::fmod(float(step) / spd, dpy);
-  }
-
-  static float year (uint step) {
-    static const auto dpy = config::Simulation::daysPerYear();
-    return dayCount(step) / dpy;
-  }
-
-  static std::string prettyTime (uint step);
-  auto prettyTime (void) const {
-    return prettyTime(_step);
+  const auto& time (void) const {
+    return _env.time();
   }
 
 protected:
@@ -106,7 +78,6 @@ protected:
 
   phylogeny::PhylogenicTree<PGenome, PStats> _ptree;
 
-  uint _step;
   bool _aborted;
 
   virtual bool addPlant(const PGenome &g, float x, float biomass);

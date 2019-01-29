@@ -21,6 +21,7 @@ DEFINE_PARAMETER(uint, stepsPerDay, 10)
 DEFINE_PARAMETER(uint, daysPerYear, 100)
 DEFINE_PARAMETER(bool, taurusWorld, false)
 
+DEFINE_PARAMETER(bool, killSeedsEarly, true)
 DEFINE_PARAMETER(float, trimmingProba, 0)
 DEFINE_PARAMETER(float, maxPlantDensity, 10)
 

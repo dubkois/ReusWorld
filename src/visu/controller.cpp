@@ -234,7 +234,7 @@ void Controller::updateMousePosition (const QPointF &pos) {
 void Controller::updateDisplays(void) {
   QString string;
   QTextStream qss (&string);
-  qss << "Time: " << QString::fromStdString(_simulation.prettyTime())
+  qss << "Time: " << QString::fromStdString(_simulation.time().pretty())
       << ", Speed: " << _speed << " dps";
   _ldisplay->setText(string);
 

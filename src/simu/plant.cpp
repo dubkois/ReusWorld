@@ -81,7 +81,10 @@ void Plant::init (Environment &env, float biomass, PStats *pstats) {
     _pstats = pstats;
     _pstatsWC.reset(new PStatsWorkingCache);
 
+    _pstats->born = true;
+    _pstats->seed = isInSeedState();
     _pstats->pos = _pos;
+    _pstats->birth = env.time();
     _pstats->plant = this;
   }
 
@@ -417,13 +420,17 @@ void Plant::delOrgan(Organ *o, Environment &env) {
   delete o;
 }
 
-void Plant::destroyDeadSubtree(Organ *o, Environment &env) {
-  if (o->isDead())
+bool Plant::destroyDeadSubtree(Organ *o, Environment &env) {
+  if (o->isDead()) {
     delOrgan(o, env);
-  else {
+    return true;
+
+  } else {
+    bool deleted = false;
     auto subtrees = o->children();
     for (Organ *st: subtrees)
-      destroyDeadSubtree(st, env);
+      deleted |= destroyDeadSubtree(st, env);
+    return deleted;
   }
 }
 
@@ -550,7 +557,8 @@ void Plant::metabolicStep(Environment &env) {
                 << w << " * " << k_E << " * " << h->surface() << " / " << uw_k
                 << std::endl;
   }
-  if (_pstatsWC)  _pstatsWC->sumHygrometry += _pstatsWC->tmpSum / _hairs.size();
+  if (_pstatsWC && _pstatsWC->tmpSum > 0)
+    _pstatsWC->sumHygrometry += _pstatsWC->tmpSum / _hairs.size();
 
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Total water uptake of " << U_w;
@@ -605,7 +613,8 @@ void Plant::metabolicStep(Environment &env) {
                 << " - " << i.l << ") / " << ug_k << std::endl;
   }
 
-  if (_pstatsWC)  _pstatsWC->sumLight += _pstatsWC->tmpSum / canopy.size();
+  if (_pstatsWC && _pstatsWC->tmpSum > 0)
+    _pstatsWC->sumLight += _pstatsWC->tmpSum / canopy.size();
 
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Total glucose production of " << U_g;
@@ -865,6 +874,13 @@ void Plant::step (Environment &env) {
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
 
+  // Check if there is still enough resources to grow the first rules
+  if (isInSeedState()) {
+    bool starvedOut = false;
+    for (Organ *s: _nonTerminals) starvedOut |= (s->requiredBiomass() > 0);
+    if (starvedOut) kill();
+  }
+
   if (_age % SConfig::stepsPerDay() == 0) {
 
     bool derived = bool(deriveRules(env));
@@ -901,8 +917,10 @@ void Plant::step (Environment &env) {
       oldPistilsPositions.emplace(f, f->globalCoordinates().center);
 
   // Perform suppressions
+  bool deleted = false;
   auto bases = _bases;
-  for (Organ *o: bases)  destroyDeadSubtree(o, env);
+  for (Organ *o: bases)  deleted |= destroyDeadSubtree(o, env);
+  if (deleted)  updateMetabolicValues();
 
   // Update remaining flowers (check if some space was freed)
   for (auto &pair: oldPistilsPositions)
@@ -913,9 +931,9 @@ void Plant::step (Environment &env) {
 
   update(env);
 
-  if (_pstats)  updatePStats();
-
   _age++;
+
+  if (_pstats)  updatePStats(env);
 
   if (debug)  std::cerr << std::endl;
 
@@ -924,7 +942,7 @@ void Plant::step (Environment &env) {
 //  std::cerr << std::endl;
 }
 
-void Plant::updatePStats(void) {
+void Plant::updatePStats(Environment &env) {
   auto &ps = *_pstats;
   auto &wc = *_pstatsWC;
 
@@ -935,13 +953,25 @@ void Plant::updatePStats(void) {
     wc.largestBiomass = b;
     ps.shoot = toString(Layer::SHOOT);
     ps.root = toString(Layer::ROOT);
+
+    assert(!ps.shoot.empty());
   }
 
+  ps.seed = isInSeedState();
+
+  ps.death = env.time();
   ps.lifespan = age();
 
 //  wc.sumTemperature
   ps.avgHygrometry = wc.sumHygrometry / _age;
   ps.avgLight = wc.sumLight / _age;
+
+  assert(!std::isnan(wc.largestBiomass));
+  assert(!std::isnan(wc.sumHygrometry));
+  assert(!std::isnan(wc.sumLight));
+
+  assert(!std::isnan(ps.avgHygrometry));
+  assert(!std::isnan(ps.avgLight));
 }
 
 void PStats::removedFromEnveloppe(void) {

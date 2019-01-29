@@ -158,7 +158,7 @@ int main(void) {
         successCount += thisSuccess;
 
         totalPlants += s.plants().size();
-        totalSteps += s.currentStep();
+        totalSteps += s.time().toTimestamp();
 
         std::cout << (thisSuccess ? '+' : '-') << std::flush;
 

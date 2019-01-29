@@ -29,6 +29,8 @@ FastForwardDialog::FastForwardDialog (QWidget *parent, Simulation &s)
 
   setWindowTitle("Go to");
 
+  const simu::Time &time = simulation.time();
+
   QVBoxLayout *vLayout = new QVBoxLayout;
   QFormLayout *fLayout = new QFormLayout;
 
@@ -55,17 +57,17 @@ FastForwardDialog::FastForwardDialog (QWidget *parent, Simulation &s)
 
   text->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
   text->setReadOnly(true);
-  QString baseText = QString::fromStdString(simulation.prettyTime());
+  QString baseText = QString::fromStdString(time.pretty());
   text->setText(baseText);
   baseText += "  ";
   connect(spinner, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
           [this] (int i) {
-    text->setText(QString::fromStdString(simulation.prettyTime(i)));
+    text->setText(QString::fromStdString(simu::Time::fromTimestamp(i).pretty()));
   });
 
   spinner->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-  spinner->setMinimum(simulation.currentStep());
-  spinner->setMaximum(simulation.maxStep());
+  spinner->setMinimum(time.toTimestamp());
+  spinner->setMaximum(simu::Time::endOf().toTimestamp());
 
   connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
   connect(ok, &QPushButton::clicked, this, &FastForwardDialog::process);
