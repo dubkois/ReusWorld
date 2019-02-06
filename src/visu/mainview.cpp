@@ -44,6 +44,14 @@ void MainView::addPlantItem(simu::Plant &sp) {
   connect(gp, &Plant::selected, this, &MainView::updateSelection);
 }
 
+void MainView::updatePlantItem (simu::Plant &sp) {
+  auto it = _plants.find(sp.pos().x);
+  assert(it != _plants.end());
+  Plant *p = *it;
+  assert(p);
+  p->updateGeometry();
+}
+
 void MainView::delPlantItem(float x) {
   auto it = _plants.find(x);
   assert(it != _plants.end());

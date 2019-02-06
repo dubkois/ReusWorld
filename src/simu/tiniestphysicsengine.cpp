@@ -6,7 +6,7 @@ namespace simu {
 namespace physics {
 
 static constexpr bool debugUpperLayer = false;
-static constexpr bool debugCollision = false;
+static constexpr bool debugCollision = true;
 static constexpr bool debugReproduction = false;
 
 static constexpr float floatPrecision = 1e6;

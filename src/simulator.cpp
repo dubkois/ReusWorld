@@ -6,8 +6,8 @@
 
 /*!
  * TODO Table of todos
- *  TODO trap SIGINT to gracefully exit
- *  TODO see simu/plant.h
+ *  TODO Limit plant count (how???)
+ *  TODO Narrow phase collision
  *  TODO Environment
  *    TODO Water supply
  *    TODO Topology

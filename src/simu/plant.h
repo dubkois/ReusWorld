@@ -81,6 +81,7 @@ public:
   void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
                          Environment &env);
 
+  void updateAltitude (Environment &env, float h);
   void update (Environment &env);
 
   auto id (void) const {

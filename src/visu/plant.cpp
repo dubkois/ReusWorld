@@ -145,6 +145,7 @@ Plant::Plant(simu::Plant &p) : _plant(p), _selected(false) {
 
 void Plant::updateGeometry(void) {
   prepareGeometryChange();
+  setPos(toQPoint(_plant.pos()));
   _boundingRect = toQRect(_plant.boundingRect())
                     .united(minBoundingBox());
   float m = .1 * std::min(_boundingRect.width(), _boundingRect.height());

@@ -3,6 +3,14 @@
 
 #include "../config/simuconfig.h"
 
+/// TODO For cgp integration:
+///  NOTE Water at non zero altitude
+///  NOTE Update plant altitude and internals (organ global coordinates)
+///  NOTE Collision data (bounding box, flower, canopy)
+///  NOTE Impact of water variation on plants (trivially done)
+///  TODO Impact of topology variation on plants (seed dispersion difficulty)
+///  TODO Impact of temperature variation on plants (sucks ass)
+
 namespace simu {
 
 using UL_EU = EnumUtils<UndergroundLayers>;
@@ -12,14 +20,18 @@ using UL_EU = EnumUtils<UndergroundLayers>;
 Environment::Environment(const Genome &g)
   : _genome(g), _collisionData(std::make_unique<physics::CollisionData>()) {
 
-  _layers[UndergroundLayers::SHALLOW].resize(_genome.voxels, config::Simulation::baselineShallowWater());
-  _layers[UndergroundLayers::DEEP].resize(_genome.voxels, 1.f);
+  _topology.resize(_genome.voxels+1, 0.f);
+  _temperature.resize(_genome.voxels+1, .5 * (_genome.maxT + _genome.minT));
+
+  _hygrometry[UndergroundLayers::SHALLOW].resize(_genome.voxels+1, config::Simulation::baselineShallowWater());
+  _hygrometry[UndergroundLayers::DEEP].resize(_genome.voxels+1, 1.f);
 }
 
 Environment::~Environment(void) {}
 
 void Environment::init (void) {
   _dice.reset(_genome.rngSeed);
+  _updatedTopology = false;
   _time = Time();
 }
 
@@ -31,25 +43,92 @@ void Environment::step (void) {
 #ifndef NDEBUG
   _collisionData->debug();
 #endif
+
+  cgpStep();
+
   _time.next();
 }
 
-float Environment::waterAt(const Point &p) {
-  // No water outside the boundaries
-  if (p.x < -xextent()) return 0;
-  if (xextent() < p.x)  return 0;
-  if (p.y < -yextent()) return 0;
-  if (0 < p.y)          return 0;
+void Environment::cgpStep (void) {
+  using CGP = genotype::EnvCGP;
+  using CGP_I = genotype::cgp::Inputs;
+  using CGP_O = genotype::cgp::Outputs;
+  CGP::Inputs inputs;
+  CGP::Outputs outputs;
 
-  uint v = (p.x + xextent()) * float(_genome.voxels) / width();
-  assert(v < _genome.voxels);
-  float d = - p.y / yextent();
-  assert(0 <= d && d <= 1);
-  return _layers[SHALLOW][v] * (1.f - uint(d) + _layers[DEEP][v] * d);
+  _updatedTopology = true;//(_time.year() % config::Simulation::updateTopologyEvery()) == 0;
+  std::cerr << __PRETTY_FUNCTION__ << " Sped up topology variation" << std::endl;
+
+  inputs[CGP_I::DAY] = _time.timeOfYear();
+  inputs[CGP_I::YEAR] = _time.timeOfWorld();
+  for (uint i=0; i<=_genome.voxels; i++) {
+    float &A = _topology[i];
+    float &T = _temperature[i];
+    float &H = _hygrometry[SHALLOW][i];
+
+    inputs[CGP_I::COORDINATE] = float(i) / _genome.voxels;
+    inputs[CGP_I::ALTITUDE] = A / _genome.depth;
+    inputs[CGP_I::TEMPERATURE] = (_genome.maxT - T) / (_genome.maxT - _genome.minT);
+    inputs[CGP_I::HYGROMETRY] = H;
+
+    _genome.cgp.process(inputs, outputs);
+
+    if (_updatedTopology)
+      A = outputs[CGP_O::ALTITUDE_] * _genome.depth;
+
+    T = .5 * (outputs[CGP_O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
+    H = .5 * (outputs[CGP_O::HYGROMETRY_] + 1);
+  }
+
+  std::cerr << __PRETTY_FUNCTION__ << " CGP Stepped" << std::endl;
+  std::cerr << "\tTopology:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _topology[i];
+  std::cerr << "\n\tTemperature:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _temperature[i];
+  std::cerr << "\n\tHygrometry:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _hygrometry[SHALLOW][i];
+  std::cerr << std::endl;
 }
 
-float Environment::lightAt(const Point &p) {
+float Environment::heightAt(float x) const {
+  if (!insideXRange(x)) return 0;
+  return interpolate(_topology, x);
+}
+
+float Environment::temperatureAt(float x) const {
+  if (!insideXRange(x)) return 0;
+  return interpolate(_temperature, x);
+}
+
+float Environment::waterAt(const Point &p) const {
+  if (!inside(p)) return 0; // No water outside world
+
+  float h = heightAt(p.x);
+  if (h < p.y)  return 0; // No water above ground
+
+  float d = (h - p.y) / (h + yextent());
+  assert(0 <= d && d <= 1);
+  return interpolate(_hygrometry[SHALLOW], p.x) * (1.f - uint(d))
+       + interpolate(_hygrometry[DEEP], p.x) * d;
+}
+
+float Environment::lightAt(float) const {
   return config::Simulation::baselineLight();
+}
+
+float Environment::interpolate(const Voxels &voxels, float x) const {
+  float v = (x + xextent()) * float(_genome.voxels) / width();
+  uint v0 = uint(v);
+  float d = v - v0;
+
+  assert(v0 <= _genome.voxels);
+
+  if (v0 == _genome.voxels)
+        return voxels[v0];
+  else  return voxels[v0] * (1.f - d) + voxels[v0+1] * d;
 }
 
 const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {
@@ -90,15 +169,6 @@ void Environment::removeGeneticMaterial(Organ *f) {
 
 physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
   auto itP = _collisionData->sporesInRange(f);
-
-  if (f->plant()->id() == Plant::ID(152182)) {
-    std::cerr << OrganID(f) << " found spores: ";
-    for (auto it=itP.first; it != itP.second; ++it)
-      std::cerr << " " << OrganID(it->organ);
-    std::cerr << std::endl;
-  }
-
-
 
   if (std::distance(itP.first, itP.second) >= 1)
     return *dice()(itP.first, itP.second);

@@ -64,6 +64,8 @@ set(GNTP_SRC
     "plant.cpp"
     "ecosystem.h"
     "ecosystem.cpp"
+    "envcgp.h"
+    "envcgp.cpp"
 )
 PREPEND(GNTP_SRC "src/genotype" ${GNTP_SRC})
 
@@ -85,13 +87,19 @@ set(SIMU_SRC
 )
 PREPEND(SIMU_SRC "src/simu" ${SIMU_SRC})
 
+set(CGP_SRC
+    "cgpwrapper.h"
+    "cgpwrapper.cpp"
+)
+PREPEND(CGP_SRC "src/cgp" ${CGP_SRC})
+
 set(S_MISC_SRC
     "config/simuconfig.h"
     "config/simuconfig.cpp"
 )
 PREPEND(S_MISC_SRC "src" ${S_MISC_SRC})
 
-add_library(SIMU_OBJS OBJECT ${GNTP_SRC} ${SIMU_SRC} ${S_MISC_SRC})
+add_library(SIMU_OBJS OBJECT ${GNTP_SRC} ${SIMU_SRC} ${CGP_SRC} ${S_MISC_SRC})
 
 
 ################################################################################

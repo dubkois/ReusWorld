@@ -111,13 +111,16 @@ void Organ::updateTransformation(void) {
 
   _plantCoordinates.center = pr.center();
 
+  updateGlobalTransformation();
 
+  for (Organ *c: _children) c->updateTransformation();
+}
+
+void Organ::updateGlobalTransformation(void) {
   const Point &pp = _plant->pos();
   _globalCoordinates.origin = _plantCoordinates.origin + pp;
   _globalCoordinates.center = _plantCoordinates.center + pp;
   _globalCoordinates.boundingRect = _plantCoordinates.boundingRect.translated(pp);
-
-  for (Organ *c: _children) c->updateTransformation();
 }
 
 void Organ::removeFromParent(void) {

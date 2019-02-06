@@ -2,6 +2,7 @@
 #define ECOSYSTEM_H
 
 #include "plant.h"
+#include "envcgp.h"
 
 namespace genotype {
 
@@ -9,14 +10,21 @@ class Environment : public SelfAwareGenome<Environment> {
   APT_SAG()
 public:
   uint rngSeed;
+
   float width, depth;
+  float minT, maxT;
   uint voxels;
+
+  EnvCGP cgp;
 };
 
 DECLARE_GENOME_FIELD(Environment, uint, rngSeed)
 DECLARE_GENOME_FIELD(Environment, float, width)
 DECLARE_GENOME_FIELD(Environment, float, depth)
+DECLARE_GENOME_FIELD(Environment, float, minT)
+DECLARE_GENOME_FIELD(Environment, float, maxT)
 DECLARE_GENOME_FIELD(Environment, uint, voxels)
+DECLARE_GENOME_FIELD(Environment, EnvCGP, cgp)
 
 class Ecosystem : public SelfAwareGenome<Ecosystem> {
   APT_SAG()
@@ -43,7 +51,11 @@ struct SAG_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bui, rngSeedBounds)
   DECLARE_PARAMETER(Bf, widthBounds)
   DECLARE_PARAMETER(Bf, depthBounds)
+  DECLARE_PARAMETER(Bf, minTBounds)
+  DECLARE_PARAMETER(Bf, maxTBounds)
   DECLARE_PARAMETER(Bui, voxelsBounds)
+
+  DECLARE_SUBCONFIG(genotype::EnvCGP::config_t, genotypeCGPConfig)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

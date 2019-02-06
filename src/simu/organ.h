@@ -59,6 +59,7 @@ public:
   void updateDimensions(bool andTransformations);
 
   /// _boundingRect
+  void updateGlobalTransformation (void);
   void updateTransformation (void);
   void updateParent (Organ *newParent);
   void updateRotation (float d_angle);

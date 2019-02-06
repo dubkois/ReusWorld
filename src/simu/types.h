@@ -133,6 +133,10 @@ struct Time {
   const auto& hour (void) const { return _hour; }
   const auto& day (void) const {  return _day;  }
 
+  float timeOfDay (void) const;
+  float timeOfYear (void) const;
+  float timeOfWorld (void) const;
+
   Time& next (void);
   std::string pretty (void) const;
 

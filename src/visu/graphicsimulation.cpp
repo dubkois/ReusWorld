@@ -20,6 +20,11 @@ void GraphicSimulation::delPlant(float x, simu::Plant::Seeds &seeds) {
   Simulation::delPlant(x, seeds);
 }
 
+void GraphicSimulation::updatePlantAltitude(simu::Plant &p, float h) {
+  Simulation::updatePlantAltitude(p, h);
+  _controller->view()->updatePlantItem(p);
+}
+
 bool GraphicSimulation::init(void) {
   bool ok = Simulation::init();
   emit initialized(ok);

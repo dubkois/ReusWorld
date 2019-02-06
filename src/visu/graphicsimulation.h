@@ -24,6 +24,8 @@ private:
   bool addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x, simu::Plant::Seeds &seeds) override;
 
+  void updatePlantAltitude(simu::Plant &p, float h) override;
+
   void doScreenshot (void) const;
 
 signals:

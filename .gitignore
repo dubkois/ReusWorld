@@ -1,6 +1,10 @@
 *aux
 *backup
+callgrind*
 *.dat
+*.ggb
+*.gps
+*.json
 *log
 *.mp4
 *.pdf
@@ -11,7 +15,8 @@
 *.user
 *.gz
 
+build*/
 configs/
 scenarii/
 snapshots/
-build*/
+tmp/

@@ -35,6 +35,7 @@ public:
   void setController (visu::Controller *c);
 
   void addPlantItem(simu::Plant &sp);
+  void updatePlantItem (simu::Plant &sp);
   void delPlantItem(float x);
 
   void mouseMoveEvent(QMouseEvent *e);

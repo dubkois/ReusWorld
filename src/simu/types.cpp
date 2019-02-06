@@ -10,6 +10,10 @@ const auto& H (void) {  return config::Simulation::stepsPerDay(); }
 
 Time::Time (void) : Time(0,0,0) {}
 
+float Time::timeOfDay (void) const {  return _hour / H(); }
+float Time::timeOfYear (void) const {  return _day / D(); }
+float Time::timeOfWorld (void) const {  return _year / Y(); }
+
 Time& Time::next (void) {
   _hour++;
   if (_hour == H()) _hour = 0,  _day++;

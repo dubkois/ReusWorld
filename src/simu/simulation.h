@@ -15,9 +15,7 @@ class Simulation {
 protected:
   using PGenome = genotype::Plant;
 public:
-  Simulation (const genotype::Ecosystem &genome)
-    : _stats(), _ecosystem(genome), _env(genome.env),
-      _aborted(false) {}
+  Simulation (const genotype::Ecosystem &genome);
 
   virtual ~Simulation (void) {
     destroy();
@@ -68,9 +66,8 @@ protected:
 
   } _stats;
 
-  genotype::Ecosystem _ecosystem;
-
   Environment _env;
+  const genotype::Plant _primordialPlant;
 
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;
@@ -86,8 +83,20 @@ protected:
   virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);
 
+  virtual void updatePlantAltitude (Plant &p, float h);
+
   void updateGenStats (void);
   void logGlobalStats (void);
+};
+
+struct PTreeStats {
+  enum Stat {
+
+  };
+
+  uint survivorSpecies;
+  std::multiset<uint> survivalDistribution;
+  std::multiset<uint> branchingDistribution;
 };
 
 } // end of namespace simu

@@ -2,10 +2,6 @@
 
 #include "simulation.h"
 
-#ifndef NDEBUG  /// TODO REMOVE
-#include "tiniestphysicsengine.h"
-#endif
-
 namespace simu {
 
 using Config = config::Simulation;
@@ -16,73 +12,46 @@ static constexpr bool debugReproduction = false;
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction;
 
+auto instrumentaliseEnvGenome (genotype::Environment g) {
+  std::cerr << __PRETTY_FUNCTION__ << " Bypassing environmental genomic values" << std::endl;
+
+  g.voxels = 10;
+  std::cerr << "genome.env.voxels = " << g.voxels << std::endl;
+
+  return g;
+}
+
+auto instrumentalisePlantGenome (genotype::Plant g) {
+  std::cerr << __PRETTY_FUNCTION__ << " Bypassing plant genomic values" << std::endl;
+
+  return g;
+}
+
+Simulation::Simulation (const genotype::Ecosystem &genome)
+  : _stats(),
+    _env(instrumentaliseEnvGenome(genome.env)),
+    _primordialPlant(instrumentalisePlantGenome(genome.plant)),
+    _aborted(false) {}
+
 bool Simulation::init (void) {
-#if 0
-  using SRule = genotype::LSystem<genotype::SHOOT>::Rule;
-  using RRule = genotype::LSystem<genotype::ROOT>::Rule;
 
-  // Unbalanced shoot/root rules
-//  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("S -> [-Al][+Al]l").toPair(),
-//    SRule::fromString("A -> As[-l][+l]").toPair(),
-//  };
-//  _ecosystem.plant.shoot.recursivity = 5;
-//  _ecosystem.plant.root.rules = {
-//    RRule::fromString("S -> [-Ah][+Ah]").toPair(),
-//    RRule::fromString("A -> hA[+Ah]").toPair(),
-//  };
-//  _ecosystem.plant.root.recursivity = 5;
-//  _ecosystem.plant.dethklok = 101;
+//  _primordialPlant.shoot.rules = {
 
-  // Interesting tree
-//  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("S -> AB[-Al][+Al]f").toPair(),
-//    SRule::fromString("A -> AB[-ABl][+ABl]").toPair(),
-//    SRule::fromString("B -> Bs").toPair(),
 //  };
-//  _ecosystem.plant.shoot.recursivity = 5;
-//  _ecosystem.plant.root.rules = {
-//    RRule::fromString("S -> [-Ah][+Ah][Ah]").toPair(),
-//    RRule::fromString("A -> hA[+Ah]").toPair(),
-//  };
-//  _ecosystem.plant.root.recursivity = 2;
-//  _ecosystem.plant.dethklok = 101;
 
-  // Collision debugging genotype
-//  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("S -> [+Af][-Bf]").toPair(),
-//    SRule::fromString("A -> s[+l][-l]A").toPair(),
-//    SRule::fromString("B -> s[+l][-l]B").toPair(),
-//  };
-//  _ecosystem.plant.shoot.recursivity = 5;
 
-  // Randomly generated strange genotype
-//  _ecosystem.plant.shoot.rules = {
-//    SRule::fromString("B -> f").toPair(),
-//    SRule::fromString("S -> ss-[+l][-l][A]").toPair()
-//  };
-//  _ecosystem.plant.shoot.recursivity = 5;
-//  _ecosystem.plant.root.rules = {
-//    RRule::fromString("A -> +++").toPair(),
-//    RRule::fromString("B -> EE").toPair(),
-//    RRule::fromString("C -> D").toPair(),
-//    RRule::fromString("D -> -").toPair(),
-//    RRule::fromString("E -> CC").toPair(),
-//    RRule::fromString("F -> ++").toPair(),
-//    RRule::fromString("S -> A[Bhh][Dh]").toPair()
-//  };
-//  _ecosystem.plant.root.recursivity = 5;
-#endif
+
+
 
   _env.init();
-  _ptree.addGenome(_ecosystem.plant);
-  genotype::BOCData::setFirstID(_ecosystem.plant.cdata.id);
+  _ptree.addGenome(_primordialPlant);
+  genotype::BOCData::setFirstID(_primordialPlant.cdata.id);
 
   uint N = Config::initSeeds();
   float dx = .5; // m
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
-    auto pg = _ecosystem.plant.clone();
+    auto pg = _primordialPlant.clone();
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
 
@@ -299,13 +268,19 @@ void Simulation::step (void) {
     return pair.second->genome().cdata.id;
   });
 
-  assert(_env.collisionData().data().size() <= _plants.size());
-
   updateGenStats();
   if (Config::logGlobalStats())
     logGlobalStats();
 
   _env.step();
+  if (_env.hasTopologyChanged()) {
+    for (const auto &it: _plants) {
+      const auto pos = it.second->pos();
+      float h = _env.heightAt(pos.x);
+      if (pos.y != h)
+        updatePlantAltitude(*it.second, h);
+    }
+  }
 
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
@@ -325,6 +300,10 @@ void Simulation::step (void) {
       std::cout << " (" << time.toTimestamp() << " steps)" << std::endl;
     }
   }
+}
+
+void Simulation::updatePlantAltitude(Plant &p, float h) {
+  p.updateAltitude(_env, h);
 }
 
 void Simulation::updateGenStats (void) {

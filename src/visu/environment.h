@@ -18,6 +18,9 @@ public:
   }
 
   void paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) override;
+
+private:
+  QColor colorForTemperature(float t);
 };
 
 }

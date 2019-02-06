@@ -20,12 +20,18 @@ struct Plant;
 ///  - biotic (inter-plant collisions)
 class Environment {
   using Genome = genotype::Environment;
-  const Genome &_genome;
+  Genome _genome;
 
   rng::FastDice _dice;
 
-  using Layers = std::array<std::vector<float>, EnumUtils<UndergroundLayers>::size()>;
-  Layers _layers;
+  using Voxels = std::vector<float>;
+  using Layers = std::array<Voxels, EnumUtils<UndergroundLayers>::size()>;
+
+  Voxels _topology;
+  Voxels _temperature;
+  Layers _hygrometry;
+
+  bool _updatedTopology;
 
   Time _time;
 
@@ -58,18 +64,57 @@ public:
     return -xextent() <= x && x <= xextent();
   }
 
+  auto insideYRange (float y) const {
+    return -yextent() <= y && y <= yextent();
+  }
+
+  auto inside (const Point &p) const {
+    return insideXRange(p.x) && insideYRange(p.y);
+  }
+
+  auto minTemperature (void) const {
+    return _genome.minT;
+  }
+
+  auto maxTemperature (void) const {
+    return _genome.maxT;
+  }
+
   auto& dice (void) {
     return _dice;
+  }
+
+  bool hasTopologyChanged (void) const {
+    return _updatedTopology;
   }
 
   const auto& time (void) const {
     return _time;
   }
 
+  auto voxelCount (void) const {
+    return _genome.voxels;
+  }
+
+  const auto& topology (void) const  {
+    return _topology;
+  }
+
+  const auto& temperature (void) const {
+    return _temperature;
+  }
+
+  const auto& hygrometry (void) const {
+    return _hygrometry;
+  }
+
   void step (void);
 
-  float waterAt(const Point &p);
-  float lightAt (const Point &p);
+  float heightAt (float x) const;
+  float temperatureAt (float x) const;
+  float waterAt (const Point &p) const;
+  float lightAt (float x) const;
+
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
   bool addCollisionData(Plant *p);
@@ -87,6 +132,11 @@ public:
   const auto& collisionData (void) const {
     return *_collisionData;
   }
+
+private:
+  float interpolate (const Voxels &voxels, float x) const;
+
+  void cgpStep (void);
 };
 
 } // end of namespace simu

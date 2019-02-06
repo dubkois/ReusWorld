@@ -168,7 +168,6 @@ void Plant::autopsy(void) const {
 }
 
 uint Plant::deriveRules(Environment &env) {
-  /// TODO Is this really okay ?
   // Store current pistils location in case of an update
   std::map<Organ*, Point> oldPistilsPositions;
   if (sex() == Sex::FEMALE)
@@ -207,14 +206,14 @@ uint Plant::deriveRules(Environment &env) {
     updateGeometry();
     env.updateCollisionData(this);
 
-    /// FIXME This is a smelly piece of
-    float sizeIncrease = 0;
-    for (auto c: succ)
-      sizeIncrease += GConfig::sizeOf(c).length;
+//    /// NOTE This is a smelly piece of
+//    float sizeIncrease = 0;
+//    for (auto c: succ)
+//      sizeIncrease += GConfig::sizeOf(c).length;
 
     bool colliding = !env.isCollisionFree(this);
 
-    if (colliding && sizeIncrease > 0) {
+    if (colliding/* && sizeIncrease > 0*/) {
       const auto deleter = [&newOrgans, &env, this] (auto collection) {
         for (auto it = collection.begin(); it != collection.end();) {
           auto newOrgans_it = newOrgans.find(*it);
@@ -594,7 +593,7 @@ void Plant::metabolicStep(Environment &env) {
   // Produce glucose
   decimal U_g = 0;
   decimal ug_k = 1 + concentration(Layer::SHOOT, Element::GLUCOSE) * J_E; assert(ug_k >= 1);
-  decimal light = env.lightAt(pos());
+  decimal light = env.lightAt(_pos.x);
 
   if (_pstatsWC)  _pstatsWC->tmpSum = 0;
 
@@ -856,6 +855,27 @@ void Plant::updateRequirements(void) {
       o->setRequiredBiomass(db);
     }
   }
+}
+
+void Plant::updateAltitude(Environment &env, float h) {
+  _pos.y = h;
+
+  // Store current pistils location
+  std::map<Organ*, Point> oldPistilsPositions;
+  if (sex() == Sex::FEMALE)
+    for (Organ *f: _flowers)
+      oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+
+  for (Organ *o: _organs)
+    o->updateGlobalTransformation();
+
+  // Update pistils with new altitude
+  for (auto &p: oldPistilsPositions)
+    env.updateGeneticMaterial(p.first, p.second);
+
+  updateGeometry();
+  env.updateCollisionData(this);
+  env.updateCollisionDataFinal(this);
 }
 
 void Plant::update (Environment &env) {
