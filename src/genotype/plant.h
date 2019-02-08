@@ -92,6 +92,8 @@ public:
   float fruitOvershoot; ///< Ratio of minimal resources per fruit
   uint seedsPerFruit;
 
+  float temperatureOptimal;
+  float temperatureRange;
 
   Plant clone (void) const {
     Plant other = *this;
@@ -152,6 +154,8 @@ DECLARE_GENOME_FIELD(Plant, Metabolism, metabolism)
 DECLARE_GENOME_FIELD(Plant, uint, dethklok)
 DECLARE_GENOME_FIELD(Plant, float, fruitOvershoot)
 DECLARE_GENOME_FIELD(Plant, uint, seedsPerFruit)
+DECLARE_GENOME_FIELD(Plant, float, temperatureOptimal)
+DECLARE_GENOME_FIELD(Plant, float, temperatureRange)
 
 
 } // end of namespace genotype

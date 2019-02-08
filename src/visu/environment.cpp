@@ -11,8 +11,8 @@ namespace gui {
 const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
-static constexpr int debugAABB = 1;
-static constexpr int debugLeaves = 7;
+static constexpr int debugAABB = 0;
+static constexpr int debugLeaves = 0;
 static constexpr int debugSpores = 1;
 
 QColor Environment::colorForTemperature (float t) {
@@ -37,7 +37,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
   const auto top = -_object.yextent(), bottom = _object.yextent();
 
   painter->fillRect(-_object.xextent(), -_object.yextent(),
-                    _object.width(), _object.height(), Qt::red);
+                    _object.width(), _object.height(), Qt::black);
 
   for (uint i=0; i<voxels; i++) {
     const float x0 = -_object.xextent() + i * voxelWidth,
@@ -60,6 +60,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
     above.lineTo(x1, top);
     above.lineTo(x1, -y1);
     above.closeSubpath();
+
     painter->fillPath(above, sky);
     painter->fillPath(above, heatGradient);
 
@@ -89,16 +90,16 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
     painter->fillPath(below, waterHGradient);
   }
 
-  painter->save();
-  QPen debugPen = painter->pen();
-  debugPen.setWidthF(0);
-  debugPen.setColor(Qt::red);
-  painter->setPen(debugPen);
-  for (uint i=0; i<=voxels; i++) {
-    const auto x = -_object.xextent() + i * voxelWidth;
-    painter->drawLine(x, -1, x, 1);
-  }
-  painter->restore();
+//  painter->save();
+//  QPen debugPen = painter->pen();
+//  debugPen.setWidthF(0);
+//  debugPen.setColor(Qt::red);
+//  painter->setPen(debugPen);
+//  for (uint i=0; i<=voxels; i++) {
+//    const auto x = -_object.xextent() + i * voxelWidth;
+//    painter->drawLine(x, -1, x, 1);
+//  }
+//  painter->restore();
 
   painter->save();
   QPen pen = painter->pen();
@@ -106,7 +107,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
   painter->setPen(pen);
 
   if (debugAABB || debugLeaves) {
-    using CData = simu::physics::CollisionData;
+    using CData = simu::physics::TinyPhysicsEngine;
     using CObject = CData::CObject;
 
     painter->save();
@@ -130,14 +131,15 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
       if (debugLeaves) {
         auto y = br.top() - .1 * br.height();
+        auto dy = .025 * br.height();
 
         const auto &items = obj.layer.items;
         for (const ULItem &item: items) {
 
           if (debugLeaves & 1) {  // Draw upper layer segments
             painter->setPen(whitePen);
-            painter->drawLine(QPointF(item.l, .975*y), QPointF(item.l, 1.025*y));
-            painter->drawLine(QPointF(item.r, .975*y), QPointF(item.r, 1.025*y));
+            painter->drawLine(QPointF(item.l, y-dy), QPointF(item.l, y+dy));
+            painter->drawLine(QPointF(item.r, y-dy), QPointF(item.r, y+dy));
             painter->drawLine(QPointF(item.l, y), QPointF(item.r, y));
           }
 
@@ -185,10 +187,10 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
   painter->restore();
 
-  painter->save();
-  painter->setPen(pen);
-  painter->drawLine(-_object.xextent(), 0, _object.xextent(), 0);
-  painter->restore();
+//  painter->save();
+//  painter->setPen(pen);
+//  painter->drawLine(-_object.xextent(), 0, _object.xextent(), 0);
+//  painter->restore();
 }
 
 } // end of namespace gui

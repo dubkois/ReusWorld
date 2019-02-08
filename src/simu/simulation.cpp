@@ -1,4 +1,5 @@
 #include "kgd/random/random_iterator.hpp"
+#include "kgd/utils/functions.h"
 
 #include "simulation.h"
 
@@ -8,15 +9,16 @@ using Config = config::Simulation;
 
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
+static constexpr int debugTopology = 0;
 
 static constexpr bool debug = false
-  | debugPlantManagement | debugReproduction;
+  | debugPlantManagement | debugReproduction | debugTopology;
 
 auto instrumentaliseEnvGenome (genotype::Environment g) {
   std::cerr << __PRETTY_FUNCTION__ << " Bypassing environmental genomic values" << std::endl;
 
-  g.voxels = 10;
-  std::cerr << "genome.env.voxels = " << g.voxels << std::endl;
+//  g.voxels = 10;
+//  std::cerr << "genome.env.voxels = " << g.voxels << std::endl;
 
   return g;
 }
@@ -206,6 +208,13 @@ void Simulation::performReproductions(void) {
 }
 
 void Simulation::plantSeeds(Plant::Seeds &seeds) {
+  using utils::gauss;
+
+  static constexpr int debug = debugReproduction | debugTopology;
+
+  static const bool& taurusWorld = Config::taurusWorld();
+  static const float& dhsd = Config::heightPenaltyStddev();
+
   if (debugReproduction && seeds.size() > 0)
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
@@ -215,9 +224,100 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
       continue;
     }
 
-    float dx = 1 + 5 * seed.position.y;
+    float startH = _env.heightAt(seed.position.x), maxH = startH, h = startH;
+    float avgDx = 1 + 5 * std::max(0.f, seed.position.y - h);
+    float stdDx = avgDx / 3.;
+    float dist = avgDx + 4 * stdDx;
+
+    if (debug)
+      std::cerr << "values = gauss(d," << avgDx << ", " << stdDx << ")"
+                << " * gauss(dH,0," << dhsd << ")\n";
+    if (debugTopology)  std::cerr << "Samples:\n";
+
+    uint samplings = 101;
+    uint hsamplings = samplings  / 2;
+    std::vector<float> values (samplings, 0);
+
+    // Sweep middle to left
+    for (uint i=0; i<=hsamplings; i++) {
+      uint i_ = hsamplings-i;
+      float d = -2 * float(i) * dist / samplings;
+      float x = seed.position.x + d;
+
+      if (debugTopology)  std::cerr << /*i << " " << i_ << " " <<*/ x;
+
+      if (!(taurusWorld || _env.insideXRange(x))) {
+        values[i_] = 0;
+
+        if (debugTopology)
+          std::cerr << " " << NAN << " " << NAN
+                    << " " << NAN
+                    << " " << NAN
+                    << " " << NAN << "\n";
+
+      } else {
+        h = _env.heightAt(seed.position.x + d);
+        if (maxH < h) maxH = h;
+
+        values[i_] = gauss(d, -avgDx, stdDx) * gauss(maxH - startH, 0.f, dhsd);
+
+        if (debugTopology)
+          std::cerr << " " << h << " " << maxH
+                    << " " << gauss(d, -avgDx, stdDx)
+                    << " " << gauss(maxH - startH, 0.f, dhsd)
+                    << " " << values[i_] << "\n";
+      }
+
+    }
+
+    // Sweep middle to right
+    maxH = startH;
+    for (uint i=hsamplings+1; i<samplings; i++) {
+      float d = 2 * float(i - hsamplings) * dist / samplings;
+      float x = seed.position.x + d;
+
+      if (debugTopology)  std::cerr << /*i << " " << i << " " <<*/ x;
+
+      if (!(taurusWorld || _env.insideXRange(x))) {
+        values[i] = 0;
+
+        if (debugTopology)
+          std::cerr << " " << NAN << " " << NAN
+                    << " " << NAN
+                    << " " << NAN
+                    << " " << NAN << "\n";
+
+      } else {
+        h = _env.heightAt(x);
+        if (maxH < h) maxH = h;
+
+        values[i] = gauss(d, avgDx, stdDx) * gauss(maxH - startH, 0.f, dhsd);
+
+        if (debugTopology)
+          std::cerr << " " << h << " " << maxH
+                    << " " << gauss(d, avgDx, stdDx)
+                    << " " << gauss(maxH - startH, 0.f, dhsd)
+                    << " " << values[i] << "\n";
+      }
+
+    }
+    if (debugTopology)  std::cerr << std::endl;
+
+    rng::rdist rdist (values.begin(), values.end());
+    uint voxel = _env.dice()(rdist);
+    float noise = _env.dice()(-.5f, .5f);
     float x = seed.position.x
-        + _env.dice().toss(1.f, -1.f) * _env.dice()(rng::ndist(dx, dx/3));
+        + ((2 * voxel + noise) / samplings - 1) * dist;
+
+    if (debug)
+      std::cerr << "\tx = " << x << " = ((2 * (" << voxel << " + " << noise << ") / "
+                << samplings << " - 1) * " << dist << std::endl;
+
+    if (debug)
+      std::cerr << "Planted seed " << seed.genome.cdata.id << " at " << x
+                << " (extracted from plant " << seed.genome.cdata.parent(genotype::BOCData::MOTHER)
+                << " at position " << seed.position.x << ")" << std::endl;
+
     addPlant(seed.genome, x, seed.biomass);
   }
 }

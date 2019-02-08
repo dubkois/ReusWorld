@@ -34,6 +34,7 @@ DEFINE_PARAMETER(float, resourceCost, .5)
 DEFINE_PARAMETER(float, floweringCost, 3)
 
 DEFINE_PARAMETER(uint, updateTopologyEvery, 10)
+DEFINE_PARAMETER(float, heightPenaltyStddev, 1)
 
 #undef CFILE
 

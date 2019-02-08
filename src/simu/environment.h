@@ -10,7 +10,7 @@ DEFINE_NAMESPACE_PRETTY_ENUMERATION(simu, UndergroundLayers, SHALLOW = 0, DEEP =
 namespace simu {
 
 namespace physics {
-struct CollisionData;
+struct TinyPhysicsEngine;
 } // end of namespace physics
 
 struct Plant;
@@ -35,7 +35,7 @@ class Environment {
 
   Time _time;
 
-  std::unique_ptr<physics::CollisionData> _collisionData;
+  std::unique_ptr<physics::TinyPhysicsEngine> _physics;
 
 public:
   Environment(const Genome &g);
@@ -130,7 +130,7 @@ public:
   physics::Pistil collectGeneticMaterial (Organ *f);
 
   const auto& collisionData (void) const {
-    return *_collisionData;
+    return *_physics;
   }
 
 private:

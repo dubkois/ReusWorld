@@ -39,6 +39,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(float, floweringCost) // Relative to base mass
 
   DECLARE_PARAMETER(uint, updateTopologyEvery)
+  DECLARE_PARAMETER(float, heightPenaltyStddev)
 };
 
 } // end of namespace config

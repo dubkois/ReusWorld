@@ -1,12 +1,13 @@
 #include <stack>
 
 #include "tiniestphysicsengine.h"
+#include "environment.h"
 
 namespace simu {
 namespace physics {
 
 static constexpr bool debugUpperLayer = false;
-static constexpr bool debugCollision = true;
+static constexpr bool debugCollision = false;
 static constexpr bool debugReproduction = false;
 
 static constexpr float floatPrecision = 1e6;
@@ -103,14 +104,15 @@ struct SortedStack {
 };
 
 
-void UpperLayer::update (const Plant *p) {
+void UpperLayer::update (const simu::Environment &env, const Plant *p) {
+  float h = env.heightAt(p->pos().x);
   items.clear();
   std::set<XEvent> xevents;
   for (Organ *o: p->organs()) {
     if (o->length() <= 0) continue; // Skip non terminals
 
     const Rect &r = o->globalCoordinates().boundingRect;
-    if (r.t() < 0)  continue; // Skip below surface
+    if (r.t() < h)  continue; // Skip below surface
 
     xevents.emplace(IN, o, r);
     xevents.emplace(OUT, o, r);
@@ -191,12 +193,12 @@ void UpperLayer::update (const Plant *p) {
 
 // =============================================================================
 
-void CollisionData::reset(void) {
+void TinyPhysicsEngine::reset(void) {
   _data.clear();
 }
 
 #ifndef NDEBUG
-void CollisionData::debug (void) const {
+void TinyPhysicsEngine::debug (void) const {
 #if 1
   // Check that no pistil outlive its plant
   for (const Pistil &ps: _pistils) {
@@ -272,33 +274,33 @@ void CollisionData::debug (void) const {
 }
 #endif
 
-CollisionData::Collisions::iterator CollisionData::find (const Plant *p) {
+TinyPhysicsEngine::Collisions::iterator TinyPhysicsEngine::find (const Plant *p) {
   auto it = _data.find(*p);
   if (it == _data.end())
     utils::doThrow<std::logic_error>("No collision data for plant ", p->id());
   return it;
 }
 
-CollisionData::Collisions::const_iterator CollisionData::find (const Plant *p) const {
+TinyPhysicsEngine::Collisions::const_iterator TinyPhysicsEngine::find (const Plant *p) const {
   auto it = _data.find(*p);
   if (it == _data.end())
     utils::doThrow<std::logic_error>("No collision data for plant ", p->id());
   return it;
 }
 
-const UpperLayer::Items& CollisionData::canopy(const Plant *p) const {
+const UpperLayer::Items& TinyPhysicsEngine::canopy(const Plant *p) const {
   return find(p)->layer.items;
 }
 
-bool CollisionData::addCollisionData (Plant *p) {
-  CObject object (p);
+bool TinyPhysicsEngine::addCollisionData (const Environment &env, Plant *p) {
+  CObject object (env, p);
   if (debugCollision) std::cerr << "Inserted collision data "
                                 << object.boundingRect << " for " << p->id()
                                 << std::endl;
   return _data.insert(object).second;
 }
 
-void CollisionData::removeCollisionData (Plant *p) {
+void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   auto it = find(p);
   _data.erase(it);
 
@@ -309,7 +311,7 @@ void CollisionData::removeCollisionData (Plant *p) {
   }
 }
 
-void CollisionData::updateCollisions (Plant *p) {
+void TinyPhysicsEngine::updateCollisions (Plant *p) {
   auto it = find(p);
   CObject object = *it;
   _data.erase(it);
@@ -320,18 +322,18 @@ void CollisionData::updateCollisions (Plant *p) {
   _data.insert(object);
 }
 
-void CollisionData::updateFinal (Plant *p) {
+void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
   auto it = find(p);
   CObject object = *it;
   _data.erase(it);
-  object.updateFinal();
+  object.updateFinal(env);
   _data.insert(object);
 }
 
 
 // =============================================================================
 
-bool CollisionData::narrowPhaseCollision (const Plant */*lhs*/, const Plant */*rhs*/) {
+bool TinyPhysicsEngine::narrowPhaseCollision (const Plant */*lhs*/, const Plant */*rhs*/) {
 #warning No narrow phase collision
   return true;
 }
@@ -357,7 +359,7 @@ bool intersects (const CObject &lhs, const CObject &rhs) {
   return intersects(lhs.boundingRect, rhs.boundingRect);
 }
 
-bool CollisionData::isCollisionFree (const Plant *p) const {
+bool TinyPhysicsEngine::isCollisionFree (const Plant *p) const {
   auto vit = find(p);
 
   const auto &cv = *vit;
@@ -418,11 +420,13 @@ bool operator< (const Point &lhs, const Pistil &rhs) {
 }
 
 Disk boundingDiskFor (const Organ *o) {
-  Point c = o->globalCoordinates().center;
-  return { c, (c.y + 1) * 5.f };
+  return {
+    o->globalCoordinates().center,
+    (o->inPlantCoordinates().center.y + 1) * 5.f
+  };
 }
 
-void CollisionData::addPistil(Organ *p) {
+void TinyPhysicsEngine::addPistil(Organ *p) {
 #ifdef NDEBUG
   _pistils.emplace(p, boundingDiskFor(p));
 #else
@@ -438,7 +442,7 @@ void CollisionData::addPistil(Organ *p) {
 #endif
 }
 
-void CollisionData::delPistil(Organ *p) {
+void TinyPhysicsEngine::delPistil(Organ *p) {
   auto it = _pistils.find(p->globalCoordinates().center);
   if (it != _pistils.end() && it->organ == p) {
     if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;
@@ -450,7 +454,7 @@ void CollisionData::delPistil(Organ *p) {
                                       << ": not found" << std::endl;
 }
 
-void CollisionData::updatePistil (Organ *p, const Point &oldPos) {
+void TinyPhysicsEngine::updatePistil (Organ *p, const Point &oldPos) {
   auto it = _pistils.find(oldPos);
   if (it != _pistils.end() && it->organ == p) {
     Pistil s = *it;
@@ -488,7 +492,7 @@ struct LowerBound {
     return leftOf(lhs.boundingDisk, rhs.boundingDisk);
   }
 };
-CollisionData::Pistils_range CollisionData::sporesInRange(Organ *s) {
+TinyPhysicsEngine::Pistils_range TinyPhysicsEngine::sporesInRange(Organ *s) {
   Disk boundingDisk = boundingDiskFor(s);
   auto itL = _pistils.lower_bound(LowerBound{boundingDisk});
   if (itL == _pistils.end())  return { itL, itL };

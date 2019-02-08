@@ -1,6 +1,8 @@
 #include <fstream>
 #include <set>
 
+#include "kgd/utils/functions.h"
+
 #include "cgpwrapper.h"
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -10,10 +12,6 @@
 namespace cgp {
 
 namespace custom_functions {
-
-double gauss (double x, double stddev) {
-  return exp(- (x*x)/(2*stddev*stddev));
-}
 
 /// 0 Arity
 
@@ -52,7 +50,7 @@ double sin (const int /*numInputs*/, const double *inputs, const double */*weigh
 }
 
 double gauss1 (const int /*numInputs*/, const double *inputs, const double */*weights*/) {
-  return gauss(inputs[0], 1);
+  return utils::gauss(inputs[0], 0., 1.);
 }
 
 /// 2 Arity
@@ -82,7 +80,7 @@ double pow (const int /*numInputs*/, const double *inputs, const double */*weigh
 }
 
 double gauss2 (const int /*numInputs*/, const double *inputs, const double */*weights*/) {
-  return gauss(inputs[0], inputs[1]);
+  return utils::gauss(inputs[0], 0., inputs[1]);
 }
 
 

@@ -18,7 +18,8 @@ using UL_EU = EnumUtils<UndergroundLayers>;
 // =============================================================================
 
 Environment::Environment(const Genome &g)
-  : _genome(g), _collisionData(std::make_unique<physics::CollisionData>()) {
+  : _genome(g),
+    _physics(std::make_unique<physics::TinyPhysicsEngine>(*this)) {
 
   _topology.resize(_genome.voxels+1, 0.f);
   _temperature.resize(_genome.voxels+1, .5 * (_genome.maxT + _genome.minT));
@@ -36,12 +37,12 @@ void Environment::init (void) {
 }
 
 void Environment::destroy (void) {
-  _collisionData->reset();
+  _physics->reset();
 }
 
 void Environment::step (void) {
 #ifndef NDEBUG
-  _collisionData->debug();
+  _physics->debug();
 #endif
 
   cgpStep();
@@ -61,6 +62,7 @@ void Environment::cgpStep (void) {
 
   inputs[CGP_I::DAY] = _time.timeOfYear();
   inputs[CGP_I::YEAR] = _time.timeOfWorld();
+  std::cerr << "inputs[YEAR] = " << inputs[CGP_I::YEAR] << std::endl;
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
@@ -132,43 +134,43 @@ float Environment::interpolate(const Voxels &voxels, float x) const {
 }
 
 const physics::UpperLayer::Items& Environment::canopy(const Plant *p) const {
-  return _collisionData->canopy(p);
+  return _physics->canopy(p);
 }
 
 bool Environment::addCollisionData(Plant *p) {
-  return _collisionData->addCollisionData(p);
+  return _physics->addCollisionData(*this, p);
 }
 
 void Environment::updateCollisionData(Plant *p) {
-  _collisionData->updateCollisions(p);
+  _physics->updateCollisions(p);
 }
 
 void Environment::updateCollisionDataFinal(Plant *p) {
-  _collisionData->updateFinal(p);
+  _physics->updateFinal(*this, p);
 }
 
 void Environment::removeCollisionData(Plant *p) {
-  _collisionData->removeCollisionData(p);
+  _physics->removeCollisionData(p);
 }
 
 bool Environment::isCollisionFree (const Plant *p) const {
-  return _collisionData->isCollisionFree(p);
+  return _physics->isCollisionFree(p);
 }
 
 void Environment::disseminateGeneticMaterial(Organ *f) {
-  _collisionData->addPistil(f);
+  _physics->addPistil(f);
 }
 
 void Environment::updateGeneticMaterial(Organ *f, const Point &oldPos) {
-  _collisionData->updatePistil(f, oldPos);
+  _physics->updatePistil(f, oldPos);
 }
 
 void Environment::removeGeneticMaterial(Organ *f) {
-  _collisionData->delPistil(f);
+  _physics->delPistil(f);
 }
 
 physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
-  auto itP = _collisionData->sporesInRange(f);
+  auto itP = _physics->sporesInRange(f);
 
   if (std::distance(itP.first, itP.second) >= 1)
     return *dice()(itP.first, itP.second);

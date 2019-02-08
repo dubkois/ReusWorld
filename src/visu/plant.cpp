@@ -223,6 +223,8 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   pen.setWidth(0);
   painter->setPen(pen);
 
+  painter->drawPoint(0,0);
+
   if (drawQtBoundingBox) {
     painter->save();
       QRectF r = boundingRect();

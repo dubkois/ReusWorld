@@ -9,6 +9,7 @@ struct Plant;
 } // end of namespace genotype
 
 namespace simu {
+struct Environment;
 struct Plant;
 struct Organ;
 
@@ -25,7 +26,7 @@ struct UpperLayer {
   using Items = std::vector<Item>;
   Items items;
 
-  void update (const Plant *p);
+  void update (const Environment &env, const Plant *p);
 };
 
 

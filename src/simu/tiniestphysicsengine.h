@@ -9,24 +9,23 @@ namespace physics {
 
 // =============================================================================
 
-class CollisionData {
+class TinyPhysicsEngine {
   struct CollisionObject {
     Rect boundingRect;
     const Plant *plant;
 
     UpperLayer layer;
 
-    explicit CollisionObject (const Plant *p) : plant(p) {
-      updateFinal();
-    }
+    explicit CollisionObject (const Environment &env, const Plant *p)
+      : plant(p) {  updateFinal(env);  }
 
     void updateCollisions (void) {
       boundingRect = boundingRectOf(plant);
     }
 
-    void updateFinal (void) {
+    void updateFinal (const Environment &env) {
       updateCollisions();
-      layer.update(plant);
+      layer.update(env, plant);
     }
 
     static Rect boundingRectOf (const Plant *p) {
@@ -38,6 +37,8 @@ class CollisionData {
     }
   };
 
+  const Environment &environment;
+
   using Collisions = std::set<CollisionObject, std::less<>>;
   Collisions _data;
 
@@ -47,7 +48,9 @@ class CollisionData {
   using Pistils_range = std::pair<Pistils::iterator, Pistils::iterator>;
 
 public:
-  using CObject = CollisionData::CollisionObject;
+  using CObject = TinyPhysicsEngine::CollisionObject;
+
+  TinyPhysicsEngine (const Environment &env) : environment(env) {}
 
   void init (void) {}
   void reset (void);
@@ -61,12 +64,12 @@ public:
 
   const UpperLayer::Items& canopy (const Plant *p) const;
 
-  bool addCollisionData (Plant *p);
+  bool addCollisionData (const Environment &env, Plant *p);
   void removeCollisionData (Plant *p);
   bool isCollisionFree(const Plant *p) const;
 
   void updateCollisions (Plant *p);
-  void updateFinal (Plant *p);
+  void updateFinal (const Environment &env, Plant *p);
 
   void addPistil (Organ *p);
   void updatePistil (Organ *p, const Point &oldPos);
@@ -83,7 +86,7 @@ private:
   bool checkAll (void);
 };
 
-using CObject = CollisionData::CObject;
+using CObject = TinyPhysicsEngine::CObject;
 
 } // end of namespace physics
 } // end of namespace simu

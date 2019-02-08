@@ -50,6 +50,9 @@ struct SAG_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(Bf, fruitOvershootBounds)
   DECLARE_PARAMETER(Bui, seedsPerFruitBounds)
 
+  DECLARE_PARAMETER(Bf, temperatureOptimalBounds)
+  DECLARE_PARAMETER(Bf, temperatureRangeBounds)
+
   DECLARE_PARAMETER(MutationRates, mutationRates)
 
   using Crossover = genotype::BOCData::config_t;
