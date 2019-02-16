@@ -48,11 +48,16 @@ void debugPaintLeaves (QPainter *painter, const ULItems &items,
 
   painter->save();
   for (const ULItem &item: items) {
+    auto dx = .05 * (item.r - item.l);
 
     if (debugLeaves & 1) {  // Draw upper layer segments
       painter->setPen(basePen);
       painter->drawLine(QPointF(item.l, y-dy), QPointF(item.l, y+dy));
+        painter->drawLine(QPointF(item.l, y-dy), QPointF(item.l+dx, y-dy));
+        painter->drawLine(QPointF(item.l, y+dy), QPointF(item.l+dx, y+dy));
       painter->drawLine(QPointF(item.r, y-dy), QPointF(item.r, y+dy));
+        painter->drawLine(QPointF(item.r, y-dy), QPointF(item.r-dx, y-dy));
+        painter->drawLine(QPointF(item.r, y+dy), QPointF(item.r-dx, y+dy));
       painter->drawLine(QPointF(item.l, y), QPointF(item.r, y));
     }
 

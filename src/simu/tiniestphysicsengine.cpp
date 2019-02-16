@@ -6,12 +6,12 @@
 namespace simu {
 namespace physics {
 
-enum EventType { IN, OUT };
+enum EventType { IN = 1, OUT = 2 };
 
-static constexpr bool debugUpperLayer = false;
-static constexpr bool debugBroadphase = true;
-static constexpr bool debugNarrowphase = true;
+static constexpr bool debugBroadphase = false;
+static constexpr bool debugNarrowphase = false;
 static constexpr bool debugCollision = false || debugBroadphase || debugNarrowphase;
+static constexpr bool debugUpperLayer = true;
 static constexpr bool debugReproduction = false;
 
 static constexpr float floatPrecision = 1e6;
@@ -38,8 +38,11 @@ bool _details::CO_CMP::operator() (const CollisionObject *lhs, const CollisionOb
 
 
 std::ostream& operator<< (std::ostream &os, const UpperLayer::Item &i) {
-  return os << "{ " << i.l << " - " << i.r << ", " << i.y << ", "
-            << i.organ->id() << " }";
+  if (i.organ)
+    return os << "{ " << OrganID(i.organ) << ", [" << i.l << ":" << i.r
+              << "], " << i.y << " }";
+  else
+    return os << "{ null, [" << i.l << ":nan], " << i.y << " }";
 }
 
 std::ostream& operator<< (std::ostream &os, const Pistil &p) {
@@ -68,27 +71,35 @@ namespace canopy {
 struct XEvent {
   EventType type;
   Organ *organ;
-  Rect boundingRect;
+
+  float r, t, l;
+
+  XEvent (EventType t, Organ *o, float right, float top, float left)
+    : type(t), organ(o), r(right), t(top), l(left) {}
 
   XEvent (EventType t, Organ *o, const Rect r)
-    : type(t), organ(o), boundingRect(r) {}
+    : XEvent(t, o, r.r(), r.t(), r.l()) {}
 
-  auto left (void) const {  return boundingRect.l(); }
-  auto right (void) const { return boundingRect.r(); }
-  auto top (void) const {   return boundingRect.t(); }
+  XEvent (EventType t, const UpperLayer::Item &item)
+    : XEvent(t, item.organ, item.r, item.y, item.l) {}
+
+  auto left (void) const {  return l; }
+  auto right (void) const { return r; }
+  auto top (void) const {   return t; }
   auto coord (void) const { return type == IN? left() : right(); }
 
   friend bool operator< (const XEvent &lhs, const XEvent &rhs) {
     if (!fuzzyEqual(lhs.coord(), rhs.coord()))  return fuzzyLower(lhs.coord(), rhs.coord());
     if (!fuzzyEqual(lhs.top(), rhs.top()))      return fuzzyLower(lhs.top(), rhs.top());
+//    if (lhs.type != rhs.type)                   return lhs.type < rhs.type;
     return lhs.organ < rhs.organ;
   }
 
   friend std::ostream& operator<< (std::ostream &os, const XEvent &e) {
     return os << (e.type == IN ? "I" : "O")
-              << "Event(" << e.organ->symbol() << "): "
-              << "x = " << e.coord() << ", id = " << e.organ->id()
-              << ", bounds = " << e.boundingRect;
+              << "Event(" << OrganID(e.organ) << "): " << "x = " << e.coord()
+              << ", from " << e.left() << " to " << e.right() << " at "
+              << e.top();
   }
 };
 
@@ -122,14 +133,93 @@ struct SortedStack {
   }
 };
 
+void resetItem (UpperLayer::Item &i, float left, float top, Organ *organ) {
+  i = UpperLayer::Item();
+  i.l = left;
+  if (!isnan(top)) {
+    i.y = top;
+    i.organ = organ;
+  }
+}
+
+void resetItem (UpperLayer::Item &i, float left) {
+  resetItem(i, left, NAN, nullptr);
+}
+
+void emplaceItem (UpperLayer::Items &items, UpperLayer::Item &i, float right) {
+  i.r = right;
+
+  // Ignore segments smaller than 1mm
+  if (i.r - i.l > 1e-3) items.push_back(i);
+}
+
+using include_f = bool (*) (const Plant *, const UpperLayer::Item &);
+bool include_all (const Plant *, const UpperLayer::Item &) {
+  return true;
+}
+bool include_mine (const Plant *plant, const UpperLayer::Item &item) {
+  return plant == item.organ->plant();
+}
+
+void doLineSweep (const Plant *plant,
+                  const std::set<canopy::XEvent> &xevents,
+                  UpperLayer::Items &items,
+                  include_f include) {
+
+  canopy::SortedStack<Organ*> organs;
+  UpperLayer::Item current;
+
+  if (debugUpperLayer)
+    std::cerr << PlantID(plant) << " Performing linesweep for upper layer" << std::endl;
+
+  for (canopy::XEvent e: xevents) {
+    if (debugUpperLayer)  std::cerr << "\t" << e << std::endl;
+
+    switch (e.type) {
+    case IN:
+      organs.push(e.organ, e.top());
+      if (current.y < e.top()) {
+        if (current.organ && include(plant, current)) {
+          emplaceItem(items, current, e.left());
+          if (debugUpperLayer)  std::cerr << "\t\tEmplaced " << current << std::endl;
+        }
+        resetItem(current, e.left(), e.top(), e.organ);
+        if (debugUpperLayer)  std::cerr << "\t\tNew top " << current << std::endl;
+      }
+      break;
+
+    case OUT:
+      assert(!organs.empty());
+      Organ *top = organs.top();
+      organs.erase(e.organ, e.top());
+
+      if (top == e.organ) {
+        if (include(plant, current)) {
+          emplaceItem(items, current, e.right());
+          if (debugUpperLayer)  std::cerr << "\t\tEmplaced " << current << std::endl;
+        }
+
+        if (!organs.empty()) {
+          Organ *newTop = organs.top();
+          resetItem(current, e.right(),
+                    newTop->globalCoordinates().boundingRect.t(), newTop);
+        } else
+          resetItem(current, e.right());
+        if (debugUpperLayer)  std::cerr << "\t\tNew current" << current << std::endl;
+      }
+      break;
+    }
+  }
+
+  assert(organs.empty());
+}
+
 } // end of namespace canopy
 
 /// FIXME Inter-shadowing should not be ignored !
-void UpperLayer::update (const simu::Environment &env, const Plant *p,
-                         const const_Collisions &collisions) {
-  using namespace canopy;
-  itemsInIsolation.clear();
-  std::set<XEvent> xevents;
+
+void UpperLayer::updateInIsolation (const simu::Environment &env, const Plant *p) {
+  std::set<canopy::XEvent> xevents;
   for (Organ *o: p->organs()) {
     if (o->length() <= 0) continue; // Skip non terminals
 
@@ -141,83 +231,62 @@ void UpperLayer::update (const simu::Environment &env, const Plant *p,
     xevents.emplace(OUT, o, r);
   }
 
-  SortedStack<Organ*> organs;
-  UpperLayer::Item current;
-  auto replace = [&current] (auto l, auto y, auto o) {
-    current = Item();
-    current.l = l;
-    current.y = y;
-    current.organ = o;
-
-//    if (debugUpperLayer)
-//      std::cerr << "\tcurrent item: " << current << std::endl;
-  };
-  auto emplace = [&current, this] (auto r) {
-    current.r = r;
-
-//    if (debugUpperLayer)
-//      std::cerr << "\t[" << itemsInIsolation.size() << "] ";
-
-    if (current.r - current.l > 1e-3) { // Ignore segments smaller than 1mm
-      itemsInIsolation.push_back(current);
-
-//      if (debugUpperLayer)
-//        std::cerr << "Pushed current item: " << current << std::endl;
-
-    } else {
-//      if (debugUpperLayer)
-//        std::cerr << "Ignored null-sized item: " << current << std::endl;
-    }
-  };
-
-  for (XEvent e: xevents) {
-//    std::cerr << e << std::endl;
-    switch (e.type) {
-    case IN:
-      organs.push(e.organ, e.top());
-      if (current.y < e.top()) {
-        if (current.organ)  emplace(e.left());
-        replace(e.left(), e.top(), e.organ);
-      }
-      break;
-
-    case OUT:
-      assert(!organs.empty());
-      Organ *top = organs.top();
-      organs.erase(e.organ, e.top());
-
-//      if (debugUpperLayer)
-//        std::cerr << "\t\tCurrent top: " << top->id()
-//                  << ", bounds: " << top->boundingRect() << std::endl;
-
-      if (top == e.organ) {
-        emplace(e.right());
-
-        if (!organs.empty()) {
-          Organ *newTop = organs.top();
-
-//          if (debugUpperLayer)
-//            std::cerr << "\t\tNew top: " << newTop->id()
-//                      << ", bounds: " << newTop->boundingRect() << std::endl;
-
-          replace(e.right(), newTop->globalCoordinates().boundingRect.t(), newTop);
-        }
-      }
-      break;
-    }
-  }
-
-  assert(organs.empty());
+  itemsInIsolation.clear();
+  canopy::doLineSweep(p, xevents, itemsInIsolation, canopy::include_all);
 
   if (debugUpperLayer)
     std::cerr << "Extracted " << itemsInIsolation.size()
-              << " upper layer items from " << p->organs().size() << " organs"
-              << std::endl;
-
-  // Now that the individual's canopy is computed, test it against its neighbors
-  itemsInWorld = itemsInIsolation;
+              << " potential upper layer items from " << p->organs().size()
+              << " organs" << std::endl;
 }
 
+void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collisions) {
+  if (collisions.empty())
+    itemsInWorld = itemsInIsolation;
+
+  else {
+    std::set<canopy::XEvent> xevents;
+
+    for (const UpperLayer::Item &i: itemsInIsolation)
+      xevents.emplace(IN, i), xevents.emplace(OUT, i);
+
+    for (const CollisionObject *object: collisions) {
+      for (const UpperLayer::Item &i: object->layer.itemsInIsolation) {
+        std::cerr << "\tInserting " << i << std::endl;
+  //      if (i.l() < )
+          xevents.emplace(IN, i), xevents.emplace(OUT, i);
+      }
+    }
+
+    itemsInWorld.clear();
+    canopy::doLineSweep(p, xevents, itemsInWorld, canopy::include_mine);
+
+    if (debugUpperLayer)
+      std::cerr << "Extract in " << itemsInWorld.size()
+                << " upper layer items from " << xevents.size() / 2
+                << " combined items" << std::endl;
+  }
+}
+
+void TinyPhysicsEngine::updateCanopies(const std::vector<Plant*> &plants) {
+  // Collect potentially colliding canopies
+  const_Collisions allCollisions;
+  for (const Plant *p: plants) {
+    const_Collisions thisCollisions;
+    CollisionObject *object = *find(p);
+    broadphaseCollision(object, thisCollisions);
+
+    for (const CollisionObject *other: thisCollisions)
+      allCollisions.insert(other);
+  }
+
+  /// FIXME Redoing the broadphase for some > Not good
+  for (const CollisionObject *object: allCollisions) {
+    const_Collisions thisCollisions;
+    broadphaseCollision(object, thisCollisions);
+    object->layer.updateInWorld(object->plant, thisCollisions);
+  }
+}
 
 // =============================================================================
 
@@ -461,11 +530,7 @@ void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
   CollisionObject *object = *it;
   _data.erase(it);
 
-  // Collect potentially colliding canopies
-  const_Collisions collisions;
-  broadphaseCollision(object, collisions);
-
-  object->updateFinal(env, collisions); // Update bounding box and canopy
+  object->updateFinal(env); // Update bounding box and canopy
   it = _data.insert(object).first;
 
   const auto aabb = object->boundingRect;

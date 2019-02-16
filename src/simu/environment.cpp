@@ -173,4 +173,8 @@ void Environment::processNewObjects(void) {
   _physics->processNewObjects();
 }
 
+void Environment::updateCanopies(const std::vector<Plant *> &plants) {
+  _physics->updateCanopies(plants);
+}
+
 } // end of namespace simu

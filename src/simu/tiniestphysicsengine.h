@@ -19,24 +19,24 @@ struct CollisionObject {
   std::unique_ptr<Edge<LEFT>> leftEdge;
   std::unique_ptr<Edge<RIGHT>> rightEdge;
 
-  UpperLayer layer;
+  mutable UpperLayer layer;
 
   explicit CollisionObject (const Environment &env, const Plant *p)
     : plant(p),
       leftEdge(std::make_unique<Edge<LEFT>>(this)),
-      rightEdge(std::make_unique<Edge<RIGHT>>(this)) {
-
-    const_Collisions empty;
-    updateFinal(env, empty);
-  }
+      rightEdge(std::make_unique<Edge<RIGHT>>(this)) {  updateFinal(env); }
 
   void updateCollisions (void) {
     boundingRect = boundingRectOf(plant);
   }
 
-  void updateFinal (const Environment &env, const const_Collisions &collisions) {
+  void updateFinal (const Environment &env) {
     updateCollisions();
-    layer.update(env, plant, collisions);
+    layer.updateInIsolation(env, plant);
+  }
+
+  void computeCanopyInWorld (const const_Collisions &collisions) {
+    layer.updateInWorld(plant, collisions);
   }
 
   static Rect boundingRectOf (const Plant *p) {
@@ -95,6 +95,9 @@ public:
 
   // Call at the end of a simulation step to register new seeds
   void processNewObjects (void);
+
+  // Call at the end of a simulation step to update canopies with new morphologies
+  void updateCanopies (const std::vector<Plant*> &plants);
 
 private:
   Collisions::iterator find (const Plant *p);

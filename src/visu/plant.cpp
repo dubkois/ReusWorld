@@ -14,6 +14,7 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
+static constexpr bool drawOrganID = true;
 static constexpr bool drawOrganContour = true;
 static constexpr bool drawOrganCorners = true;
 static constexpr bool drawQtBoundingBox = false;
@@ -186,6 +187,8 @@ void Plant::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
 }
 
 void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
+  static const float AS = apexSize();
+
   for (simu::Organ *c: o->children())
     paint(painter, c, contour, dead);
 
@@ -196,24 +199,43 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
     painter->translate(p0);
     painter->rotate(r);
 
-    const QPainterPath *path;
-    if (o->length() == 0) {
-      path = &pathForApex();
+    painter->save();
+      const QPainterPath *path;
+      if (o->length() == 0) {
+        path = &pathForApex();
 
-      static const float AS = apexSize();
-      painter->scale(AS, AS);
+        painter->scale(AS, AS);
 
-    } else {
-      path = &pathForSymbol(o->symbol());
-      painter->scale(o->length(), o->width());
-    }
+      } else {
+        path = &pathForSymbol(o->symbol());
+        painter->scale(o->length(), o->width());
+      }
 
-    if (contour)
-      painter->drawPath(*path);
-    else {
-      QColor c = color(o);
-      if (dead)  desaturate(c);
-      painter->fillPath(*path, c);
+      if (contour)
+        painter->drawPath(*path);
+
+      else {
+        QColor c = color(o);
+        if (dead)  desaturate(c);
+        painter->fillPath(*path, c);
+      }
+
+    painter->restore();
+
+    if (drawOrganID && !contour) {
+      painter->save();
+        QPen pen = painter->pen();
+        pen.setColor(Qt::black);
+        painter->setPen(pen);
+        QFont font = painter->font();
+        font.setPointSizeF(.5);
+        painter->setFont(font);
+        painter->translate(.5 * o->length(), 0);
+        painter->scale(.5 * AS, .5 * AS);
+        painter->translate(0,-.75);
+        painter->drawText(QRectF(0,0,2,2), Qt::AlignCenter,
+                          QString("_%1_").arg(uint(o->id())));
+      painter->restore();
     }
 
   painter->restore();

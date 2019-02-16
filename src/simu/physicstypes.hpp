@@ -59,8 +59,8 @@ struct UpperLayer {
   using Items = std::vector<Item>;
   Items itemsInIsolation, itemsInWorld;
 
-  void update (const Environment &env, const Plant *p,
-               const const_Collisions &collisions);
+  void updateInIsolation (const Environment &env, const Plant *p);
+  void updateInWorld (const Plant *p, const const_Collisions &collisions);
 };
 
 

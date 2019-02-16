@@ -393,15 +393,19 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
 
+  std::vector<Plant*> modifiedPlants;
+
   Plant::Seeds seeds;
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
-    p->step(_env);
+    bool modified = p->step(_env);
     if (p->isDead()) {
       if (debugDeath) p->autopsy();
       corpses.insert(p->pos().x);
-    }
+
+    } else if (modified)
+      modifiedPlants.push_back(p.get());
   }
 
   _stats.deadPlants = corpses.size();
@@ -428,6 +432,9 @@ void Simulation::step (void) {
 
   if (!seeds.empty())
     _env.processNewObjects();
+
+  if (!modifiedPlants.empty())
+    _env.updateCanopies(modifiedPlants);
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {

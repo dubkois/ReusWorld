@@ -161,7 +161,9 @@ public:
   bool spontaneousDeath (void) const;
   void autopsy (void) const;
 
-  void step (Environment &env);
+  /// Steps the plant by one tick
+  /// \returns true if its phenotype changed
+  bool step (Environment &env);
 
   void kill (void) {
     _killed = true;
