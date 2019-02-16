@@ -88,6 +88,10 @@ struct Rect {
     return { { ul.x + p.x, ul.y + p.y }, { br.x + p.x, br.y + p.y } };
   }
 
+  bool isValid (void) {
+    return width() >= 0 && height() >= 0;
+  }
+
   friend bool intersects (const Rect &lhs, const Rect &rhs) {
     return lhs.l() <= rhs.r() && lhs.r() >= rhs.l()
         && lhs.t() >= rhs.b() && lhs.b() <= rhs.t();

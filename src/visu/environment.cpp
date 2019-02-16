@@ -8,11 +8,15 @@
 
 namespace gui {
 
+using ULItems = simu::physics::UpperLayer::Items;
+using ULItem = simu::physics::UpperLayer::Item;
+
 const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
-static constexpr int debugAABB = 0;
-static constexpr int debugLeaves = 0;
+static constexpr int debugAABB = 1;
+static constexpr int debugCorners = 1;
+static constexpr int debugLeaves = 3;
 static constexpr int debugSpores = 1;
 
 QColor Environment::colorForTemperature (float t) {
@@ -29,6 +33,52 @@ QColor Environment::colorForTemperature (float t) {
 
 QColor colorForWater (float w) {
   return QColor::fromRgbF(0,0,1, .2 * w);
+}
+
+void debugPaintLeaves (QPainter *painter, const ULItems &items,
+                       const QRectF &rect, Qt::GlobalColor c) {
+
+  QPen basePen = painter->pen();
+  basePen.setColor(c);
+  QPen dotPen = basePen;
+  dotPen.setStyle(Qt::DashLine);
+
+  auto y = rect.top() - .05 * rect.height();
+  auto dy = .025 * rect.height();
+
+  painter->save();
+  for (const ULItem &item: items) {
+
+    if (debugLeaves & 1) {  // Draw upper layer segments
+      painter->setPen(basePen);
+      painter->drawLine(QPointF(item.l, y-dy), QPointF(item.l, y+dy));
+      painter->drawLine(QPointF(item.r, y-dy), QPointF(item.r, y+dy));
+      painter->drawLine(QPointF(item.l, y), QPointF(item.r, y));
+    }
+
+    if (debugLeaves & 3) {  // Draw line to associated organ
+      painter->setPen(dotPen);
+      auto oy = toQRect(item.organ->globalCoordinates().boundingRect).top();
+      painter->drawLine(QPointF(.5 * (item.l + item.r), y),
+                        QPointF(.5 * (item.l + item.r), oy));
+    }
+  }
+
+  if ((debugLeaves & 2) && !items.empty()) {  // Draw upper layer enveloppe
+    painter->setPen(dotPen);
+    ULItem prev = items[0];
+    auto prevY = toQRect(prev.organ->globalCoordinates().boundingRect).top();
+    painter->drawLine(QPointF(prev.l, prevY), QPointF(prev.r, prevY));
+    for (uint i=1; i<items.size(); i++) {
+      ULItem curr = items[i];
+      auto oy = toQRect(curr.organ->globalCoordinates().boundingRect).top();
+      painter->drawLine(QPointF(prev.r, prevY), QPointF(curr.l, oy));
+      painter->drawLine(QPointF(curr.l, oy), QPointF(curr.r, oy));
+      prev = curr;
+      prevY = oy;
+    }
+  }
+  painter->restore();
 }
 
 void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) {
@@ -106,20 +156,15 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
   pen.setWidthF(0);
   painter->setPen(pen);
 
-  if (debugAABB || debugLeaves) {
+  if (debugAABB || debugCorners || debugLeaves) {
     using CData = simu::physics::TinyPhysicsEngine;
-    using CObject = CData::CObject;
+    using CObject = simu::physics::CollisionObject;
 
     painter->save();
-    QPen whitePen = pen;
-    whitePen.setColor(Qt::white);
-    QPen dotPen = whitePen;
-    dotPen.setStyle(Qt::DashLine);
 
     const CData &cd = _object.collisionData();
-    for (const CObject &obj: cd.data()) {
-      using ULItem = simu::physics::UpperLayer::Item;
-      QRectF br = toQRect(obj.boundingRect);
+    for (const CObject *obj: cd.data()) {
+      QRectF br = toQRect(obj->boundingRect);
 
       if (debugAABB) {
         painter->save();
@@ -130,41 +175,8 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
       }
 
       if (debugLeaves) {
-        auto y = br.top() - .1 * br.height();
-        auto dy = .025 * br.height();
-
-        const auto &items = obj.layer.items;
-        for (const ULItem &item: items) {
-
-          if (debugLeaves & 1) {  // Draw upper layer segments
-            painter->setPen(whitePen);
-            painter->drawLine(QPointF(item.l, y-dy), QPointF(item.l, y+dy));
-            painter->drawLine(QPointF(item.r, y-dy), QPointF(item.r, y+dy));
-            painter->drawLine(QPointF(item.l, y), QPointF(item.r, y));
-          }
-
-          if (debugLeaves & 2) {  // Draw line to associated organ
-            painter->setPen(dotPen);
-            auto oy = toQRect(item.organ->globalCoordinates().boundingRect).top();
-            painter->drawLine(QPointF(.5 * (item.l + item.r), y),
-                              QPointF(.5 * (item.l + item.r), oy));
-          }
-        }
-
-        if ((debugLeaves & 4) && !items.empty()) {  // Draw upper layer enveloppe
-          painter->setPen(dotPen);
-          ULItem prev = items[0];
-          auto prevY = toQRect(prev.organ->globalCoordinates().boundingRect).top();
-          painter->drawLine(QPointF(prev.l, prevY), QPointF(prev.r, prevY));
-          for (uint i=1; i<items.size(); i++) {
-            ULItem curr = items[i];
-            auto oy = toQRect(curr.organ->globalCoordinates().boundingRect).top();
-            painter->drawLine(QPointF(prev.r, prevY), QPointF(curr.l, oy));
-            painter->drawLine(QPointF(curr.l, oy), QPointF(curr.r, oy));
-            prev = curr;
-            prevY = oy;
-          }
-        }
+        debugPaintLeaves(painter, obj->layer.itemsInIsolation, br, Qt::gray);
+        debugPaintLeaves(painter, obj->layer.itemsInWorld, br, Qt::white);
       }
     }
     painter->restore();

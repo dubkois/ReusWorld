@@ -9,38 +9,61 @@ namespace physics {
 
 // =============================================================================
 
+struct CollisionObject {
+  Rect boundingRect;
+  Plant const *const plant;
+
+  Collisions englobedObjects;
+  Collisions englobingObjects;
+
+  std::unique_ptr<Edge<LEFT>> leftEdge;
+  std::unique_ptr<Edge<RIGHT>> rightEdge;
+
+  UpperLayer layer;
+
+  explicit CollisionObject (const Environment &env, const Plant *p)
+    : plant(p),
+      leftEdge(std::make_unique<Edge<LEFT>>(this)),
+      rightEdge(std::make_unique<Edge<RIGHT>>(this)) {
+
+    const_Collisions empty;
+    updateFinal(env, empty);
+  }
+
+  void updateCollisions (void) {
+    boundingRect = boundingRectOf(plant);
+  }
+
+  void updateFinal (const Environment &env, const const_Collisions &collisions) {
+    updateCollisions();
+    layer.update(env, plant, collisions);
+  }
+
+  static Rect boundingRectOf (const Plant *p) {
+    return p->translatedBoundingRect();
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const CollisionObject &o) {
+    return os << "{" << o.plant->id() << ": " << o.boundingRect << "}";
+  }
+};
+
 class TinyPhysicsEngine {
-  struct CollisionObject {
-    Rect boundingRect;
-    const Plant *plant;
+  const Environment &environment;
 
-    UpperLayer layer;
+  Collisions _data;
 
-    explicit CollisionObject (const Environment &env, const Plant *p)
-      : plant(p) {  updateFinal(env);  }
-
-    void updateCollisions (void) {
-      boundingRect = boundingRectOf(plant);
-    }
-
-    void updateFinal (const Environment &env) {
-      updateCollisions();
-      layer.update(env, plant);
-    }
-
-    static Rect boundingRectOf (const Plant *p) {
-      return p->translatedBoundingRect();
-    }
-
-    friend std::ostream& operator<< (std::ostream &os, const CollisionObject &o) {
-      return os << "{" << o.plant->id() << ": " << o.boundingRect << "}";
+  template <EdgeSide S>
+  struct PE_CMP {
+    bool operator() (const Edge<S> *lhs, const Edge<S> *rhs) const {
+      return *lhs < *rhs;
     }
   };
 
-  const Environment &environment;
-
-  using Collisions = std::set<CollisionObject, std::less<>>;
-  Collisions _data;
+  template <EdgeSide S>
+  using Edges = std::set<Edge<S>*, PE_CMP<S>>;
+  Edges<LEFT> _leftEdges;
+  Edges<RIGHT> _rightEdges;
 
   using Pistils = std::set<Pistil, std::less<>>;
   Pistils _pistils;
@@ -48,16 +71,10 @@ class TinyPhysicsEngine {
   using Pistils_range = std::pair<Pistils::iterator, Pistils::iterator>;
 
 public:
-  using CObject = TinyPhysicsEngine::CollisionObject;
-
   TinyPhysicsEngine (const Environment &env) : environment(env) {}
 
   void init (void) {}
   void reset (void);
-
-#ifndef NDEBUG
-  void debug (void) const;
-#endif
 
   const auto& data (void) const {     return _data;     }
   const auto& pistils (void) const {  return _pistils;  }
@@ -76,17 +93,26 @@ public:
   void delPistil (Organ *p);
   Pistils_range sporesInRange (Organ *s);
 
-  static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs);
+  // Call at the end of a simulation step to register new seeds
+  void processNewObjects (void);
 
 private:
   Collisions::iterator find (const Plant *p);
   Collisions::const_iterator find (const Plant *p) const;
 
+  void broadphaseCollision (const CollisionObject *object,
+                            const_Collisions &objects) const;
+
+  static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
+                                    const Rect &intersection);
+
+#ifndef NDEBUG
+  void debug (void) const;
+#endif
+
   bool valid (const Pistil &p);
   bool checkAll (void);
 };
-
-using CObject = TinyPhysicsEngine::CObject;
 
 } // end of namespace physics
 } // end of namespace simu

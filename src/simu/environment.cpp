@@ -3,15 +3,9 @@
 
 #include "../config/simuconfig.h"
 
-/// TODO For cgp integration:
-///  NOTE Water at non zero altitude
-///  NOTE Update plant altitude and internals (organ global coordinates)
-///  NOTE Collision data (bounding box, flower, canopy)
-///  NOTE Impact of water variation on plants (trivially done)
-///  TODO Impact of topology variation on plants (seed dispersion difficulty)
-///  TODO Impact of temperature variation on plants (sucks ass)
-
 namespace simu {
+
+static constexpr bool debugCGP = true;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 
@@ -41,10 +35,6 @@ void Environment::destroy (void) {
 }
 
 void Environment::step (void) {
-#ifndef NDEBUG
-  _physics->debug();
-#endif
-
   cgpStep();
 
   _time.next();
@@ -57,12 +47,10 @@ void Environment::cgpStep (void) {
   CGP::Inputs inputs;
   CGP::Outputs outputs;
 
-  _updatedTopology = true;//(_time.year() % config::Simulation::updateTopologyEvery()) == 0;
-  std::cerr << __PRETTY_FUNCTION__ << " Sped up topology variation" << std::endl;
+  _updatedTopology = (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
 
   inputs[CGP_I::DAY] = _time.timeOfYear();
   inputs[CGP_I::YEAR] = _time.timeOfWorld();
-  std::cerr << "inputs[YEAR] = " << inputs[CGP_I::YEAR] << std::endl;
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
@@ -79,20 +67,22 @@ void Environment::cgpStep (void) {
       A = outputs[CGP_O::ALTITUDE_] * _genome.depth;
 
     T = .5 * (outputs[CGP_O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
-    H = .5 * (outputs[CGP_O::HYGROMETRY_] + 1);
+    H = .5 * outputs[CGP_O::HYGROMETRY_];
   }
 
-  std::cerr << __PRETTY_FUNCTION__ << " CGP Stepped" << std::endl;
-  std::cerr << "\tTopology:";
-  for (uint i=0; i<=_genome.voxels; i++)
-    std::cerr << " " << _topology[i];
-  std::cerr << "\n\tTemperature:";
-  for (uint i=0; i<=_genome.voxels; i++)
-    std::cerr << " " << _temperature[i];
-  std::cerr << "\n\tHygrometry:";
-  for (uint i=0; i<=_genome.voxels; i++)
-    std::cerr << " " << _hygrometry[SHALLOW][i];
-  std::cerr << std::endl;
+  if (debugCGP) {
+    std::cerr << __PRETTY_FUNCTION__ << " CGP Stepped" << std::endl;
+    std::cerr << "\tTopology:";
+    for (uint i=0; i<=_genome.voxels; i++)
+      std::cerr << " " << _topology[i];
+    std::cerr << "\n\tTemperature:";
+    for (uint i=0; i<=_genome.voxels; i++)
+      std::cerr << " " << _temperature[i];
+    std::cerr << "\n\tHygrometry:";
+    for (uint i=0; i<=_genome.voxels; i++)
+      std::cerr << " " << _hygrometry[SHALLOW][i];
+    std::cerr << std::endl;
+  }
 }
 
 float Environment::heightAt(float x) const {
@@ -177,6 +167,10 @@ physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
 
   else
     return physics::Pistil();
+}
+
+void Environment::processNewObjects(void) {
+  _physics->processNewObjects();
 }
 
 } // end of namespace simu

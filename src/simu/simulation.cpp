@@ -9,11 +9,16 @@ using Config = config::Simulation;
 
 static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
+static constexpr bool debugDeath = false;
 static constexpr int debugTopology = 0;
 
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction | debugTopology;
 
+//#define INSTRUMENTALISE
+#define CUSTOM_PLANTS
+
+#if !defined(NDEBUG) && defined(INSTRUMENTALISE)
 auto instrumentaliseEnvGenome (genotype::Environment g) {
   std::cerr << __PRETTY_FUNCTION__ << " Bypassing environmental genomic values" << std::endl;
 
@@ -26,34 +31,88 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 auto instrumentalisePlantGenome (genotype::Plant g) {
   std::cerr << __PRETTY_FUNCTION__ << " Bypassing plant genomic values" << std::endl;
 
+//  g.temperatureOptimal = 10;
+//  std::cerr << "genome.temperatureOptimal = " << g.temperatureOptimal << std::endl;
+
+//  g.temperatureRange = 15;
+//  std::cerr << "genome.temperatureRange = " << g.temperatureRange << std::endl;
+
   return g;
 }
+#endif
 
 Simulation::Simulation (const genotype::Ecosystem &genome)
   : _stats(),
+#if !defined(NDEBUG) && defined(INSTRUMENTALISE)
     _env(instrumentaliseEnvGenome(genome.env)),
     _primordialPlant(instrumentalisePlantGenome(genome.plant)),
+#else
+    _env(genome.env), _primordialPlant(genome.plant),
+#endif
     _aborted(false) {}
 
 bool Simulation::init (void) {
-
-//  _primordialPlant.shoot.rules = {
-
-//  };
-
-
-
-
-
   _env.init();
+
   _ptree.addGenome(_primordialPlant);
   genotype::BOCData::setFirstID(_primordialPlant.cdata.id);
 
   uint N = Config::initSeeds();
   float dx = .5; // m
+
+#if !defined(NDEBUG) && defined(CUSTOM_PLANTS)
+  N = 5;
+  std::vector<PGenome> genomes;
+
+  using SRule = genotype::grammar::Rule_t<genotype::LSystemType::SHOOT>;
+  using RRule = genotype::grammar::Rule_t<genotype::LSystemType::ROOT>;
+
+  PGenome modifiedPrimordialPlant = _primordialPlant;
+  modifiedPrimordialPlant.dethklok = 100;
+  modifiedPrimordialPlant.shoot.recursivity = 10;
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+
+  genomes[0].shoot.rules = {
+    SRule::fromString("S -> s-s-s-A").toPair(),
+    SRule::fromString("A -> s[B]A").toPair(),
+    SRule::fromString("B -> [-l][+l]").toPair(),
+  };
+  genomes[0].root.rules = {
+    RRule::fromString("S -> A").toPair(),
+    RRule::fromString("A -> [+Bh][Bh][-Bh]").toPair(),
+    RRule::fromString("B -> tB").toPair(),
+  };
+  genomes[0].root.recursivity = 10;
+
+  genomes[1].shoot.rules = {
+    SRule::fromString("S -> s[-Al][+Bl]").toPair(),
+    SRule::fromString("A -> -sA").toPair(),
+    SRule::fromString("B -> +sB").toPair(),
+  };
+
+  genomes[2].shoot.rules = genomes[1].shoot.rules;
+  genomes[2].shoot.recursivity = 7;
+
+  genomes[3].shoot.rules = genomes[1].shoot.rules;
+
+  genomes[4].shoot.rules = {
+    SRule::fromString("S -> ss+s+s+A").toPair(),
+    SRule::fromString("A -> s[B]A").toPair(),
+    SRule::fromString("B -> [-l][+l]").toPair()
+  };
+  genomes[4].root = genomes[0].root;
+
+#endif
+
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
+
+#if !defined(NDEBUG) && defined(CUSTOM_PLANTS)
+    auto pg = genomes[i%genomes.size()];
+#else
     auto pg = _primordialPlant.clone();
+#endif
+
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
 
@@ -203,8 +262,10 @@ void Simulation::performReproductions(void) {
     }
   }
 
-  for (Plant *p: modifiedPlants)
+  for (Plant *p: modifiedPlants) {
+    p->updateGeometry();
     p->update(_env);
+  }
 }
 
 void Simulation::plantSeeds(Plant::Seeds &seeds) {
@@ -337,8 +398,10 @@ void Simulation::step (void) {
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
     p->step(_env);
-    if (p->isDead())
+    if (p->isDead()) {
+      if (debugDeath) p->autopsy();
       corpses.insert(p->pos().x);
+    }
   }
 
   _stats.deadPlants = corpses.size();
@@ -362,6 +425,9 @@ void Simulation::step (void) {
 
   for (const auto &p: _plants)  p.second->collectCurrentStepSeeds(seeds);
   plantSeeds(seeds);
+
+  if (!seeds.empty())
+    _env.processNewObjects();
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {

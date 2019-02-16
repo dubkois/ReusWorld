@@ -15,6 +15,7 @@ namespace gui {
 using GConfig = config::PlantGenome;
 
 static constexpr bool drawOrganContour = true;
+static constexpr bool drawOrganCorners = true;
 static constexpr bool drawQtBoundingBox = false;
 
 static auto apexSize (void) {
@@ -148,9 +149,8 @@ void Plant::updateGeometry(void) {
   setPos(toQPoint(_plant.pos()));
   _boundingRect = toQRect(_plant.boundingRect())
                     .united(minBoundingBox());
-  float m = .1 * std::min(_boundingRect.width(), _boundingRect.height());
+  float m = .1 * _boundingRect.height();
   _boundingRect.adjust(-m, -m, m, m);
-//  qDebug() << "Bounding rect: " << boundingRect();
 }
 
 void Plant::updateTooltip(void) {
@@ -208,11 +208,13 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
       painter->scale(o->length(), o->width());
     }
 
-    if (contour) painter->drawPath(*path);
-
-    QColor c = color(o);
-    if (dead)  desaturate(c);
-    painter->fillPath(*path, c);
+    if (contour)
+      painter->drawPath(*path);
+    else {
+      QColor c = color(o);
+      if (dead)  desaturate(c);
+      painter->fillPath(*path, c);
+    }
 
   painter->restore();
 }
@@ -223,6 +225,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   pen.setWidth(0);
   painter->setPen(pen);
 
+  // To have something to look at even with little resolution
   painter->drawPoint(0,0);
 
   if (drawQtBoundingBox) {
@@ -235,15 +238,30 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   }
 
   bool doDrawOrganContour = drawOrganContour && isSelected();
+  bool dead = _plant.isDead();
+
+  pen.setColor(Qt::NoPen);
+  painter->setPen(pen);
+  for (const simu::Organ *o: _plant.bases())
+    gui::paint(painter, o, false, dead);
+
+  if (drawOrganCorners) {
+    pen.setColor(Qt::white);
+    painter->setPen(pen);
+    for (const simu::Organ *o: _plant.organs()) {
+      QPolygonF box;
+      for (const simu::Point &p: o->inPlantCoordinates().corners)
+        box.append(toQPoint(p));
+      painter->drawPolygon(box);
+    }
+  }
+
   if (doDrawOrganContour) {
     pen.setColor(Qt::black);
     painter->setPen(pen);
+    for (const simu::Organ *o: _plant.bases())
+      gui::paint(painter, o, true, dead);
   }
-
-//  qDebug() << "Drawing: " << uint(_plant.genome().cdata.id) << _plant.age();
-  bool dead = _plant.isDead();
-  for (const simu::Organ *o: _plant.bases())
-    gui::paint(painter, o, doDrawOrganContour, dead);
 
   painter->restore();
 }

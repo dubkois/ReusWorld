@@ -227,7 +227,7 @@ void Controller::updateMousePosition (const QPointF &pos) {
   QString string;
   QTextStream qss (&string);
   qss //<< qSetRealNumberPrecision(2)
-      << pos.x() << " x " << pos.y();
+      << pos.x() << " x " << -pos.y();
   _mdisplay->setText(string);
 }
 

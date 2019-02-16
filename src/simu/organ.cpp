@@ -34,12 +34,13 @@ float Organ::fullness(void) const {
   return f;
 }
 
-Point rotate_point(float angle, Point p) {
+Point rotate_point(float angle, const Point &p) {
   float s = std::sin(angle);
   float c = std::cos(angle);
-  p.x = p.x * c - p.y * s;
-  p.y = p.x * s + p.y * c;
-  return p;
+  return {
+    p.x * c - p.y * s,
+    p.x * s + p.y * c
+  };
 }
 
 void Organ::accumulate (float biomass) {
@@ -57,6 +58,7 @@ void Organ::accumulate (float biomass) {
                 << std::endl;
 
     updateDimensions(false);
+    updateBoundingBox();
 
   } else
     _accumulatedBiomass += biomass;
@@ -84,6 +86,13 @@ void Organ::updateTransformation(void) {
   _plantCoordinates.end = _plantCoordinates.origin
       + Point::fromPolar(_plantCoordinates.rotation, _length);
 
+  updateBoundingBox();
+  updateGlobalTransformation();
+
+  for (Organ *c: _children) c->updateTransformation();
+}
+
+void Organ::updateBoundingBox(void) {
   Point pend = _plantCoordinates.end;
   auto width = _width;
   if (_length == 0 && _width == 0) {
@@ -95,14 +104,14 @@ void Organ::updateTransformation(void) {
 
   Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * width});
 
-  Point corners [] {
+  _plantCoordinates.corners = {
     _plantCoordinates.origin + v, pend + v,
-    _plantCoordinates.origin - v, pend - v
+    pend - v, _plantCoordinates.origin - v
   };
 
   Rect &pr = _plantCoordinates.boundingRect;
   pr = Rect::invalid();
-  for (Point p: corners) {
+  for (Point p: _plantCoordinates.corners) {
     pr.ul.x = std::min(pr.ul.x, p.x);
     pr.ul.y = std::max(pr.ul.y, p.y);
     pr.br.x = std::max(pr.br.x, p.x);
@@ -110,10 +119,6 @@ void Organ::updateTransformation(void) {
   }
 
   _plantCoordinates.center = pr.center();
-
-  updateGlobalTransformation();
-
-  for (Organ *c: _children) c->updateTransformation();
 }
 
 void Organ::updateGlobalTransformation(void) {
@@ -121,6 +126,9 @@ void Organ::updateGlobalTransformation(void) {
   _globalCoordinates.origin = _plantCoordinates.origin + pp;
   _globalCoordinates.center = _plantCoordinates.center + pp;
   _globalCoordinates.boundingRect = _plantCoordinates.boundingRect.translated(pp);
+
+  for (uint i=0; i<4; i++)
+    _globalCoordinates.corners[i] = _plantCoordinates.corners[i] + pp;
 }
 
 void Organ::removeFromParent(void) {

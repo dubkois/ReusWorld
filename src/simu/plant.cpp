@@ -18,11 +18,11 @@ static const auto A = GConfig::ls_rotationAngle();
 
 static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
-static constexpr bool debugDerivation = false;
+static constexpr bool debugDerivation = true;
 static constexpr int debugMetabolism = false;
 static constexpr bool debugReproduction = false;
 
-static constexpr bool debug = false
+static constexpr bool debug = true
   | debugInit | debugOrganManagement | debugDerivation | debugMetabolism
   | debugReproduction;
 
@@ -214,6 +214,8 @@ uint Plant::deriveRules(Environment &env) {
     bool colliding = !env.isCollisionFree(this);
 
     if (colliding/* && sizeIncrease > 0*/) {
+      /// FIXME This is a bundle of spaghetti code. Need to clean it thoughroughly
+
       const auto deleter = [&newOrgans, &env, this] (auto collection) {
         for (auto it = collection.begin(); it != collection.end();) {
           auto newOrgans_it = newOrgans.find(*it);
@@ -264,7 +266,7 @@ uint Plant::deriveRules(Environment &env) {
       float leftOverBiomass = apex->biomass() - ruleBiomassCost(apex->layer(), apex->symbol());
       if (leftOverBiomass > 0) {
         if (debugMetabolism || debugDerivation)
-          std::cerr << PlantID(this) << "Dispatching " << leftOverBiomass
+          std::cerr << PlantID(this) << " Dispatching " << leftOverBiomass
                     << " left over biomass" << std::endl;
         distributeBiomass(leftOverBiomass, newOrgans,
                           [] (Organ*) { return true; });
@@ -515,19 +517,38 @@ float Plant::seedBiomassRequirements(const Genome &mother, const Genome &child) 
   return initialBiomassFor(child) * mother.fruitOvershoot;
 }
 
+float Plant::heatEfficiency(float T) const {
+  const auto &mu_r = SConfig::temperatureMaxRange();
+  const auto &sigma_r = SConfig::temperatureRangePenalty();
+
+  const auto mu = _genome.temperatureOptimal;
+  const auto sigma = _genome.temperatureRange;
+  return utils::gauss(T, mu, sigma) * utils::gauss(sigma, mu_r, sigma_r);
+}
+
 void Plant::metabolicStep(Environment &env) {
   using genotype::Element;
+
+  if (SConfig::DEBUG_NO_METABOLISM()) // Fill sinks
+    for (Organ *o: _sinks)
+      o->accumulate(o->requiredBiomass());
 
   const auto &k_E = SConfig::assimilationRate();
   const auto &J_E = SConfig::saturationRate();
   const auto &f_E = SConfig::resourceCost();
 
-  if (debugMetabolism > 1) {
+  float T = env.temperatureAt(_pos.x);
+  if (_pstatsWC)  _pstatsWC->sumTemperature += T;
+  float T_eff = heatEfficiency(T);
+  float T_dir = utils::sgn(T - _genome.temperatureOptimal);
+
+  if (debugMetabolism) {
     std::cerr << PlantID(this) << " state at start:\n\t"
               << _organs.size() << " organs"
-              << "\n\tbiomasses:";
+              << "\n\tTemperature = " << T << " (" << 100 * T_eff << "% efficiency)"
+              << "\n\t  biomasses:";
     for (decimal b: _biomasses) std::cerr << " " << b;
-    std::cerr << "\n\treserves:";
+    std::cerr << "\n\t   reserves:";
     for (Layer l: L_EU::iterator())
       for (Element e: E_EU::iterator())
         std::cerr << "\n\t\t"
@@ -561,9 +582,20 @@ void Plant::metabolicStep(Environment &env) {
 
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Total water uptake of " << U_w;
+
+  if (T_dir < 0)  // Too cold reduce water intake
+    U_w *= T_eff;
+
+  if (debugMetabolism && T_dir < 0)
+    std::cerr << " reduced by low temperatures to " << U_w;
+
   utils::iclip_max(U_w, _biomasses[Layer::ROOT] - _reserves[Layer::ROOT][Element::WATER]);
-  if (debugMetabolism)
-    std::cerr << " clipped to " << U_w << std::endl;
+
+  if (debugMetabolism && std::fabs(_biomasses[Layer::ROOT] - _reserves[Layer::ROOT][Element::WATER] - U_w) < 1e-3)
+    std::cerr << " clipped to " << U_w;
+
+  if (debugMetabolism)  std::cerr << std::endl;
+
   _reserves[Layer::ROOT][Element::WATER] += U_w;
   assert(U_w >= 0);
   assert(_reserves[Layer::ROOT][Element::WATER] <= _biomasses[Layer::ROOT]);
@@ -601,14 +633,15 @@ void Plant::metabolicStep(Environment &env) {
   for (const physics::UpperLayer::Item &i: canopy) {
     if (!i.organ->isLeaf()) continue;
 
-    U_g += light * k_E * (i.r - i.l) / ug_k;
+    float d_g = light * k_E * (i.r - i.l) / ug_k;
+    U_g += d_g;
 
     if (_pstatsWC)  _pstatsWC->tmpSum += light * (i.r - i.l)
                       / i.organ->inPlantCoordinates().boundingRect.width();
 
     if (debugMetabolism)
       std::cerr << OrganID(i.organ) << " photosynthizing "
-                << U_g << " = " << light << " * " << k_E << " * (" << i.r
+                << d_g << " = " << light << " * " << k_E << " * (" << i.r
                 << " - " << i.l << ") / " << ug_k << std::endl;
   }
 
@@ -647,19 +680,36 @@ void Plant::metabolicStep(Environment &env) {
   _reserves[Layer::SHOOT][Element::GLUCOSE] -= T_g;
   _reserves[Layer::ROOT][Element::GLUCOSE] += T_g;
 
+  // Evaporate water
+  if (T_dir > 0) {
+    decimal W_sh = _reserves[Layer::SHOOT][Element::WATER];
+
+    if (debugMetabolism)
+      std::cerr << PlantID(this) << " Evaporating "
+                << (1.f - T_eff) * W_sh / SConfig::stepsPerDay()
+                << " = (1 - " << T_eff << ") * " << W_sh << " / " << SConfig::stepsPerDay()
+                << std::endl;
+
+    _reserves[Layer::SHOOT][Element::WATER] -= (1.f - T_eff) * W_sh / SConfig::stepsPerDay();
+   }
+
+  // Compute biomass needs
+  Masses X, W, G;
+  biomassRequirements(W, G);
+
+  // Increase wastes when outside comfortable temperature range
+  for (decimal &f: W) f *= 2 - T_eff;
 
   // Transform resources into biomass
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Transforming resources into biomass" << std::endl;
-  Masses X, W, G;
-  biomassRequirements(W, G);
   for (Layer l: L_EU::iterator()) {
     X[l] = _genome.metabolism.growthSpeed * _biomasses[l]
          * concentration(l, Element::GLUCOSE)
          * concentration(l, Element::WATER);
 
     if (debugMetabolism)
-      std::cerr << "X[" << L_EU::getName(l) << "] = " << X[l] << " = "
+      std::cerr << "\tX[" << L_EU::getName(l) << "] = " << X[l] << " = "
                 << _genome.metabolism.growthSpeed << " * " << _biomasses[l]
                 << " * " << concentration(l, Element::GLUCOSE)
                 << " * " << concentration(l, Element::WATER);
@@ -678,7 +728,7 @@ void Plant::metabolicStep(Environment &env) {
   if (debugMetabolism) {
     std::cerr << PlantID(this) << " Wastes:";
     for (decimal f: W) std::cerr << " " << f;
-    std::cerr << std::endl;
+    std::cerr << " (" << 100 * (2 - T_eff) << "%)" << std::endl;
   }
 
   for (Layer l: L_EU::iterator()) X[l] -= W[l];
@@ -689,7 +739,7 @@ void Plant::metabolicStep(Environment &env) {
     for (Layer l: L_EU::iterator())
       std::cerr << " " << X[l];
     std::cerr << std::endl;
-    std::cerr << "Requirements:";
+    std::cerr << PlantID(this) << " Requirements:";
     for (decimal f: G) std::cerr << " " << f;
     std::cerr << std::endl;
   }
@@ -699,22 +749,6 @@ void Plant::metabolicStep(Environment &env) {
                       [&l] (Organ *o) {
       return o->layer() == l;
     });
-
-//  for (Organ *s: _sinks) {
-//    decimal r = s->requiredBiomass();
-//    assert(s->isSeed() || r >= 0);
-//    if (r <= 0) continue;
-//    decimal b = X[s->layer()] * r / G[s->layer()];
-
-//    if (debugMetabolism)
-//      std::cerr << OrganID(s) << " b = "
-//                << "X[" << s->layer() << "] * " << r << " / G[" << s->layer()
-//                << "] = " << X[s->layer()] << " * " << r << " / "
-//                << G[s->layer()] << " = " << X[s->layer()] * r / G[s->layer()]
-//                << std::endl;
-
-//    s->accumulate(std::min(r, b));
-//  }
 
   // Update biomass (if needed)
   bool update = false;
@@ -728,7 +762,7 @@ void Plant::metabolicStep(Environment &env) {
       utils::iclip_max(_reserves[l][e], _biomasses[l]);
 
   if (debugMetabolism) {
-    std::cerr << PlantID(this) << " state at end:\n\t"
+    std::cerr << PlantID(this) << " State at end:\n\t"
               << _organs.size() << " organs"
               << "\n\tbiomasses:";
     for (decimal b: _biomasses) std::cerr << " " << b;
@@ -794,7 +828,8 @@ void Plant::updateMetabolicValues(void) {
   for (Layer l: L_EU::iterator()) {
     if (_biomasses[l] < oldBiomasses[l]) {
       if (d)
-        std::cerr << PlantID(this) << " Clipped to " << _biomasses[l] << std::endl;
+        std::cerr << PlantID(this) << " Clipping "
+                  << L_EU::getName(l)<< " reserves to " << _biomasses[l] << std::endl;
       for (Element e: E_EU::iterator())
         utils::iclip_max(_reserves[l][e], _biomasses[l]);
     }
@@ -840,10 +875,17 @@ void Plant::processFruits(Environment &env) {
       collectedFruits.push_back(fruit);
   }
 
+  bool needUpdate = !collectedFruits.empty();
   while (!collectedFruits.empty()) {
     Organ *fruit = collectedFruits.back();
     collectedFruits.pop_back();
     delOrgan(fruit, env);
+  }
+
+  if (needUpdate) {
+    updateGeometry();
+    _dirty.set(DIRTY_COLLISION, true);
+    _dirty.set(DIRTY_METABOLISM, true);
   }
 }
 

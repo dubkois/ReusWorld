@@ -82,6 +82,7 @@ public:
                          Environment &env);
 
   void updateAltitude (Environment &env, float h);
+  void updateGeometry (void);
   void update (Environment &env);
 
   auto id (void) const {
@@ -154,6 +155,8 @@ public:
   bool isDead (void) const {
     return _killed || spontaneousDeath();
   }
+
+  float heatEfficiency (float T) const;
 
   bool spontaneousDeath (void) const;
   void autopsy (void) const;
@@ -230,8 +233,6 @@ private:
     return turtleParse(parent, successor, angle, type, newOrgans, checkers, env);
   }
 
-  void updateGeometry (void);
-
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
 
   void updatePStats (Environment &env);
@@ -255,11 +256,15 @@ struct PlantID {
 };
 struct OrganID {
   const Organ *o;
-  OrganID (const Organ *o) : o(o) {}
+  bool noPlantID;
+  OrganID (const Organ *o, bool npi = false) : o(o), noPlantID(npi) {}
   friend std::ostream& operator<< (std::ostream &os, const OrganID &oid) {
     os << "[";
-    PlantID::print(os, oid.o->plant());
-    return os << ":" << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0]
+    if (!oid.noPlantID) {
+      PlantID::print(os, oid.o->plant());
+      os << ":";
+    }
+    return os << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0]
               << "O" << oid.o->id() << oid.o->symbol() << "]";
   }
 };

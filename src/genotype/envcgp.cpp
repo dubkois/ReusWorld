@@ -85,10 +85,10 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(float, t_m1, "", 0.f, .25f, .25f, 1.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, t_s1, "", .01f, .05f, .05f, 1.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  h_a, "", 0.f, .5f, .5f, 1.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  h_f, "", 0.f, 1.f, 1.f, 10.f)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  w_m, "", 0.f, .5f, .5f, 1.f)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  w_s, "", 0.f, 1.f, 1.f, 1.f)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  c0, "", 0.f, .5f, .5f, 1.f)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  c1, "", 0.f, .5f, .5f, 1.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  w_m, "", 0.f, .25f, .25f, 1.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  w_s, "", 0.f, .1f, .1f, 1.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  c0, "", 0.f, 1.f, 1.f, 1.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  c1, "", 0.f, 1.f, 1.f, 1.f)
 
 DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(t_a0, .1f),
@@ -119,21 +119,23 @@ void EnvCGP::process(const Inputs &inputs, Outputs &outputs) {
 
   float x = inputs[COORDINATE];
 
-  // Simple square function
+#warning Bypassing CGP!
+
 //  outputs[ALTITUDE_] = .5*utils::sgn(std::sin(4*(x+.25) *M_PI));
+  outputs[ALTITUDE_] = (t_a0 * gauss(x, t_m0, t_s0) - t_a1 * gauss(x, t_m1, t_s1))
+                     * inputs[YEAR];
 
-  outputs[ALTITUDE_] = t_a0 * gauss(x, t_m0, t_s0) - t_a1 * gauss(x, t_m1, t_s1);
-  outputs[ALTITUDE_] *= inputs[YEAR];
-
-  outputs[TEMPERATURE_] = .5*utils::sgn(std::sin(4*(x+.25) *M_PI));
-//  outputs[TEMPERATURE_] = -c0 * pos(inputs[ALTITUDE]
-//                        + (1-c0) * h_a * sin(2 * h_f * inputs[DAY] * M_PI));
+//  outputs[TEMPERATURE_] = .5*utils::sgn(std::sin(4*(x+.25) *M_PI));
 //  outputs[TEMPERATURE_] = 2 * inputs[COORDINATE] - 1;
+//  outputs[TEMPERATURE_] = x < .4 ? -1 : x > .6 ? 1 : 0;
+  outputs[TEMPERATURE_] = -c0 * pos(inputs[ALTITUDE])
+                        + (1-c0) * h_a * sin(2 * h_f * inputs[DAY] * M_PI);
 
-  outputs[HYGROMETRY_] = .5*utils::sgn(std::sin(4*(x+.25) *M_PI));
-//  outputs[HYGROMETRY_] = (1 - c1 + c1 * (1 - pos(inputs[TEMPERATURE])))
-//                       * .25 * (gauss(x, w_m, w_s) + 1);
-//    outputs[HYGROMETRY_] = 1 - 2 * inputs[COORDINATE];
+//  outputs[HYGROMETRY_] = 1;
+//  outputs[HYGROMETRY_] = .5*utils::sgn(std::sin(4*(x+.25) *M_PI));
+//  outputs[HYGROMETRY_] = 1 - 2 * inputs[COORDINATE];
+  outputs[HYGROMETRY_] = c1 * (1 - pos(inputs[TEMPERATURE] - .5))
+                       + (1 - c1) * (1 - gauss(x, w_m, w_s));
 }
 
 } // end of namespace genotype

@@ -14,6 +14,8 @@ public:
   using Layer = genotype::LSystemType;
   enum OID : uint { INVALID = uint(-1) };
 
+  using Corners = std::array<Point, 4>;
+
   struct ParentCoordinates {
    float rotation;
   };
@@ -23,12 +25,14 @@ public:
     Point center;
     float rotation;
     Rect boundingRect;
+    Corners corners;
   };
 
   struct GlobalCoordinates {
     Point origin;
     Point center;
     Rect boundingRect;
+    Corners corners;
   };
 
 private:
@@ -59,8 +63,9 @@ public:
   void updateDimensions(bool andTransformations);
 
   /// _boundingRect
-  void updateGlobalTransformation (void);
   void updateTransformation (void);
+  void updateBoundingBox (void);
+  void updateGlobalTransformation (void);
   void updateParent (Organ *newParent);
   void updateRotation (float d_angle);
 

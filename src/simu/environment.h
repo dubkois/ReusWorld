@@ -129,6 +129,8 @@ public:
   void removeGeneticMaterial(Organ *p);
   physics::Pistil collectGeneticMaterial (Organ *f);
 
+  void processNewObjects (void);
+
   const auto& collisionData (void) const {
     return *_physics;
   }

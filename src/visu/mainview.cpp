@@ -99,11 +99,14 @@ void MainView::selectPreviousPlant(void) {
     Plant *p = nullptr;
     if (!_selection)  p = _plants.last();
     else {
-      auto it = _plants.find(_selection->pos().x());
-      if (it != _plants.begin())
-        p = *(--it);
-      else
-        p = _plants.last();
+      auto itBase = _plants.find(_selection->pos().x()), it = itBase;
+      do {
+        if (it != _plants.begin())
+          --it;
+        else
+          it = std::prev(_plants.end());
+        p = *it;
+      } while (p->plant().isInSeedState() && it != itBase);
     }
     updateSelection(p);
   }
@@ -114,11 +117,12 @@ void MainView::selectNextPlant(void) {
     Plant *p = nullptr;
     if (!_selection)  p = _plants.first();
     else {
-      auto it = _plants.find(_selection->pos().x());
-      if (it != _plants.end()-1)
-        p = *(++it);
-      else
-        p = _plants.first();
+      auto itBase = _plants.find(_selection->pos().x()), it = itBase;
+      do {
+        ++it;
+        if (it == _plants.end())  it = _plants.begin();
+        p = *it;
+      } while (p->plant().isInSeedState() && it != itBase);
     }
     updateSelection(p);
   }
@@ -142,6 +146,7 @@ void MainView::focusOnSelection(void) {
   fitInView(_selection->boundingRect().translated(_selection->pos()),
             Qt::KeepAspectRatio);
   scale(_zoom, _zoom);
+  _controller->updateMousePosition(mapToScene(_selection->pos().toPoint()));
 }
 
 void MainView::paintEvent(QPaintEvent *e) {

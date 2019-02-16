@@ -7,13 +7,9 @@
 /*!
  * TODO Table of todos
  *  TODO Limit plant count (how???)
- *  TODO Narrow phase collision
- *  TODO Environment
- *    TODO Water supply
- *    TODO Topology
- *  TODO Temperature
- *    TODO In the environment
- *    TODO Effect on plants ?
+ *  TODO PTree noise resilience
+ *  TODO Binary save
+ *  TODO Evolutionary algo (timeline picking)
  */
 
 std::atomic<bool> aborted = false;

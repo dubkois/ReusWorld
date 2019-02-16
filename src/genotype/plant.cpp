@@ -379,8 +379,8 @@ DEFINE_GENOME_FIELD_AS_SUBGENOME(Metabolism, metabolism, "")
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 10u, 10u, 1000u)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, fruitOvershoot, "", 1.f, 1.1f, 1.1f, 2.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureOptimal, "", -20, 10, 10, 40)
-DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureRange, "", 1e-3f, 10, 10, 30)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureOptimal, "", -20.f, 10.f, 10.f, 40.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureRange, "", 1e-3f, 10.f, 10.f, 30.f)
 
 
 DEFINE_GENOME_MUTATION_RATES({
