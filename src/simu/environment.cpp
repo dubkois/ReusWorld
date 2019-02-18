@@ -5,7 +5,7 @@
 
 namespace simu {
 
-static constexpr bool debugCGP = true;
+static constexpr bool debugCGP = false;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 
@@ -51,6 +51,7 @@ void Environment::cgpStep (void) {
 
   inputs[CGP_I::DAY] = _time.timeOfYear();
   inputs[CGP_I::YEAR] = _time.timeOfWorld();
+  std::cerr << "year: " << inputs[CGP_I::YEAR] << std::endl;;
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
@@ -173,7 +174,7 @@ void Environment::processNewObjects(void) {
   _physics->processNewObjects();
 }
 
-void Environment::updateCanopies(const std::vector<Plant *> &plants) {
+void Environment::updateCanopies(const std::set<Plant *> &plants) {
   _physics->updateCanopies(plants);
 }
 

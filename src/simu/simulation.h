@@ -80,7 +80,7 @@ protected:
   virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x, Plant::Seeds &seeds);
 
-  virtual void performReproductions (void);
+  virtual void performReproductions (std::set<Plant *> &modifiedPlants);
   virtual void plantSeeds (Plant::Seeds &seeds);
 
   virtual void updatePlantAltitude (Plant &p, float h);

@@ -16,7 +16,7 @@ static constexpr bool debug = false
   | debugPlantManagement | debugReproduction | debugTopology;
 
 //#define INSTRUMENTALISE
-#define CUSTOM_PLANTS
+//#define CUSTOM_PLANTS
 
 #if !defined(NDEBUG) && defined(INSTRUMENTALISE)
 auto instrumentaliseEnvGenome (genotype::Environment g) {
@@ -202,8 +202,7 @@ void Simulation::delPlant(float x, Plant::Seeds &seeds) {
   _plants.erase(x);
 }
 
-void Simulation::performReproductions(void) {
-  std::vector<Plant*> modifiedPlants;
+void Simulation::performReproductions(std::set<Plant*> &modifiedPlants) {
   if (debugReproduction)
     std::cerr << "Performing reproduction(s)" << std::endl;
 
@@ -255,7 +254,7 @@ void Simulation::performReproductions(void) {
 
         mother->replaceWithFruit(s.organ, litter, _env);
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
-        modifiedPlants.push_back(mother);
+        modifiedPlants.insert(mother);
 
         _stats.reproductions++;
       }
@@ -393,7 +392,7 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
 
-  std::vector<Plant*> modifiedPlants;
+  std::set<Plant*> modifiedPlants;
 
   Plant::Seeds seeds;
   std::set<float> corpses;
@@ -405,7 +404,7 @@ void Simulation::step (void) {
       corpses.insert(p->pos().x);
 
     } else if (modified)
-      modifiedPlants.push_back(p.get());
+      modifiedPlants.insert(p.get());
   }
 
   _stats.deadPlants = corpses.size();
@@ -425,16 +424,21 @@ void Simulation::step (void) {
     }
   }
 
-  performReproductions();
+  performReproductions(modifiedPlants);
 
-  for (const auto &p: _plants)  p.second->collectCurrentStepSeeds(seeds);
+  for (const auto &p: _plants) {
+    if (p.second->hasUncollectedSeeds()) {
+      p.second->collectCurrentStepSeeds(seeds);
+      modifiedPlants.insert(p.second.get());
+    }
+  }
   plantSeeds(seeds);
 
   if (!seeds.empty())
     _env.processNewObjects();
 
   if (!modifiedPlants.empty())
-    _env.updateCanopies(modifiedPlants);
+    _env.updateCanopies(modifiedPlants);  ///TODO Does not process dead plants !
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
@@ -499,9 +503,10 @@ void Simulation::logGlobalStats(void) {
   ofs.open("global.dat", mode);
 
   if (first)
-    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass Organs Flowers Fruits Matings"
+    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass Organs"
+           " Flowers Fruits Matings"
            " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
-           " MinX MaxX\n";
+           " Species MinX MaxX\n";
 
   using decimal = Plant::decimal;
   decimal biomass = 0;
@@ -543,6 +548,8 @@ void Simulation::logGlobalStats(void) {
 
       << " " << _stats.sumDistances / float(_stats.matings)
       << " " << _stats.sumCompatibilities / float(_stats.matings)
+
+      << " " << _ptree.width()
 
       << " " << minx << " " << maxx
       << std::endl;

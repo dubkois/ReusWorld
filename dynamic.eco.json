@@ -1,0 +1,65 @@
+{
+  "env": {
+    "cgp": {
+      "c0": 0.25,
+      "c1": 0.25,
+      "h_a": 0.25,
+      "h_f": 1.0,
+      "t_a0": 0.25,
+      "t_a1": 0.125,
+      "t_m0": 0.75,
+      "t_m1": 0.25,
+      "t_s0": 0.05,
+      "t_s1": 0.05,
+      "w_m": 0.25,
+      "w_s": 0.1
+    },
+    "depth": 50.0,
+    "maxT": 40.0,
+    "minT": -20.0,
+    "rngSeed": 2357136044,
+    "voxels": 100,
+    "width": 100.0
+  },
+  "plant": {
+    "cdata": {
+      "G": 0,
+      "S": 0,
+      "id": 0,
+      "mu": 2.860757350921631,
+      "p0": 4294967295,
+      "p1": 4294967295,
+      "si": 2.0,
+      "so": 2.0
+    },
+    "dethklok": 10,
+    "fruitOvershoot": 1.100000023841858,
+    "metabolism": {
+      "conversionRates": [
+        0.8474044856469469,
+        0.6239401327996122
+      ],
+      "deltaWidth": 0.2,
+      "growthSpeed": 1.0,
+      "resistors": [
+        1.0,
+        1.0
+      ]
+    },
+    "root": {
+      "recursivity": 2,
+      "rules": {
+        "S": "S -> [+h][-h]"
+      }
+    },
+    "seedsPerFruit": 3,
+    "shoot": {
+      "recursivity": 2,
+      "rules": {
+        "S": "S -> s[+l][-l]f"
+      }
+    },
+    "temperatureOptimal": 10.0,
+    "temperatureRange": 10.0
+  }
+}

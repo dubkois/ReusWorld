@@ -97,7 +97,7 @@ public:
   void processNewObjects (void);
 
   // Call at the end of a simulation step to update canopies with new morphologies
-  void updateCanopies (const std::vector<Plant*> &plants);
+  void updateCanopies (const std::set<Plant *> &plants);
 
 private:
   Collisions::iterator find (const Plant *p);

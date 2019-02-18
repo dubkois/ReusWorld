@@ -14,10 +14,10 @@ using ULItem = simu::physics::UpperLayer::Item;
 const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
-static constexpr int debugAABB = 1;
-static constexpr int debugCorners = 1;
+static constexpr int debugAABB = 0;
+static constexpr int debugCorners = 0;
 static constexpr int debugLeaves = 3;
-static constexpr int debugSpores = 1;
+static constexpr int debugSpores = 0;
 
 QColor Environment::colorForTemperature (float t) {
   static const float maxAlpha = 1;

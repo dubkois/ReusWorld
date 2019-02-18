@@ -18,11 +18,11 @@ static const auto A = GConfig::ls_rotationAngle();
 
 static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
-static constexpr bool debugDerivation = true;
+static constexpr bool debugDerivation = false;
 static constexpr int debugMetabolism = false;
 static constexpr bool debugReproduction = false;
 
-static constexpr bool debug = true
+static constexpr bool debug = false
   | debugInit | debugOrganManagement | debugDerivation | debugMetabolism
   | debugReproduction;
 
@@ -321,7 +321,7 @@ void Plant::updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta)
 
 void Plant::updateGeometry(void) {
   // update bounding rect
-  _boundingRect = (*_organs.begin())->inPlantCoordinates().boundingRect;
+  _boundingRect = Rect{{0,0},{0,0}};
   for (Organ *o: _organs)
     _boundingRect.uniteWith(o->inPlantCoordinates().boundingRect);
 }
@@ -945,22 +945,24 @@ bool Plant::step(Environment &env) {
     if (starvedOut) kill();
   }
 
-  if (_age % SConfig::stepsPerDay() == 0) {
+  if (_age % SConfig::stepsPerDay() == 0 && !_nonTerminals.empty()) {
 
     bool derived = bool(deriveRules(env));
     _derived += derived;
 
-    // Remove non terminals when reaching maximal derivation for a given lsystem
-    for (Layer l: {Layer::SHOOT, Layer::ROOT}) {
-      if (_genome.maxDerivations(l) >= _derived)  continue;
-      if (debugDerivation)
-        std::cerr << PlantID(this) << " Trimming non terminals for "
-                  << L_EU::getName(l) << std::endl;
-      auto nonTerminals = _nonTerminals;
-      for (Organ *o: nonTerminals) {
-        if (o->layer() == l) {
-          updateSubtree(o, o->parent(), o->localRotation());
-          delOrgan(o, env);
+    if (!_nonTerminals.empty()) {
+      // Remove non terminals when reaching maximal derivation for a given lsystem
+      for (Layer l: {Layer::SHOOT, Layer::ROOT}) {
+        if (_genome.maxDerivations(l) >= _derived)  continue;
+        if (debugDerivation)
+          std::cerr << PlantID(this) << " Trimming non terminals for "
+                    << L_EU::getName(l) << std::endl;
+        auto nonTerminals = _nonTerminals;
+        for (Organ *o: nonTerminals) {
+          if (o->layer() == l) {
+            updateSubtree(o, o->parent(), o->localRotation());
+            delOrgan(o, env);
+          }
         }
       }
     }

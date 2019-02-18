@@ -114,6 +114,9 @@ public:
     return _fruits;
   }
 
+  bool hasUncollectedSeeds (void) const {
+    return !_currentStepSeeds.empty();
+  }
   void collectCurrentStepSeeds (Seeds &seeds) {
     seeds.insert(seeds.end(), _currentStepSeeds.begin(), _currentStepSeeds.end());
     _currentStepSeeds.clear();

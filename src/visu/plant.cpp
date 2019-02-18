@@ -14,9 +14,10 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
-static constexpr bool drawOrganID = true;
-static constexpr bool drawOrganContour = true;
-static constexpr bool drawOrganCorners = true;
+static constexpr bool drawOrganID = false;
+static constexpr bool drawPlantID = false;
+static constexpr bool drawOrganContour = false;
+static constexpr bool drawOrganCorners = false;
 static constexpr bool drawQtBoundingBox = false;
 
 static auto apexSize (void) {
@@ -151,7 +152,7 @@ void Plant::updateGeometry(void) {
   _boundingRect = toQRect(_plant.boundingRect())
                     .united(minBoundingBox());
   float m = .1 * _boundingRect.height();
-  _boundingRect.adjust(-m, -m, m, m);
+  _boundingRect.adjust(-m, -2*m, m, m);
 }
 
 void Plant::updateTooltip(void) {
@@ -250,16 +251,15 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   // To have something to look at even with little resolution
   painter->drawPoint(0,0);
 
+  QRectF r = boundingRect();
   if (drawQtBoundingBox) {
     painter->save();
-      QRectF r = boundingRect();
       pen.setColor(Qt::red);
       painter->setPen(pen);
       painter->drawRect(r);
     painter->restore();
   }
 
-  bool doDrawOrganContour = drawOrganContour && isSelected();
   bool dead = _plant.isDead();
 
   pen.setColor(Qt::NoPen);
@@ -278,11 +278,28 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
     }
   }
 
-  if (doDrawOrganContour) {
+  if (isSelected()) {
     pen.setColor(Qt::black);
     painter->setPen(pen);
     for (const simu::Organ *o: _plant.bases())
       gui::paint(painter, o, true, dead);
+  }
+
+  if (drawPlantID) {
+    painter->save();
+      QPen pen = painter->pen();
+      pen.setColor(Qt::black);
+      painter->setPen(pen);
+      QFont font = painter->font();
+      font.setPointSizeF(.5);
+      painter->setFont(font);
+      painter->scale(.1 * r.width(), .1 * r.height());
+      painter->drawText(QRectF(10 * r.left() / r.width(),
+                               10 * r.top() / r.height(),
+                               10, 2),
+                        Qt::AlignCenter,
+                        QString("P%1").arg(uint(_plant.id())));
+    painter->restore();
   }
 
   painter->restore();
