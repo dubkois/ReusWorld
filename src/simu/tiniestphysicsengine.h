@@ -90,14 +90,15 @@ public:
 
   void addPistil (Organ *p);
   void updatePistil (Organ *p, const Point &oldPos);
-  void delPistil (Organ *p);
+  void delPistil (const Organ *p);
   Pistils_range sporesInRange (Organ *s);
 
   // Call at the end of a simulation step to register new seeds
   void processNewObjects (void);
 
-  // Call at the end of a simulation step to update canopies with new morphologies
-  void updateCanopies (const std::set<Plant *> &plants);
+#ifndef NDEBUG
+  void debug (void) const;
+#endif
 
 private:
   Collisions::iterator find (const Plant *p);
@@ -108,10 +109,6 @@ private:
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
                                     const Rect &intersection);
-
-#ifndef NDEBUG
-  void debug (void) const;
-#endif
 
   bool valid (const Pistil &p);
   bool checkAll (void);

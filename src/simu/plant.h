@@ -81,6 +81,8 @@ public:
   void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
                          Environment &env);
 
+  bool isDirty (State s) const {  return _dirty.test(s);  }
+
   void updateAltitude (Environment &env, float h);
   void updateGeometry (void);
   void update (Environment &env);
@@ -166,7 +168,7 @@ public:
 
   /// Steps the plant by one tick
   /// \returns true if its phenotype changed
-  bool step (Environment &env);
+  void step(Environment &env);
 
   void kill (void) {
     _killed = true;

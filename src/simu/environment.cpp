@@ -37,6 +37,10 @@ void Environment::destroy (void) {
 void Environment::step (void) {
   cgpStep();
 
+#ifndef NDEBUG
+  _physics->debug();
+#endif
+
   _time.next();
 }
 
@@ -47,11 +51,11 @@ void Environment::cgpStep (void) {
   CGP::Inputs inputs;
   CGP::Outputs outputs;
 
-  _updatedTopology = (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
+  _updatedTopology = _time.isStartOfYear()
+      && (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
 
   inputs[CGP_I::DAY] = _time.timeOfYear();
   inputs[CGP_I::YEAR] = _time.timeOfWorld();
-  std::cerr << "year: " << inputs[CGP_I::YEAR] << std::endl;;
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
@@ -172,10 +176,6 @@ physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
 
 void Environment::processNewObjects(void) {
   _physics->processNewObjects();
-}
-
-void Environment::updateCanopies(const std::set<Plant *> &plants) {
-  _physics->updateCanopies(plants);
 }
 
 } // end of namespace simu

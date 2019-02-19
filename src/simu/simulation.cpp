@@ -15,8 +15,10 @@ static constexpr int debugTopology = 0;
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction | debugTopology;
 
+#ifndef NDEBUG
 //#define INSTRUMENTALISE
 //#define CUSTOM_PLANTS
+#endif
 
 #if !defined(NDEBUG) && defined(INSTRUMENTALISE)
 auto instrumentaliseEnvGenome (genotype::Environment g) {
@@ -68,7 +70,7 @@ bool Simulation::init (void) {
   using RRule = genotype::grammar::Rule_t<genotype::LSystemType::ROOT>;
 
   PGenome modifiedPrimordialPlant = _primordialPlant;
-  modifiedPrimordialPlant.dethklok = 100;
+  modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
 
@@ -84,6 +86,7 @@ bool Simulation::init (void) {
   };
   genomes[0].root.recursivity = 10;
 
+  genomes[1].dethklok = 25;
   genomes[1].shoot.rules = {
     SRule::fromString("S -> s[-Al][+Bl]").toPair(),
     SRule::fromString("A -> -sA").toPair(),
@@ -93,6 +96,7 @@ bool Simulation::init (void) {
   genomes[2].shoot.rules = genomes[1].shoot.rules;
   genomes[2].shoot.recursivity = 7;
 
+  genomes[3].dethklok = 25;
   genomes[3].shoot.rules = genomes[1].shoot.rules;
 
   genomes[4].shoot.rules = {
@@ -202,7 +206,7 @@ void Simulation::delPlant(float x, Plant::Seeds &seeds) {
   _plants.erase(x);
 }
 
-void Simulation::performReproductions(std::set<Plant*> &modifiedPlants) {
+void Simulation::performReproductions(void) {
   if (debugReproduction)
     std::cerr << "Performing reproduction(s)" << std::endl;
 
@@ -253,17 +257,14 @@ void Simulation::performReproductions(std::set<Plant*> &modifiedPlants) {
         for (const auto &g: litter) _ptree.addGenome(g);
 
         mother->replaceWithFruit(s.organ, litter, _env);
+        mother->updateGeometry(); /// TODO Probably multiple updates... not great
+        mother->update(_env);
+
         stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
-        modifiedPlants.insert(mother);
 
         _stats.reproductions++;
       }
     }
-  }
-
-  for (Plant *p: modifiedPlants) {
-    p->updateGeometry();
-    p->update(_env);
   }
 }
 
@@ -392,19 +393,15 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
 
-  std::set<Plant*> modifiedPlants;
-
   Plant::Seeds seeds;
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
-    bool modified = p->step(_env);
+    p->step(_env);
     if (p->isDead()) {
       if (debugDeath) p->autopsy();
       corpses.insert(p->pos().x);
-
-    } else if (modified)
-      modifiedPlants.insert(p.get());
+    }
   }
 
   _stats.deadPlants = corpses.size();
@@ -424,21 +421,15 @@ void Simulation::step (void) {
     }
   }
 
-  performReproductions(modifiedPlants);
+  performReproductions();
 
-  for (const auto &p: _plants) {
-    if (p.second->hasUncollectedSeeds()) {
+  for (const auto &p: _plants)
+    if (p.second->hasUncollectedSeeds())
       p.second->collectCurrentStepSeeds(seeds);
-      modifiedPlants.insert(p.second.get());
-    }
-  }
   plantSeeds(seeds);
 
   if (!seeds.empty())
     _env.processNewObjects();
-
-  if (!modifiedPlants.empty())
-    _env.updateCanopies(modifiedPlants);  ///TODO Does not process dead plants !
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
@@ -449,7 +440,6 @@ void Simulation::step (void) {
   if (Config::logGlobalStats())
     logGlobalStats();
 
-  _env.step();
   if (_env.hasTopologyChanged()) {
     for (const auto &it: _plants) {
       const auto pos = it.second->pos();
@@ -458,6 +448,10 @@ void Simulation::step (void) {
         updatePlantAltitude(*it.second, h);
     }
   }
+
+  if (_env.time().isStartOfYear() &&
+    (_env.time().year() % Config::saveEvery()) == 0)
+    save();
 
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
@@ -477,6 +471,8 @@ void Simulation::step (void) {
       std::cout << " (" << time.toTimestamp() << " steps)" << std::endl;
     }
   }
+
+  _env.step();
 }
 
 void Simulation::updatePlantAltitude(Plant &p, float h) {
@@ -553,6 +549,12 @@ void Simulation::logGlobalStats(void) {
 
       << " " << minx << " " << maxx
       << std::endl;
+}
+
+void Simulation::save (void) const {
+  nlohmann::json j;
+  _env.save(j[0]);
+
 }
 
 } // end of namespace simu

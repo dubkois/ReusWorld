@@ -47,6 +47,9 @@ public:
     return _env.time();
   }
 
+  void save (void) const;
+  static Simulation load (std::ofstream &ofs);
+
 protected:
   struct Stats {
     using clock = std::chrono::high_resolution_clock;
@@ -67,7 +70,7 @@ protected:
   } _stats;
 
   Environment _env;
-  const genotype::Plant _primordialPlant;
+  const genotype::Plant _primordialPlant; /// TODO How to remove this ?
 
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;
@@ -80,7 +83,7 @@ protected:
   virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x, Plant::Seeds &seeds);
 
-  virtual void performReproductions (std::set<Plant *> &modifiedPlants);
+  virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);
 
   virtual void updatePlantAltitude (Plant &p, float h);

@@ -150,6 +150,10 @@ struct Time {
   bool isStartOf (void) const;
   bool isEndOf (void) const;
 
+  bool isStartOfYear (void) const {
+    return _day == 0;
+  }
+
   static Time fromTimestamp (uint step);
   uint toTimestamp (void) const;
 

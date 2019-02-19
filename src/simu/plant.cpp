@@ -921,19 +921,17 @@ void Plant::updateAltitude(Environment &env, float h) {
 }
 
 void Plant::update (Environment &env) {
-  if (_dirty.test(DIRTY_COLLISION)) {
+  if (isDirty(DIRTY_COLLISION)) {
     env.updateCollisionDataFinal(this);
     _dirty.set(DIRTY_COLLISION, false);
   }
-  if (_dirty.test(DIRTY_METABOLISM)) {
+  if (isDirty(DIRTY_METABOLISM)) {
     updateMetabolicValues();
     _dirty.set(DIRTY_METABOLISM, false);
   }
 }
 
-bool Plant::step(Environment &env) {
-  bool modified = false;
-
+void Plant::step(Environment &env) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
@@ -969,8 +967,6 @@ bool Plant::step(Environment &env) {
 
     if (derived)  updateRequirements();
     update(env);
-
-    modified |= derived;
   }
 
   metabolicStep(env);
@@ -989,7 +985,6 @@ bool Plant::step(Environment &env) {
   auto bases = _bases;
   for (Organ *o: bases)  deleted |= destroyDeadSubtree(o, env);
   if (deleted)  updateMetabolicValues();
-  modified |= deleted;
 
   // Update remaining flowers (check if some space was freed)
   for (auto &pair: oldPistilsPositions)
@@ -1009,8 +1004,6 @@ bool Plant::step(Environment &env) {
 //  std::cerr << "State at end:\n";
 //  std::cerr << *this;
 //  std::cerr << std::endl;
-
-  return modified;
 }
 
 void Plant::updatePStats(Environment &env) {

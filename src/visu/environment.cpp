@@ -15,7 +15,6 @@ const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
 static constexpr int debugAABB = 0;
-static constexpr int debugCorners = 0;
 static constexpr int debugLeaves = 3;
 static constexpr int debugSpores = 0;
 
@@ -33,6 +32,27 @@ QColor Environment::colorForTemperature (float t) {
 
 QColor colorForWater (float w) {
   return QColor::fromRgbF(0,0,1, .2 * w);
+}
+
+void debugPaintAABB (QPainter *painter, const simu::physics::CollisionObject *obj,
+                     const QRectF &aabb) {
+
+  QPen pen = painter->pen();
+  painter->save();
+    if (debugAABB & 1) {
+      pen.setColor(Qt::red);
+      painter->setPen(pen);
+      painter->drawRect(aabb);
+    }
+
+    if (debugAABB & 2) {
+      pen.setColor(Qt::blue);
+      painter->setPen(pen);
+      for (const simu::Organ *o: obj->plant->organs())
+        painter->drawRect(toQRect(o->globalCoordinates().boundingRect));
+    }
+
+  painter->restore();
 }
 
 void debugPaintLeaves (QPainter *painter, const ULItems &items,
@@ -161,7 +181,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
   pen.setWidthF(0);
   painter->setPen(pen);
 
-  if (debugAABB || debugCorners || debugLeaves) {
+  if (debugAABB || debugLeaves) {
     using CData = simu::physics::TinyPhysicsEngine;
     using CObject = simu::physics::CollisionObject;
 
@@ -171,13 +191,8 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
     for (const CObject *obj: cd.data()) {
       QRectF br = toQRect(obj->boundingRect);
 
-      if (debugAABB) {
-        painter->save();
-        pen.setColor(Qt::red);
-        painter->setPen(pen);
-        painter->drawRect(br);
-        painter->restore();
-      }
+      if (debugAABB)
+        debugPaintAABB(painter, obj, br);
 
       if (debugLeaves) {
         debugPaintLeaves(painter, obj->layer.itemsInIsolation, br, Qt::gray);

@@ -13,10 +13,12 @@ DEFINE_PARAMETER(bool, logGlobalStats, false)
 
 DEFINE_PARAMETER(int, verbosity, 1)
 
-DEFINE_PARAMETER(uint, initSeeds, 100)
 DEFINE_PARAMETER(uint, stopAtYear, 100)
 DEFINE_PARAMETER(uint, stopAtMinGen, -1)
 DEFINE_PARAMETER(uint, stopAtMaxGen, -1)
+DEFINE_PARAMETER(uint, saveEvery, 1)
+
+DEFINE_PARAMETER(uint, initSeeds, 100)
 DEFINE_PARAMETER(uint, stepsPerDay, 10)
 DEFINE_PARAMETER(uint, daysPerYear, 100)
 DEFINE_PARAMETER(bool, taurusWorld, false)

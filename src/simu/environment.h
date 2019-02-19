@@ -130,7 +130,6 @@ public:
   physics::Pistil collectGeneticMaterial (Organ *f);
 
   void processNewObjects (void);
-  void updateCanopies (const std::set<Plant *> &plants);
 
   const auto& collisionData (void) const {
     return *_physics;

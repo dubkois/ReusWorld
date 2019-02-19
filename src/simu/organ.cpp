@@ -44,6 +44,8 @@ Point rotate_point(float angle, const Point &p) {
 }
 
 void Organ::accumulate (float biomass) {
+  if (fabs(biomass) < 1e-9) return;
+
   if (isStructural()) {
     if (debugGrowth)
       std::cerr << OrganID(this) << " old width: " << _width
@@ -111,7 +113,7 @@ void Organ::updateBoundingBox(void) {
 
   Rect &pr = _plantCoordinates.boundingRect;
   pr = Rect::invalid();
-  for (Point p: _plantCoordinates.corners) {
+  for (const Point &p: _plantCoordinates.corners) {
     pr.ul.x = std::min(pr.ul.x, p.x);
     pr.ul.y = std::max(pr.ul.y, p.y);
     pr.br.x = std::max(pr.br.x, p.x);
@@ -119,6 +121,8 @@ void Organ::updateBoundingBox(void) {
   }
 
   _plantCoordinates.center = pr.center();
+
+  updateGlobalTransformation();
 }
 
 void Organ::updateGlobalTransformation(void) {

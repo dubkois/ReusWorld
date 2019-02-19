@@ -183,11 +183,11 @@ void doLineSweep (const Plant *plant,
   canopy::SortedStack<Organ*> stack;
   UpperLayer::Item current;
 
-  if (debugUpperLayer || plant->id() == Plant::ID(21946))
+  if (debugUpperLayer)
     std::cerr << PlantID(plant) << " Performing linesweep for upper layer" << std::endl;
 
   for (canopy::XEvent e: xevents) {
-    if (debugUpperLayer || plant->id() == Plant::ID(21946))  std::cerr << "\t" << e << std::endl;
+    if (debugUpperLayer)  std::cerr << "\t" << e << std::endl;
 
     switch (e.type) {
     case IN:
@@ -195,10 +195,10 @@ void doLineSweep (const Plant *plant,
       if (current.y < e.top()) {
         if (current.organ && include(plant, current)) {
           emplaceItem(items, current, e.left());
-          if (debugUpperLayer || plant->id() == Plant::ID(21946))  std::cerr << "\t\tEmplaced " << current << std::endl;
+          if (debugUpperLayer)  std::cerr << "\t\tEmplaced " << current << std::endl;
         }
         resetItem(current, e.left(), e.top(), e.organ);
-        if (debugUpperLayer || plant->id() == Plant::ID(21946))  std::cerr << "\t\tNew top " << current << std::endl;
+        if (debugUpperLayer)  std::cerr << "\t\tNew top " << current << std::endl;
       }
       break;
 
@@ -210,7 +210,7 @@ void doLineSweep (const Plant *plant,
       if (top == e.organ) {
         if (include(plant, current)) {
           emplaceItem(items, current, e.right());
-          if (debugUpperLayer || plant->id() == Plant::ID(21946))  std::cerr << "\t\tEmplaced " << current << std::endl;
+          if (debugUpperLayer)  std::cerr << "\t\tEmplaced " << current << std::endl;
         }
 
         if (!stack.empty()) {
@@ -219,7 +219,7 @@ void doLineSweep (const Plant *plant,
                     newTop->globalCoordinates().boundingRect.t(), newTop);
         } else
           resetItem(current, e.right());
-        if (debugUpperLayer || plant->id() == Plant::ID(21946))  std::cerr << "\t\tNew current" << current << std::endl;
+        if (debugUpperLayer)  std::cerr << "\t\tNew current" << current << std::endl;
       }
       break;
     }
@@ -248,7 +248,7 @@ void UpperLayer::updateInIsolation (const simu::Environment &env, const Plant *p
   itemsInIsolation.clear();
   canopy::doLineSweep(p, xevents, itemsInIsolation, canopy::include_all);
 
-  if (debugUpperLayer || p->id() == Plant::ID(21946))
+  if (debugUpperLayer)
     std::cerr << "Extracted " << itemsInIsolation.size()
               << " potential upper layer items from " << p->organs().size()
               << " organs" << std::endl;
@@ -259,7 +259,7 @@ void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collision
     itemsInWorld = itemsInIsolation;
 
   else {
-    if (debugUpperLayer || p->id() == Plant::ID(21946)) {
+    if (debugUpperLayer) {
       std::cerr << PlantID(p) << " Performing canopy narrowphase against [";
       for (const CollisionObject *object: collisions)
         std::cerr << " " << object->plant->id();
@@ -270,7 +270,7 @@ void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collision
     std::set<canopy::XEvent> xevents;
 
     for (const UpperLayer::Item &i: itemsInIsolation) {
-      if (debugUpperLayer || p->id() == Plant::ID(21946))
+      if (debugUpperLayer)
         std::cerr << "\tInserting events for " << i << ":\n\t\t"
                   << canopy::XEvent(IN, i) << "\n\t\t" << canopy::XEvent(OUT, i)
                   << std::endl;
@@ -280,10 +280,8 @@ void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collision
 
     for (const CollisionObject *object: collisions) {
       for (const UpperLayer::Item &i: object->layer.itemsInIsolation) {
-//        if (!(i.r() < aabb.l() || aabb.r() < i.l()))
-//        if (!(i.r() < aabb.l()) && !(aabb.r() < i.l()))
         if (i.r >= aabb.l() && aabb.r() >= i.l) {
-          if (debugUpperLayer || p->id() == Plant::ID(21946))
+          if (debugUpperLayer)
             std::cerr << "\tInserting events for " << i << ":\n\t\t"
                       << canopy::XEvent(IN, i) << "\n\t\t"
                       << canopy::XEvent(OUT, i) << std::endl;
@@ -296,39 +294,10 @@ void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collision
     itemsInWorld.clear();
     canopy::doLineSweep(p, xevents, itemsInWorld, canopy::include_mine);
 
-    if (debugUpperLayer || p->id() == Plant::ID(21946))
+    if (debugUpperLayer)
       std::cerr << "Extract in " << itemsInWorld.size()
                 << " upper layer items from " << xevents.size() / 2
                 << " combined items" << std::endl;
-  }
-}
-
-void TinyPhysicsEngine::updateCanopies(const std::set<Plant*> &plants) {
-  // Collect potentially colliding canopies
-  if (debugUpperLayer || debugBroadphase)
-    std::cerr << "Performing broadphase for " << plants.size()
-              << " canopies" << std::endl;
-
-  const_Collisions allCollisions;
-  for (const Plant *p: plants) {
-    const_Collisions thisCollisions;
-    CollisionObject *object = *find(p);
-    broadphaseCollision(object, thisCollisions);
-
-    allCollisions.insert(object);
-    for (const CollisionObject *other: thisCollisions)
-      allCollisions.insert(other);
-  }
-
-  if (debugUpperLayer)
-    std::cerr << "Performing narrowphase for " << allCollisions.size()
-              << " canopies" << std::endl;
-
-  /// FIXME Redoing the broadphase for some > Not good
-  for (const CollisionObject *object: allCollisions) {
-    const_Collisions thisCollisions;
-    broadphaseCollision(object, thisCollisions);
-    object->layer.updateInWorld(object->plant, thisCollisions);
   }
 }
 
@@ -542,6 +511,16 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   auto it = find(p);
   CollisionObject *object = *it;
 
+  /// Update colliding objects canopies
+  const_Collisions thisCollisions;
+  broadphaseCollision(object, thisCollisions);
+  for (const CollisionObject *that: thisCollisions) {
+    const_Collisions thatCollisions;
+    broadphaseCollision(that, thatCollisions);
+    thatCollisions.erase(object);
+    that->layer.updateInWorld(that->plant, thatCollisions);
+  }
+
   // Delete edges
   _leftEdges.erase(object->leftEdge.get());
   _rightEdges.erase(object->rightEdge.get());
@@ -553,12 +532,13 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
     broadphase::noLongerEnglobes(other, object);
 
   // Also delete any remaining pistils
-  /// FIXME This stinks to high heavens: O(n) with no reason...
+//  /// FIXME This stinks to high heavens: O(n) with no reason...
   for (auto itP = _pistils.begin(); itP != _pistils.end();) {
     if (itP->organ->plant() == p)
       itP = _pistils.erase(itP);
     else  ++itP;
   }
+//  for (const Organ *p: object->plant->flowers())  delPistil(p);
 
   _data.erase(it);
   delete object;
@@ -632,6 +612,17 @@ void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
     for (CollisionObject *that: object->englobedObjects)
       std::cerr << " " << that->plant->id();
     std::cerr << std::endl;
+  }
+
+  // Update this' and neighbors' (world) canopies
+  const_Collisions thisCollisions;
+  broadphaseCollision(object, thisCollisions);
+  object->layer.updateInWorld(object->plant, thisCollisions);
+
+  for (const CollisionObject *neighbor: thisCollisions) {
+    const_Collisions thatCollisions;
+    broadphaseCollision(neighbor, thatCollisions);
+    neighbor->layer.updateInWorld(neighbor->plant, thatCollisions);
   }
 }
 
@@ -965,7 +956,7 @@ void TinyPhysicsEngine::addPistil(Organ *p) {
 #endif
 }
 
-void TinyPhysicsEngine::delPistil(Organ *p) {
+void TinyPhysicsEngine::delPistil(const Organ *p) {
   auto it = _pistils.find(p->globalCoordinates().center);
   if (it != _pistils.end() && it->organ == p) {
     if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;

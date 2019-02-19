@@ -22,6 +22,8 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(uint, stopAtYear)
   DECLARE_PARAMETER(uint, stopAtMinGen)
   DECLARE_PARAMETER(uint, stopAtMaxGen)
+  DECLARE_PARAMETER(uint, saveEvery)
+
   DECLARE_PARAMETER(uint, stepsPerDay)
   DECLARE_PARAMETER(uint, daysPerYear)
   DECLARE_PARAMETER(bool, taurusWorld)
