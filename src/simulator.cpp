@@ -19,62 +19,92 @@ void sigint_manager (int) {
   aborted = true;
 }
 
+bool isValidSeed(const std::string& s) {
+  return !s.empty()
+    && std::all_of(s.begin(),
+                    s.end(),
+                    [](char c) { return std::isdigit(c); }
+    );
+}
 
 int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing
 
   using Verbosity = config::Verbosity;
-  using Seed_t = rng::AbstractDice::Seed_t;
+
+  std::string configFile = "auto";  // Default to auto-config
+  Verbosity verbosity = Verbosity::SHOW;
+
+  std::string envGenomeArg, plantGenomeArg, loadSaveFile;
 
   cxxopts::Options options("ReusWorld (headless)",
                            "2D simulation of plants in a changing environment (no gui output)");
   options.add_options()
     ("h,help", "Display help")
-    ("a,auto-config", "Load configuration data from default location", cxxopts::value<bool>())
-    ("c,config", "File containing configuration data", cxxopts::value<std::string>())
-    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value<Verbosity>())
-    ("g,genome", "Genome to start from", cxxopts::value<std::string>())
-    ("r,random", "Random starting genome. Either using provided seed or current"
-                 "time", cxxopts::value<Seed_t>()->implicit_value("-1"))
+    ("a,auto-config", "Load configuration data from default location")
+    ("c,config", "File containing configuration data", cxxopts::value(configFile))
+    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
+    ("p,plant", "Plant genome to start from or a random seed", cxxopts::value(envGenomeArg))
+    ("e,environment", "Environment's genome or a random seed", cxxopts::value(plantGenomeArg))
+    ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
     ;
 
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
-    std::cout << options.help() << std::endl;
+    std::cout << options.help()
+              << "\n\nOption 'auto-config' is the default and overrides 'config'"
+                 " if both are provided"
+              << "\nEither both 'plant' and 'environment' options are used or "
+                 "a valid file is to be provided to 'load' (the former has "
+                 "precedance in case all three options are specified)"
+              << std::endl;
     return 0;
   }
 
-  std::string configFile;
-  if (result.count("auto-config"))  configFile = "auto";
-  if (result.count("config"))    configFile = result["config"].as<std::string>();
+  if (!result.count("environment"))
+    utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
 
-  Verbosity verbosity = Verbosity::SHOW;
-  if (result.count("verbosity")) verbosity = result["verbosity"].as<Verbosity>();
+  if (!result.count("plant"))
+    utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+
+  if (result.count("auto-config") && result["auto-config"].as<bool>())
+    configFile = "auto";
 
   config::Simulation::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Simulation::printConfig("");
 
-  genotype::Ecosystem genome;
-  if (result.count("genome") == result.count("random"))
-    utils::doThrow<std::invalid_argument>(
-      "You must either provide a starting genome or declare a random run");
-
-  else if (result.count("genome")) {
-    std::string inputFile = result["genome"].as<std::string>();
-    std::cout << "Reading genome from input file " << inputFile << std::endl;
-    genome = genotype::Ecosystem::fromFile(inputFile);
+  genotype::Environment envGenome;
+  if (isValidSeed(envGenomeArg)) {
+    std::cout << "Reading environment genome from input file '"
+              << envGenomeArg << "'" << std::endl;
+    envGenome = genotype::Environment::fromFile(envGenomeArg);
 
   } else {
-    rng::FastDice dice;
-    if (result["random"].as<Seed_t>() != Seed_t(-1))
-      dice.reset(result["random"].as<Seed_t>());
-    std::cout << "Generating genome from rng seed " << dice.getSeed() << std::endl;
-    genome = genotype::Ecosystem::random(dice);
-    genome.toFile("last", 2);
+    rng::FastDice dice (std::stoi(envGenomeArg));
+    std::cout << "Generating environment genome from rng seed "
+              << dice.getSeed() << std::endl;
+    envGenome = genotype::Environment::random(dice);
+    envGenome.toFile("last", 2);
   }
 
+  genotype::Plant plantGenome;
+  if (isValidSeed(plantGenomeArg)) {
+    std::cout << "Reading plant genome from input file '"
+              << plantGenomeArg << "'" << std::endl;
+    plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+
+  } else {
+    rng::FastDice dice (std::stoi(plantGenomeArg));
+    std::cout << "Generating plant genome from rng seed "
+              << dice.getSeed() << std::endl;
+    plantGenome = genotype::Plant::random(dice);
+    plantGenome.toFile("last", 2);
+  }
+
+  if (!loadSaveFile.empty())
+    utils::doThrow<std::logic_error>("Loading not yet implemented!");
 
   // ===========================================================================
   // == SIGINT management
@@ -89,10 +119,11 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  std::cout << "Starting from genome: " << genome << std::endl;
+  std::cout << "Starting genomes:\n" << envGenome << "\n" << plantGenome
+            << std::endl;
 
-  simu::Simulation s (genome);
-  s.init();
+  simu::Simulation s;
+  s.init(envGenome, plantGenome);
 
   while (!s.finished()) {
     if (aborted)  s.abort();

@@ -20,21 +20,8 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE( voxels, .1f),
   MUTATION_RATE(    cgp, 1.f)
 })
-#undef GENOME
-
-#define GENOME Ecosystem
-DEFINE_GENOME_FIELD_AS_SUBGENOME(Environment, env, "")
-DEFINE_GENOME_FIELD_AS_SUBGENOME(Plant, plant, "")
-
-DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(          plant, 1.f),
-  MUTATION_RATE(            env, 0.f),
-})
 
 namespace config {
-#define CFILE config::SAGConfigFile<genotype::Ecosystem>
-DEFINE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
-#undef CFILE
 #define CFILE config::SAGConfigFile<genotype::Environment>
 DEFINE_SUBCONFIG(genotype::EnvCGP::config_t, genotypeCGPConfig)
 #undef CFILE

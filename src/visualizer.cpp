@@ -12,17 +12,26 @@ int main(int argc, char *argv[]) {
 
   using Verbosity = config::Verbosity;
 
+  std::string configFile = "auto";  // Default to auto-config
+  Verbosity verbosity = Verbosity::SHOW;
+
+  std::string envGenomeFile, plantGenomeFile;
+
+  float speed = 1.f;
+  bool autoQuit = false;
+
   cxxopts::Options options("ReusWorld",
                            "2D simulation of plants in a changing environment");
   options.add_options()
     ("h,help", "Display help")
-    ("a,auto-config", "Load configuration data from default location", cxxopts::value<bool>())
-    ("c,config", "File containing configuration data", cxxopts::value<std::string>())
-    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value<Verbosity>())
-    ("g,genome", "Genome to start from", cxxopts::value<std::string>())
+    ("a,auto-config", "[2;D] Load configuration data from default location")
+    ("c,config", "[2] File containing configuration data", cxxopts::value(configFile))
+    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
+    ("p,plant", "[M] Plant genome to start from", cxxopts::value(envGenomeFile))
+    ("e,environment", "[M] Environment's genome", cxxopts::value(plantGenomeFile))
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
-      cxxopts::value<float>()->implicit_value("1"))
-    ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value<bool>())
+      cxxopts::value(speed)->implicit_value("1"))
+    ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value(autoQuit))
     ;
 
   auto result = options.parse(argc, argv);
@@ -32,28 +41,24 @@ int main(int argc, char *argv[]) {
       return 0;
   }
 
-  std::string configFile;
-  if (result.count("config"))    configFile = result["config"].as<std::string>();
-  if (result.count("auto-config"))  configFile = "auto";
+  if (!result.count("environment"))
+    utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
 
-  Verbosity verbosity = Verbosity::SHOW;
-  if (result.count("verbosity")) verbosity = result["verbosity"].as<Verbosity>();
+  if (!result.count("plant"))
+    utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+
+  if (result.count("auto-config") && result["auto-config"].as<bool>())
+    configFile = "auto";
 
   config::Visualization::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Visualization::printConfig("");
 
-  if (!result.count("genome"))
-    utils::doThrow<std::invalid_argument>("You must provide a starting genome file!");
-  std::string inputFile = result["genome"].as<std::string>();
-
-  float speed = 0.f;
-  if (result.count("run"))  speed = result["run"].as<float>();
-
   // ===========================================================================
   // == Core setup
 
-  genotype::Ecosystem e = genotype::Ecosystem::fromFile(inputFile);
-  visu::GraphicSimulation s (e);
+  genotype::Environment e = genotype::Environment::fromFile(envGenomeFile);
+  genotype::Plant p = genotype::Plant::fromFile(plantGenomeFile);
+  visu::GraphicSimulation s;
 
   // ===========================================================================
   // == Qt setup
@@ -66,10 +71,10 @@ int main(int argc, char *argv[]) {
   visu::Controller c (s, w, v);
 
   w.show();
-  s.init();
+  s.init(e, p);
 
   c.nextPlant();
-  if (result.count("auto-quit")) c.setAutoQuit(true);
+  c.setAutoQuit(autoQuit);
 
   if (speed > 0) {
     QTimer::singleShot(500, [&c, speed] {

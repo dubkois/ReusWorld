@@ -16,6 +16,10 @@ public:
   uint voxels;
 
   EnvCGP cgp;
+
+  std::string extension (void) const override {
+    return ".env.json";
+  }
 };
 
 DECLARE_GENOME_FIELD(Environment, uint, rngSeed)
@@ -25,20 +29,6 @@ DECLARE_GENOME_FIELD(Environment, float, minT)
 DECLARE_GENOME_FIELD(Environment, float, maxT)
 DECLARE_GENOME_FIELD(Environment, uint, voxels)
 DECLARE_GENOME_FIELD(Environment, EnvCGP, cgp)
-
-class Ecosystem : public SelfAwareGenome<Ecosystem> {
-  APT_SAG()
-public:
-  Plant plant;
-  Environment env;
-
-  std::string extension (void) const override {
-    return ".eco.json";
-  }
-};
-
-DECLARE_GENOME_FIELD(Ecosystem, Plant, plant)
-DECLARE_GENOME_FIELD(Ecosystem, Environment, env)
 
 } // end of namespace genotype
 
@@ -56,17 +46,6 @@ struct SAG_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bui, voxelsBounds)
 
   DECLARE_SUBCONFIG(genotype::EnvCGP::config_t, genotypeCGPConfig)
-
-  DECLARE_PARAMETER(MutationRates, mutationRates)
-};
-
-template <>
-struct SAG_CONFIG_FILE(Ecosystem) {
-  using Bui = Bounds<uint>;
-  DECLARE_PARAMETER(Bui, initSeedsBounds)
-  DECLARE_PARAMETER(Bui, maxYearDurationBounds)
-
-  DECLARE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

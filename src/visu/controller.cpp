@@ -65,9 +65,6 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   // == Simu ===================================================================
 
-  QAction *reset = buildAction(QStyle::SP_BrowserReload, "Reset",
-                               QKeySequence("Ctrl+R"));
-
   MultiAction *playPause = buildMultiAction(QKeySequence(" "),
                                             QStyle::SP_MediaPlay, "Play",
                                             QStyle::SP_MediaPause, "Pause");
@@ -103,7 +100,6 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   _window.setCentralWidget(_view);
 
-  menuSimulation->addAction(reset);
   menuSimulation->addAction(playPause);
   menuSimulation->addAction(step);
   menuSimulation->addAction(jumpto);
@@ -130,7 +126,6 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   _window.addToolBarBreak(Qt::BottomToolBarArea);
   _window.addToolBar(Qt::BottomToolBarArea, controlToolbar);
     controlToolbar->addWidget(spacer());
-    controlToolbar->addAction(reset);
     controlToolbar->addAction(playPause);
     controlToolbar->addAction(slower);
     controlToolbar->addAction(faster);
@@ -143,11 +138,7 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   _simulation.setController(this);
   _view->setController(this);
 
-  connect(reset, &QAction::triggered, [this] {
-    play(false);
-    _simulation.reset();
-  });
-  connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
+ connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
     playInternal(index);
   });
   connect(this, &Controller::playStatusChanged, playPause, &MultiAction::trigger);

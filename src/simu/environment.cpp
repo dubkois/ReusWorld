@@ -11,20 +11,20 @@ using UL_EU = EnumUtils<UndergroundLayers>;
 
 // =============================================================================
 
-Environment::Environment(const Genome &g)
-  : _genome(g),
-    _physics(std::make_unique<physics::TinyPhysicsEngine>(*this)) {
+Environment::Environment(void)
+  : _physics(std::make_unique<physics::TinyPhysicsEngine>(*this)) {}
+
+Environment::~Environment(void) {}
+
+void Environment::init (const Genome &g) {
+  _genome = g;
 
   _topology.resize(_genome.voxels+1, 0.f);
   _temperature.resize(_genome.voxels+1, .5 * (_genome.maxT + _genome.minT));
 
   _hygrometry[UndergroundLayers::SHALLOW].resize(_genome.voxels+1, config::Simulation::baselineShallowWater());
   _hygrometry[UndergroundLayers::DEEP].resize(_genome.voxels+1, 1.f);
-}
 
-Environment::~Environment(void) {}
-
-void Environment::init (void) {
   _dice.reset(_genome.rngSeed);
   _updatedTopology = false;
   _time = Time();
@@ -176,6 +176,30 @@ physics::Pistil Environment::collectGeneticMaterial(Organ *f) {
 
 void Environment::processNewObjects(void) {
   _physics->processNewObjects();
+}
+
+// =============================================================================
+// == Binary serialization
+
+void save (nlohmann::json &j, const Environment &e) {
+  nlohmann::json jd, jt;
+  save(e._dice, jd);
+  save(e._time, jt);
+  j = {
+    e._genome, jd,
+    e._topology, e._temperature, e._hygrometry,
+    jt
+  };
+}
+
+void Environment::load (const nlohmann::json &j, Environment &e) {
+  uint i=0;
+  e._genome = j[i++];
+  load(j[i++], e._dice);
+  e._topology = j[i++].get<Voxels>();
+  e._temperature = j[i++].get<Voxels>();
+  e._hygrometry = j[i++];
+  load(e._time, j[i++]);
 }
 
 } // end of namespace simu

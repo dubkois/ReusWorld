@@ -78,9 +78,7 @@ void Plant::init (Environment &env, float biomass, PStats *pstats) {
   updateGeometry();
 
   if (pstats) {
-    _pstats = pstats;
-    _pstatsWC.reset(new PStatsWorkingCache);
-
+    setPStatsPointer(pstats);
     _pstats->born = true;
     _pstats->seed = isInSeedState();
     _pstats->pos = _pos;
@@ -538,7 +536,7 @@ void Plant::metabolicStep(Environment &env) {
   const auto &f_E = SConfig::resourceCost();
 
   float T = env.temperatureAt(_pos.x);
-  if (_pstatsWC)  _pstatsWC->sumTemperature += T;
+  if (_pstats)  _pstatsWC->sumTemperature += T;
   float T_eff = heatEfficiency(T);
   float T_dir = utils::sgn(T - _genome.temperatureOptimal);
 
@@ -563,12 +561,12 @@ void Plant::metabolicStep(Environment &env) {
   decimal U_w = 0;
   decimal uw_k = (1 + concentration(Layer::ROOT, Element::WATER) * J_E); assert(uw_k >= 1);
 
-  if (_pstatsWC)  _pstatsWC->tmpSum = 0;
+  if (_pstats)  _pstatsWC->tmpSum = 0;
 
   for (Organ *h: _hairs) {
     decimal w = env.waterAt(h->globalCoordinates().center);
 
-    if (_pstatsWC)  _pstatsWC->tmpSum += w;
+    if (_pstats)  _pstatsWC->tmpSum += w;
 
     U_w += w * k_E * h->surface() / uw_k;
     if (debugMetabolism)
@@ -577,7 +575,7 @@ void Plant::metabolicStep(Environment &env) {
                 << w << " * " << k_E << " * " << h->surface() << " / " << uw_k
                 << std::endl;
   }
-  if (_pstatsWC && _pstatsWC->tmpSum > 0)
+  if (_pstats && _pstatsWC->tmpSum > 0)
     _pstatsWC->sumHygrometry += _pstatsWC->tmpSum / _hairs.size();
 
   if (debugMetabolism)
@@ -627,7 +625,7 @@ void Plant::metabolicStep(Environment &env) {
   decimal ug_k = 1 + concentration(Layer::SHOOT, Element::GLUCOSE) * J_E; assert(ug_k >= 1);
   decimal light = env.lightAt(_pos.x);
 
-  if (_pstatsWC)  _pstatsWC->tmpSum = 0;
+  if (_pstats)  _pstatsWC->tmpSum = 0;
 
   const auto &canopy = env.canopy(this);
   for (const physics::UpperLayer::Item &i: canopy) {
@@ -636,7 +634,7 @@ void Plant::metabolicStep(Environment &env) {
     float d_g = light * k_E * (i.r - i.l) / ug_k;
     U_g += d_g;
 
-    if (_pstatsWC)  _pstatsWC->tmpSum += light * (i.r - i.l)
+    if (_pstats)  _pstatsWC->tmpSum += light * (i.r - i.l)
                       / i.organ->inPlantCoordinates().boundingRect.width();
 
     if (debugMetabolism)
@@ -645,7 +643,7 @@ void Plant::metabolicStep(Environment &env) {
                 << " - " << i.l << ") / " << ug_k << std::endl;
   }
 
-  if (_pstatsWC && _pstatsWC->tmpSum > 0)
+  if (_pstats && _pstatsWC->tmpSum > 0)
     _pstatsWC->sumLight += _pstatsWC->tmpSum / canopy.size();
 
   if (debugMetabolism)
@@ -1039,12 +1037,7 @@ void Plant::updatePStats(Environment &env) {
 }
 
 void PStats::removedFromEnveloppe(void) {
-  if (plant)  plant->removedFromEnveloppe();
-}
-
-void Plant::removedFromEnveloppe(void) {
-  _pstats = nullptr;
-  _pstatsWC.reset(nullptr);
+  if (plant)  plant->setPStatsPointer(nullptr);
 }
 
 float toPrimaryAngle (float a) {

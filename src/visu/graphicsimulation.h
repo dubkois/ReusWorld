@@ -12,11 +12,9 @@ class GraphicSimulation : public QObject, public simu::Simulation {
   Q_OBJECT
   Controller *_controller;
 public:
-  GraphicSimulation(const genotype::Ecosystem &e) : Simulation(e) {}
-
   void setController (Controller *_controller);
 
-  bool init (void) override;
+  bool init (const EGenome &env, const PGenome &plant) override;
 
   void graphicalStep (void);
 

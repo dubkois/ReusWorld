@@ -174,13 +174,23 @@ public:
     _killed = true;
   }
 
+  void setPStatsPointer (PStats *stats) {
+    if (_pstats != stats) {
+      _pstats = stats;
+      if (_pstats)
+            _pstatsWC.reset(new PStatsWorkingCache);
+      else  _pstatsWC.reset(nullptr);
+    }
+  }
+
   const auto& bases (void) const {
     return _bases;
   }
 
-  void removedFromEnveloppe (void);
-
   std::string toString (Layer type) const;
+
+  friend void save (nlohmann::json &j, const Plant &p);
+  static Plant* load (const nlohmann::json &j);
 
   friend std::ostream& operator<< (std::ostream &os, const Plant &p);
 

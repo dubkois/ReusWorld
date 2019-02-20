@@ -13,17 +13,17 @@ namespace simu {
 
 class Simulation {
 protected:
+  using EGenome = genotype::Environment;
   using PGenome = genotype::Plant;
 public:
-  Simulation (const genotype::Ecosystem &genome);
+  Simulation (void);
 
   virtual ~Simulation (void) {
     destroy();
   }
 
-  virtual bool init (void);
+  virtual bool init (const EGenome &env, const PGenome &plant);
   virtual void destroy (void);
-  virtual bool reset (void);
 
   virtual void step (void);
 
@@ -47,8 +47,8 @@ public:
     return _env.time();
   }
 
-  void save (void) const;
-  static Simulation load (std::ofstream &ofs);
+  void periodicSave (void) const;
+  static void load (const std::string &file, Simulation &s);
 
 protected:
   struct Stats {
@@ -70,7 +70,6 @@ protected:
   } _stats;
 
   Environment _env;
-  const genotype::Plant _primordialPlant; /// TODO How to remove this ?
 
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;

@@ -25,10 +25,9 @@ void GraphicSimulation::updatePlantAltitude(simu::Plant &p, float h) {
   _controller->view()->updatePlantItem(p);
 }
 
-bool GraphicSimulation::init(void) {
-  bool ok = Simulation::init();
+bool GraphicSimulation::init(const EGenome &env, const PGenome &plant) {
+  bool ok = Simulation::init(env, plant);
   emit initialized(ok);
-
   return ok;
 }
 

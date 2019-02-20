@@ -38,10 +38,10 @@ class Environment {
   std::unique_ptr<physics::TinyPhysicsEngine> _physics;
 
 public:
-  Environment(const Genome &g);
+  Environment(void);
   ~Environment(void);
 
-  void init (void);
+  void init (const Genome &g);
   void destroy (void);
 
   auto width (void) const {
@@ -134,6 +134,9 @@ public:
   const auto& collisionData (void) const {
     return *_physics;
   }
+
+  friend void save (nlohmann::json &j, const Environment &e);
+  static void load (const nlohmann::json &j, Environment &e);
 
 private:
   float interpolate (const Voxels &voxels, float x) const;

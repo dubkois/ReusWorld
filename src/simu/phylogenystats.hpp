@@ -27,6 +27,8 @@ struct PStats {
 
   Plant *plant;
 
+  PStats (void) : PStats(genotype::BOCData::INVALID_GID) {}
+
   PStats (GID id) : id(id), born(false), seed(true),
     pos{NaN, NaN}, shoot(""), root(""),
     birth(), death(), lifespan(0),

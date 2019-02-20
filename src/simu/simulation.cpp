@@ -11,6 +11,7 @@ static constexpr bool debugPlantManagement = false;
 static constexpr bool debugReproduction = false;
 static constexpr bool debugDeath = false;
 static constexpr int debugTopology = 0;
+static constexpr bool debugSerialization = true;
 
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction | debugTopology;
@@ -43,26 +44,23 @@ auto instrumentalisePlantGenome (genotype::Plant g) {
 }
 #endif
 
-Simulation::Simulation (const genotype::Ecosystem &genome)
-  : _stats(),
-#if !defined(NDEBUG) && defined(INSTRUMENTALISE)
-    _env(instrumentaliseEnvGenome(genome.env)),
-    _primordialPlant(instrumentalisePlantGenome(genome.plant)),
+Simulation::Simulation (void) : _stats(), _aborted(false) {}
+
+bool Simulation::init (const EGenome &env, const PGenome &plant) {
+#ifdef INSTRUMENTALISE
+    _env.init(instrumentaliseEnvGenome(env));
+    _primordialPlant(instrumentalisePlantGenome(plant)),
 #else
-    _env(genome.env), _primordialPlant(genome.plant),
+  _env.init(env);
 #endif
-    _aborted(false) {}
 
-bool Simulation::init (void) {
-  _env.init();
-
-  _ptree.addGenome(_primordialPlant);
-  genotype::BOCData::setFirstID(_primordialPlant.cdata.id);
+  _ptree.addGenome(plant);
+  genotype::BOCData::setFirstID(plant.cdata.id);
 
   uint N = Config::initSeeds();
   float dx = .5; // m
 
-#if !defined(NDEBUG) && defined(CUSTOM_PLANTS)
+#ifdef CUSTOM_PLANTS
   N = 5;
   std::vector<PGenome> genomes;
 
@@ -111,10 +109,10 @@ bool Simulation::init (void) {
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
 
-#if !defined(NDEBUG) && defined(CUSTOM_PLANTS)
+#ifdef CUSTOM_PLANTS
     auto pg = genomes[i%genomes.size()];
 #else
-    auto pg = _primordialPlant.clone();
+    auto pg = plant.clone();
 #endif
 
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
@@ -137,11 +135,6 @@ void Simulation::destroy(void) {
   for (Plant::Seed &s: discardedSeeds)  _ptree.delGenome(s.genome);
 }
 
-bool Simulation::reset (void) {
-  destroy();
-  return init();
-}
-
 bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   bool insertionAborted = false;
   Plant *plant = nullptr;
@@ -159,7 +152,8 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   }
 
   if (!insertionAborted) { // Is there room left in the main container? (should be)
-    auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, 0));
+    auto y = _env.heightAt(x);
+    auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, y));
 
     if (pair.second) {
       pit = pair.first;
@@ -449,9 +443,8 @@ void Simulation::step (void) {
     }
   }
 
-  if (_env.time().isStartOfYear() &&
-    (_env.time().year() % Config::saveEvery()) == 0)
-    save();
+  if (_env.time().isStartOfYear() && (_env.time().year() % Config::saveEvery()) == 0)
+    periodicSave();
 
   if (finished()) {
     _ptree.saveTo("phylogeny.ptree.json");
@@ -551,10 +544,155 @@ void Simulation::logGlobalStats(void) {
       << std::endl;
 }
 
-void Simulation::save (void) const {
-  nlohmann::json j;
-  _env.save(j[0]);
 
+// Low level writing of a bytes array
+bool save (const std::string &file, const std::vector<uint8_t> &bytes) {
+  std::fstream ofs (file, std::ios::out | std::ios::binary);
+  if (!ofs)
+    utils::doThrow<std::invalid_argument>(
+          "Unable to open '", file, "' for writing");
+
+  ofs.write((char*)bytes.data(), bytes.size());
+  ofs.close();
+
+  return true;
+}
+
+// Low level loading of a bytes array
+bool load (const std::string &file, std::vector<uint8_t> &bytes) {
+  std::ifstream ifs(file, std::ios::binary | std::ios::ate);
+  if (!ifs)
+    utils::doThrow<std::invalid_argument>(
+          "Unable to open '", file, "' for reading");
+
+  std::ifstream::pos_type pos = ifs.tellg();
+
+  bytes.resize(pos);
+  ifs.seekg(0, std::ios::beg);
+  ifs.read((char*)bytes.data(), pos);
+
+  return true;
+}
+
+using json = nlohmann::json;
+
+using clock = std::chrono::high_resolution_clock;
+const auto duration = [] (const clock::time_point &start) {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count();
+};
+
+void Simulation::periodicSave (void) const {
+  auto startTime = clock::now();
+
+  json je, jp, jt, j = { je, jp, jt };
+  save(je, _env);
+  for (const auto &p: _plants) {
+    json jp_;
+    save(jp_, *p.second);
+    jp.push_back(jp_);
+  }
+  jt = _ptree;
+
+  if (debugSerialization)
+    std::cerr << "Serializing took " << duration(startTime) << " ms" << std::endl;
+
+  std::ostringstream oss;
+  oss << "last_run_y" << _env.time().year() << ".save";
+
+  startTime = clock::now();
+
+  std::vector<std::uint8_t> v_cbor = json::to_cbor(j);
+  save(oss.str() + ".cbor", v_cbor);
+
+  if (debugSerialization)
+    std::cerr << "Saving " << oss.str() << ".cbor (" << v_cbor.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+
+  startTime = clock::now();
+
+  std::vector<std::uint8_t> v_msgpack = json::to_msgpack(j);
+  save(oss.str() + ".msgpack", v_msgpack);
+
+  if (debugSerialization)
+    std::cerr << "Saving " << oss.str() << ".msgpack (" << v_msgpack.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+
+  startTime = clock::now();
+
+  std::vector<std::uint8_t> v_ubjson = json::to_ubjson(j);
+  save(oss.str() + ".ubjson", v_ubjson);
+
+  if (debugSerialization)
+    std::cerr << "Saving " << oss.str() << ".ubjson (" << v_ubjson.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+}
+
+void Simulation::load (const std::string &file, Simulation &s) {
+  auto startTime = clock::now();
+
+  std::vector<uint8_t> v_cbor;
+  simu::load(file + ".cbor", v_cbor);
+  json j_from_cbor = json::from_cbor(v_cbor);
+
+  if (debugSerialization)
+    std::cerr << "Loading " << file << ".cbor (" << v_cbor.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+
+  startTime = clock::now();
+
+  std::vector<uint8_t> v_msgpack;
+  simu::load(file + ".msgpack", v_msgpack);
+  json j_from_msgpack = json::from_msgpack(v_msgpack);
+
+  if (debugSerialization)
+    std::cerr << "Loading " << file << ".msgpack (" << v_msgpack.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+
+  startTime = clock::now();
+
+  std::vector<uint8_t> v_ubjson;
+  simu::load(file + ".ubjson", v_ubjson);
+  json j_from_ubjson = json::from_ubjson(v_ubjson);
+
+  if (debugSerialization)
+    std::cerr << "Loading " << file << ".ubjson (" << v_ubjson.size()
+              << " bytes) took " << duration(startTime)
+              << " ms" << std::endl;
+
+  startTime = clock::now();
+
+  assert(j_from_cbor == j_from_msgpack);
+  assert(j_from_cbor == j_from_ubjson);
+  assert(j_from_msgpack == j_from_ubjson);
+
+  const json &j = j_from_cbor;
+  Environment::load(j[0], s._env);
+  s._ptree = j[2];
+  for (const auto &jp: j[1]) {
+    Plant *p = Plant::load(jp);
+    s._plants.insert({p->pos().x, Plant_ptr(p)});
+
+    s._env.addCollisionData(p);
+
+    PStats *pstats = s._ptree.getUserData(p->id());
+    p->setPStatsPointer(pstats);
+
+    _env.updateCollisionDataFinal(p);
+    if (p->sex() == Plant::Sex::FEMALE)
+      for (const Organ *o: p->flowers())
+        _env.disseminateGeneticMaterial(o);
+  }
+
+  _env.processNewObjects();
+
+  if (debugSerialization)
+    std::cerr << "Deserializing took "
+              << duration(startTime) << " ms" << std::endl;
 }
 
 } // end of namespace simu
