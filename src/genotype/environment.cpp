@@ -1,4 +1,4 @@
-#include "ecosystem.h"
+#include "environment.h"
 
 using namespace genotype;
 #define GENOME Environment

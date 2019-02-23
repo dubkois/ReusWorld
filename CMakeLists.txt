@@ -62,8 +62,8 @@ set(GNTP_SRC
     "plant.h"
     "config.h"
     "plant.cpp"
-    "ecosystem.h"
-    "ecosystem.cpp"
+    "environment.h"
+    "environment.cpp"
     "envcgp.h"
     "envcgp.cpp"
 )

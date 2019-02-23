@@ -15,7 +15,7 @@ const QColor sky = QColor::fromRgbF(.13, .5, .7);
 const QColor ground = QColor::fromRgbF(.5, .4, .3);
 
 static constexpr int debugAABB = 0;
-static constexpr int debugLeaves = 3;
+static constexpr int debugLeaves = 0;
 static constexpr int debugSpores = 0;
 
 QColor Environment::colorForTemperature (float t) {

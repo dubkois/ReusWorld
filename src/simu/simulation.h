@@ -3,7 +3,7 @@
 
 #include "kgd/apt/core/tree/phylogenictree.hpp"
 
-#include "../genotype/ecosystem.h"
+#include "../genotype/environment.h"
 #include "../config/simuconfig.h"
 
 #include "environment.h"
@@ -47,7 +47,14 @@ public:
     return _env.time();
   }
 
+  std::string periodicSaveName (void) const {
+    std::ostringstream oss;
+    oss << "autosaves/last_run_y" << _env.time().year() << ".save";
+    return oss.str();
+  }
   void periodicSave (void) const;
+
+  void save (const std::string &file) const;
   static void load (const std::string &file, Simulation &s);
 
 protected:
@@ -55,6 +62,7 @@ protected:
     using clock = std::chrono::high_resolution_clock;
     clock::time_point start;
 
+    uint derivations = 0;
     float sumDistances = 0;
     float sumCompatibilities = 0;
     uint matings = 0;
@@ -75,7 +83,8 @@ protected:
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
 
-  phylogeny::PhylogenicTree<PGenome, PStats> _ptree;
+  using PTree = phylogeny::PhylogenicTree<PGenome, PStats>;
+  PTree _ptree;
 
   bool _aborted;
 
@@ -88,7 +97,9 @@ protected:
   virtual void updatePlantAltitude (Plant &p, float h);
 
   void updateGenStats (void);
-  void logGlobalStats (void);
+  void logGlobalStats (bool header);
+
+  void debugPrintAll (void) const;
 };
 
 struct PTreeStats {

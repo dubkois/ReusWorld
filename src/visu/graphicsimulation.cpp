@@ -1,3 +1,5 @@
+#include <QFileDialog>
+
 #include "graphicsimulation.h"
 
 #include "../config/visuconfig.h"
@@ -44,6 +46,23 @@ void GraphicSimulation::graphicalStep (void) {
 
   if (finished()) emit completed();
 }
+
+void GraphicSimulation::saveAs(void) const {
+  QFileDialog dialog (_controller->view());
+  dialog.setWindowTitle("Save simulation as");
+  dialog.setFileMode(QFileDialog::AnyFile);
+  dialog.setNameFilter("Save file (*.save)");
+  dialog.setViewMode(QFileDialog::Detail);
+  dialog.selectFile(QString::fromStdString(periodicSaveName()));
+  if (dialog.exec())
+    save(dialog.selectedFiles()[0].toStdString());
+}
+
+void GraphicSimulation::savePhylogeny (void) const {
+  QString file = QFileDialog::getSaveFileName(_controller->view(), "Save PTree as");
+  if (!file.isEmpty())  _ptree.saveTo(file.toStdString(), false);
+}
+
 
 void GraphicSimulation::doScreenshot(void) const {
   static const std::string screenshotFolder = "screenshots/";

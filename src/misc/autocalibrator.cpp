@@ -114,14 +114,19 @@ int main(void) {
     lowerBoundTest(SConfig::baselineLight, 0, .2),
     upperBoundTest(SConfig::floweringCost, 9, 0),
   };
-  static const auto genomes = [] {
-    std::vector<genotype::Ecosystem> genomes;
+  static const auto envGenome = [] {
+    rng::FastDice dice (0);
+    return genotype::Environment::random(dice);
+  }();
+  static const auto plantGenomes = [] {
+    std::vector<genotype::Plant> genomes;
     for (uint i=0; i<SEEDS; i++) {
       rng::FastDice dice (i);
-      genomes.push_back(genotype::Ecosystem::random(dice));
+      genomes.push_back(genotype::Plant::random(dice));
     }
     return genomes;
   }();
+
 
   auto oldStopAtYear = SConfig::stopAtYear.overrideWith(5);
   auto oldStopAtMinGen = SConfig::stopAtMinGen.overrideWith(10);
@@ -129,10 +134,11 @@ int main(void) {
   auto oldVerbosity = SConfig::verbosity.overrideWith(0);
   SConfig::setupConfig("auto", config::Verbosity::SHOW);
 
-  std::cout << "\nGenomes are: " << std::endl;
+  std::cout << "\nEnvironment genome is:\n" << envGenome << std::endl;
+  std::cout << "\nPlant genomes are: " << std::endl;
   {
     uint i=0;
-    for (const auto &g: genomes)
+    for (const auto &g: plantGenomes)
       std::cout << i++ << "/" << SEEDS << ": " << g << std::endl;
   }
 
@@ -148,8 +154,8 @@ int main(void) {
       std::cout << "## Testing " << test << ": " << std::flush;
       uint successCount = 0, totalPlants = 0, totalSteps = 0;
       for (uint i=0; i<SEEDS; i++) { // Various rng seeds
-        simu::Simulation s (genomes[i]);
-        s.init();
+        simu::Simulation s;
+        s.init(envGenome, plantGenomes[i]);
 
         while (!s.finished())
           s.step();

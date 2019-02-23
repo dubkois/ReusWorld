@@ -59,11 +59,15 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   QMenuBar *menuBar = w.menuBar();
   QMenu *menuSimulation = menuBar->addMenu("Simulation");
   QMenu *menuVisualisation = menuBar->addMenu("Visualisation");
+  QMenu *menuPhylogeny = menuBar->addMenu("Phylogeny");
 
   QToolBar *controlToolbar = new QToolBar,
            *statusToolbar = new QToolBar;
 
   // == Simu ===================================================================
+
+  QAction *save = buildAction(QStyle::SP_DialogSaveButton, "Save",
+                                QKeySequence("Ctrl+S"));
 
   MultiAction *playPause = buildMultiAction(QKeySequence(" "),
                                             QStyle::SP_MediaPlay, "Play",
@@ -98,8 +102,17 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   QAction *zoomIn = buildAction(QIcon::fromTheme("zoom-in"), "Zoom in",
                                 QKeySequence("+"));
 
+  // == Phylogeny ==============================================================
+
+  QAction *savePTree = buildAction(QStyle::SP_DialogSaveButton, "Save",
+                                   QKeySequence("Ctrl+Shift+S"));
+
+  // ===========================================================================
+
   _window.setCentralWidget(_view);
 
+  menuSimulation->addAction(save);
+  menuSimulation->addSeparator();
   menuSimulation->addAction(playPause);
   menuSimulation->addAction(step);
   menuSimulation->addAction(jumpto);
@@ -113,6 +126,8 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   menuVisualisation->addAction(fullscreen);
   menuVisualisation->addAction(zoomOut);
   menuVisualisation->addAction(zoomIn);
+
+  menuPhylogeny->addAction(savePTree);
 
   statusToolbar->setMovable(false);
   _window.addToolBar(Qt::BottomToolBarArea, statusToolbar);
@@ -138,7 +153,10 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   _simulation.setController(this);
   _view->setController(this);
 
- connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
+  connect(save, &QAction::triggered, [this] {
+    _simulation.saveAs();
+  });
+  connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
     playInternal(index);
   });
   connect(this, &Controller::playStatusChanged, playPause, &MultiAction::trigger);
@@ -167,6 +185,8 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   });
   connect(zoomIn, &QAction::triggered, _view, &gui::MainView::zoomIn);
   connect(zoomOut, &QAction::triggered, _view, &gui::MainView::zoomOut);
+
+  connect(savePTree, &QAction::triggered, &_simulation, &GraphicSimulation::savePhylogeny);
 
   _speed = 1;
   connect(&_timer, &QTimer::timeout, this, &Controller::step);

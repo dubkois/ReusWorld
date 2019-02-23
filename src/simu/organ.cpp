@@ -197,4 +197,62 @@ std::ostream& operator<< (std::ostream &os, const Organ &o) {
   return os << tmpos.rdbuf();
 }
 
+void save (nlohmann::json &j, const Organ::PlantCoordinates &c) {
+  j = { c.origin, c.end, c.center, c.rotation };
+}
+
+void load (const nlohmann::json &j, Organ::PlantCoordinates &c) {
+  uint i=0;
+  c.origin = j[i++];
+  c.end = j[i++];
+  c.center = j[i++];
+  c.rotation = j[i++];
+}
+
+void Organ::save (nlohmann::json &j, const Organ &o) {
+  nlohmann::json jpc;
+  simu::save(jpc, o._plantCoordinates);
+
+  nlohmann::json jc;
+  for (Organ *c: o._children) {
+    nlohmann::json jc_;
+    save(jc_, *c);
+    jc.push_back(jc_);
+  }
+
+  j = {
+    o._id,
+    o._parentCoordinates.rotation,
+    jpc,
+    o._width, o._length,
+    o._symbol, o._layer,
+    o._surface,
+    o._baseBiomass, o._accumulatedBiomass, o._requiredBiomass,
+    jc
+  };
+}
+
+Organ* Organ::load (const nlohmann::json &j, Organ *parent, Plant *plant,
+                    std::set<Organ*> &organs) {
+
+  Organ *o = new Organ(j[0], plant, j[3], j[4], j[1], j[5].get<char>(), j[6], parent);
+
+  simu::load(j[2], o->_plantCoordinates);
+
+  uint i=7;
+  o->_surface = j[i++];
+  o->_baseBiomass = j[i++];
+  o->_accumulatedBiomass = j[i++];
+  o->_requiredBiomass = j[i++];
+
+  o->updateBoundingBox();
+  o->updateGlobalTransformation();
+
+  organs.insert(o);
+  for (const nlohmann::json &jc: j[i++])
+    o->_children.insert(load(jc, o, plant, organs));
+
+  return o;
+}
+
 } // end of namespace simu

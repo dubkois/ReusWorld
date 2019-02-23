@@ -71,7 +71,7 @@ struct Pistil {
 
   Pistil (void) : Pistil(nullptr, Disk()) {}
 
-  Pistil (Organ *f, const Disk &d) : organ(f), boundingDisk(d) {}
+  Pistil (Organ *const f, const Disk &d) : organ(f), boundingDisk(d) {}
 
   bool isValid (void) const {
     return organ && boundingDisk.radius > 0;

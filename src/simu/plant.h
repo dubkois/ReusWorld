@@ -72,7 +72,7 @@ private:
   std::unique_ptr<PStatsWorkingCache> _pstatsWC;
 
 public:
-  Plant(const Genome &g, float x, float y);
+  Plant(const Genome &g, const Point &pos);
   ~Plant (void);
 
   void init (Environment &env, float biomass, PStats *pstats);
@@ -80,6 +80,8 @@ public:
 
   void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
                          Environment &env);
+
+  void resetStamen (Organ *s);
 
   bool isDirty (State s) const {  return _dirty.test(s);  }
 
@@ -105,6 +107,11 @@ public:
 
   auto& stamens (void) {
     assert(sex() == Sex::MALE);
+    return _flowers;
+  }
+
+  auto& pistils (void) {
+    assert(sex() == Sex::FEMALE);
     return _flowers;
   }
 
@@ -168,7 +175,7 @@ public:
 
   /// Steps the plant by one tick
   /// \returns true if its phenotype changed
-  void step(Environment &env);
+  uint step(Environment &env);
 
   void kill (void) {
     _killed = true;
@@ -189,7 +196,7 @@ public:
 
   std::string toString (Layer type) const;
 
-  friend void save (nlohmann::json &j, const Plant &p);
+  static void save (nlohmann::json &j, const Plant &p);
   static Plant* load (const nlohmann::json &j);
 
   friend std::ostream& operator<< (std::ostream &os, const Plant &p);
@@ -209,6 +216,8 @@ public:
 
 private:  
   uint deriveRules(Environment &env);
+
+  void assignToViews (Organ *o);
 
   void metabolicStep (Environment &env);
   void updateMetabolicValues (void);

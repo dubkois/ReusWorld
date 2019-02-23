@@ -43,9 +43,10 @@ private:
   PlantCoordinates _plantCoordinates;
   GlobalCoordinates _globalCoordinates;
 
-  float _width, _length;  // Constant for now
-  char _symbol;           // To choose color and shape
-  Layer _layer;           // To check altitude and symbol
+  float _width;
+  float _length;  // Constant for now
+  char _symbol;   // To choose color and shape
+  Layer _layer;   // To check altitude and symbol
 
   Organ *_parent;
   std::set<Organ*> _children;
@@ -140,6 +141,10 @@ public:
   }
 
   friend std::ostream& operator<< (std::ostream &os, const Organ &o);
+
+  static void save (nlohmann::json &j, const Organ &o);
+  static Organ* load (const nlohmann::json &j, Organ *parent, Plant *plant,
+                      std::set<Organ *> &organs);
 };
 
 } // end of namespace simu

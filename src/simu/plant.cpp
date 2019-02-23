@@ -31,8 +31,8 @@ bool nonNullAngle (float a) {
   return fabs(a) > 1e-6;
 }
 
-Plant::Plant(const Genome &g, float x, float y)
-  : _genome(g), _pos{x, y}, _age(0), _derived(0), _killed(false),
+Plant::Plant(const Genome &g, const Point &pos)
+  : _genome(g), _pos(pos), _age(0), _derived(0), _killed(false),
     _pstats(nullptr), _pstatsWC(nullptr) {
 
   _nextOrganID = OID(0);
@@ -129,6 +129,11 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
       env.updateGeneticMaterial(f, f->globalCoordinates().center);
 }
 
+void Plant::resetStamen(Organ *s) {
+  s->accumulate(-s->biomass() + s->baseBiomass());
+  updateMetabolicValues();
+}
+
 float Plant::age (void) const {
   return _age / float(SConfig::stepsPerDay());
 }
@@ -188,9 +193,9 @@ uint Plant::deriveRules(Environment &env) {
     } else if (debugDerivation)
       std::cerr << "Applying " << apex->symbol() << " -> " << succ << std::endl;
 
-#ifndef NDEBUG
+//#ifndef NDEBUG
     auto size_before = _organs.size();
-#endif
+//#endif
 
     // Create new organs
     Organs newOrgans;
@@ -253,10 +258,14 @@ uint Plant::deriveRules(Environment &env) {
         std::cerr << "\tCanceled due to collision with another plant\n"
                   << std::endl;
 
-#ifndef NDEBUG
+//#ifndef NDEBUG
       auto size_after = _organs.size();
       assert(size_before == size_after);
-#endif
+      if (size_before != size_after)
+        utils::doThrow<std::logic_error>(
+          "Rollback failed (", size_before, " != ", size_after,
+              "), faulty genome:", _genome);
+//#endif
 
     } else { // All's good
 
@@ -375,12 +384,7 @@ Organ* Plant::addOrgan(Organ *parent, float angle, char symbol, Layer type,
     std::cerr << std::endl;
   }
 
-  if (!o->parent()) _bases.insert(o);
-  if (o->isNonTerminal()) _nonTerminals.insert(o);
-  if (o->isHair())  _hairs.insert(o);
-  if (o->isFlower())  _flowers.insert(o);
-
-  if (isSink(o))  _sinks.insert(o);
+  assignToViews(o);
 
   o->updateDimensions(true);
   o->setRequiredBiomass(isSink(o) ? sinkRequirement(o) : 0);
@@ -389,6 +393,15 @@ Organ* Plant::addOrgan(Organ *parent, float angle, char symbol, Layer type,
     env.disseminateGeneticMaterial(o);
 
   return o;
+}
+
+void Plant::assignToViews(Organ *o) {
+  if (!o->parent()) _bases.insert(o);
+  if (o->isNonTerminal()) _nonTerminals.insert(o);
+  if (o->isHair())  _hairs.insert(o);
+  if (o->isFlower())  _flowers.insert(o);
+
+  if (isSink(o))  _sinks.insert(o);
 }
 
 void Plant::delOrgan(Organ *o, Environment &env) {
@@ -751,7 +764,7 @@ void Plant::metabolicStep(Environment &env) {
   // Update biomass (if needed)
   bool update = false;
   for (Layer l: L_EU::iterator())
-    update |= (X[l] > 0);
+    update |= (X[l] != 0);
   if (update) updateMetabolicValues();
 
   // Clip resources to new biomass
@@ -929,10 +942,11 @@ void Plant::update (Environment &env) {
   }
 }
 
-void Plant::step(Environment &env) {
+uint Plant::step(Environment &env) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
+  uint derived = 0;
 
   // Check if there is still enough resources to grow the first rules
   if (isInSeedState()) {
@@ -943,8 +957,8 @@ void Plant::step(Environment &env) {
 
   if (_age % SConfig::stepsPerDay() == 0 && !_nonTerminals.empty()) {
 
-    bool derived = bool(deriveRules(env));
-    _derived += derived;
+    uint derived = deriveRules(env);
+    _derived += bool(derived);
 
     if (!_nonTerminals.empty()) {
       // Remove non terminals when reaching maximal derivation for a given lsystem
@@ -1002,6 +1016,8 @@ void Plant::step(Environment &env) {
 //  std::cerr << "State at end:\n";
 //  std::cerr << *this;
 //  std::cerr << std::endl;
+
+  return derived;
 }
 
 void Plant::updatePStats(Environment &env) {
@@ -1108,6 +1124,65 @@ std::ostream& operator<< (std::ostream &os, const Plant &p) {
             << "\tcontrol: " << control(p._genome.shoot, A, p._derived) << "\n"
             << "\t   root: " << p.toString(LSType::ROOT) << "\n"
             << "\tcontrol: " << control(p._genome.root, A, p._derived) << "\n}";
+}
+
+void Plant::save (nlohmann::json &j, const Plant &p) {
+  assert(p._currentStepSeeds.empty());
+  assert(p._dirty.none());
+  assert(!p._killed);
+
+  nlohmann::json jo, jf;
+  for (const Organ *o: p._bases) {
+    nlohmann::json jo_;
+    Organ::save(jo_, *o);
+    jo.push_back(jo_);
+  }
+  for (const auto &p: p._fruits)
+    jf.push_back({  p.second.fruit->id(), p.second.genomes  });
+
+  j = {
+    p._genome, {p._pos.x, p._pos.y}, p._age,
+    jo,
+    p._derived, p._reserves,
+    jf,
+    p._nextOrganID
+  };
+}
+
+Plant* Plant::load (const nlohmann::json &j) {
+  Point pos {j[1][0], j[1][1]};
+  Plant *p = new Plant (j[0].get<Genome>(), pos);
+
+  uint i=2;
+  p->_age = j[i++];
+
+  nlohmann::json jo = j[i++];
+  for (const nlohmann::json &jo_: jo)
+    Organ::load(jo_, nullptr, p, p->_organs);
+
+  std::map<OID, Organ*> fruits;
+  for (Organ *o: p->_organs) {
+    if (o->isFruit()) fruits[o->id()] = o;
+    p->assignToViews(o);
+  }
+
+  p->_derived = j[i++];
+  p->_reserves = j[i++];
+
+  nlohmann::json jf = j[i++];
+  for (const nlohmann::json &jf_: jf) {
+    Organ *f = fruits.at(jf_[0]);
+    p->_fruits.emplace(f->id(), FruitData{jf_[1], f});
+  }
+
+  p->_nextOrganID = j[i++];
+  p->_killed = false;
+  p->_dirty.reset();
+
+  p->updateGeometry();
+  p->updateMetabolicValues();
+
+  return p;
 }
 
 } // end of namespace simu

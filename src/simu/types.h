@@ -49,6 +49,14 @@ struct Point {
   friend std::ostream& operator<< (std::ostream &os, const Point &p) {
     return os << "{" << p.x << "," << p.y << "}";
   }
+
+  friend void to_json (nlohmann::json &j, const Point &p) {
+    j = { p.x, p.y };
+  }
+
+  friend void from_json (const nlohmann::json &j, Point &p) {
+    p.x = j[0]; p.y = j[1];
+  }
 };
 
 struct Rect {
@@ -100,6 +108,14 @@ struct Rect {
   friend std::ostream& operator<< (std::ostream &os, const Rect &r) {
     return os << "{ " << r.ul << ", " << r.br << " }";
   }
+
+  friend void to_json (nlohmann::json &j, const Rect &r) {
+    j = {r.ul, r.br};
+  }
+
+  friend void from_json (const nlohmann::json &j, Rect &r) {
+    r.ul = j[0];  r.br = j[1];
+  }
 };
 
 struct Disk {
@@ -141,6 +157,10 @@ struct Time {
   float timeOfYear (void) const;
   float timeOfWorld (void) const;
 
+  void set (float y, float d, float h) {
+    _year = y;  _day = d; _hour = h;
+  }
+
   Time& next (void);
   std::string pretty (void) const;
 
@@ -151,7 +171,7 @@ struct Time {
   bool isEndOf (void) const;
 
   bool isStartOfYear (void) const {
-    return _day == 0;
+    return _day == 0 && _hour == 0;
   }
 
   static Time fromTimestamp (uint step);

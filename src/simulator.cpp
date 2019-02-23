@@ -37,6 +37,8 @@ int main(int argc, char *argv[]) {
   Verbosity verbosity = Verbosity::SHOW;
 
   std::string envGenomeArg, plantGenomeArg, loadSaveFile;
+  genotype::Environment envGenome;
+  genotype::Plant plantGenome;
 
   cxxopts::Options options("ReusWorld (headless)",
                            "2D simulation of plants in a changing environment (no gui output)");
@@ -45,8 +47,8 @@ int main(int argc, char *argv[]) {
     ("a,auto-config", "Load configuration data from default location")
     ("c,config", "File containing configuration data", cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
-    ("p,plant", "Plant genome to start from or a random seed", cxxopts::value(envGenomeArg))
-    ("e,environment", "Environment's genome or a random seed", cxxopts::value(plantGenomeArg))
+    ("e,environment", "Environment's genome or a random seed", cxxopts::value(envGenomeArg))
+    ("p,plant", "Plant genome to start from or a random seed", cxxopts::value(plantGenomeArg))
     ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
     ;
 
@@ -63,11 +65,21 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (!result.count("environment"))
-    utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
+  bool missingArgument = (!result.count("environment") || !result.count("plant"))
+      && !result.count("load");
 
-  if (!result.count("plant"))
-    utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+  if (missingArgument) {
+    if (result.count("environment"))
+      utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+
+    else if (result.count("plant"))
+      utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
+
+    else
+      utils::doThrow<std::invalid_argument>(
+        "No starting state provided. Either provide both an environment and plant genomes"
+        " or load a previous simulation");
+  }
 
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
@@ -75,36 +87,34 @@ int main(int argc, char *argv[]) {
   config::Simulation::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Simulation::printConfig("");
 
-  genotype::Environment envGenome;
-  if (isValidSeed(envGenomeArg)) {
-    std::cout << "Reading environment genome from input file '"
-              << envGenomeArg << "'" << std::endl;
-    envGenome = genotype::Environment::fromFile(envGenomeArg);
+  std::cerr << "save file: '" << loadSaveFile << "'" << std::endl;
+  if (loadSaveFile.empty()) {
+    if (!isValidSeed(envGenomeArg)) {
+      std::cout << "Reading environment genome from input file '"
+                << envGenomeArg << "'" << std::endl;
+      envGenome = genotype::Environment::fromFile(envGenomeArg);
 
-  } else {
-    rng::FastDice dice (std::stoi(envGenomeArg));
-    std::cout << "Generating environment genome from rng seed "
-              << dice.getSeed() << std::endl;
-    envGenome = genotype::Environment::random(dice);
-    envGenome.toFile("last", 2);
+    } else {
+      rng::FastDice dice (std::stoi(envGenomeArg));
+      std::cout << "Generating environment genome from rng seed "
+                << dice.getSeed() << std::endl;
+      envGenome = genotype::Environment::random(dice);
+      envGenome.toFile("last", 2);
+    }
+
+    if (!isValidSeed(plantGenomeArg)) {
+      std::cout << "Reading plant genome from input file '"
+                << plantGenomeArg << "'" << std::endl;
+      plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+
+    } else {
+      rng::FastDice dice (std::stoi(plantGenomeArg));
+      std::cout << "Generating plant genome from rng seed "
+                << dice.getSeed() << std::endl;
+      plantGenome = genotype::Plant::random(dice);
+      plantGenome.toFile("last", 2);
+    }
   }
-
-  genotype::Plant plantGenome;
-  if (isValidSeed(plantGenomeArg)) {
-    std::cout << "Reading plant genome from input file '"
-              << plantGenomeArg << "'" << std::endl;
-    plantGenome = genotype::Plant::fromFile(plantGenomeArg);
-
-  } else {
-    rng::FastDice dice (std::stoi(plantGenomeArg));
-    std::cout << "Generating plant genome from rng seed "
-              << dice.getSeed() << std::endl;
-    plantGenome = genotype::Plant::random(dice);
-    plantGenome.toFile("last", 2);
-  }
-
-  if (!loadSaveFile.empty())
-    utils::doThrow<std::logic_error>("Loading not yet implemented!");
 
   // ===========================================================================
   // == SIGINT management
@@ -123,7 +133,11 @@ int main(int argc, char *argv[]) {
             << std::endl;
 
   simu::Simulation s;
-  s.init(envGenome, plantGenome);
+  if (loadSaveFile.empty()) {
+    s.init(envGenome, plantGenome);
+    s.periodicSave();
+
+  } else  simu::Simulation::load(loadSaveFile, s);
 
   while (!s.finished()) {
     if (aborted)  s.abort();

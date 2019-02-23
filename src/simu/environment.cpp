@@ -27,7 +27,8 @@ void Environment::init (const Genome &g) {
 
   _dice.reset(_genome.rngSeed);
   _updatedTopology = false;
-  _time = Time();
+
+  _start = _time = Time();
 }
 
 void Environment::destroy (void) {
@@ -181,25 +182,38 @@ void Environment::processNewObjects(void) {
 // =============================================================================
 // == Binary serialization
 
-void save (nlohmann::json &j, const Environment &e) {
-  nlohmann::json jd, jt;
-  save(e._dice, jd);
-  save(e._time, jt);
+void save (nlohmann::json &j, const rng::FastDice &d) {
+  std::ostringstream oss;
+  serialize(oss, d);
+  j = oss.str();
+}
+
+void load (const nlohmann::json &j, rng::FastDice &d) {
+  std::istringstream iss (j.get<std::string>());
+  deserialize(iss, d);
+}
+
+void Environment::save (nlohmann::json &j, const Environment &e) {
+  nlohmann::json jd;
+  simu::save(jd, e._dice);
   j = {
     e._genome, jd,
     e._topology, e._temperature, e._hygrometry,
-    jt
+    { e._time.year(), e._time.day(), e._time.hour() }
   };
 }
 
 void Environment::load (const nlohmann::json &j, Environment &e) {
   uint i=0;
   e._genome = j[i++];
-  load(j[i++], e._dice);
+  simu::load(j[i++], e._dice);
   e._topology = j[i++].get<Voxels>();
   e._temperature = j[i++].get<Voxels>();
   e._hygrometry = j[i++];
-  load(e._time, j[i++]);
+
+  float y = j[i][0], d = j[i][1], h = j[i][2];
+  e._start.set(y, d, h);
+  e._time = e._start;
 }
 
 } // end of namespace simu

@@ -3,6 +3,9 @@
 
 #include "simulation.h"
 
+/// TODO Remove
+#include "kgd/utils/shell.hpp"
+
 namespace simu {
 
 using Config = config::Simulation;
@@ -123,6 +126,8 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   }
 
   updateGenStats();
+  if (Config::logGlobalStats()) logGlobalStats(true);
+
   return true;
 }
 
@@ -152,8 +157,8 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   }
 
   if (!insertionAborted) { // Is there room left in the main container? (should be)
-    auto y = _env.heightAt(x);
-    auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, x, y));
+    Point pos {x, _env.heightAt(x)};
+    auto pair = _plants.try_emplace(x, std::make_unique<Plant>(g, pos));
 
     if (pair.second) {
       pit = pair.first;
@@ -254,7 +259,7 @@ void Simulation::performReproductions(void) {
         mother->updateGeometry(); /// TODO Probably multiple updates... not great
         mother->update(_env);
 
-        stamen->accumulate(-stamen->biomass() + stamen->baseBiomass());
+        father->resetStamen(stamen);
 
         _stats.reproductions++;
       }
@@ -378,10 +383,13 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
 }
 
 void Simulation::step (void) {
+  static const auto CTSIZE = utils::CurrentTime::width();
+
   std::string ptime = _env.time().pretty();
   if (Config::verbosity() > 0)
-    std::cout << std::string(22 + ptime.size(), '#') << "\n"
-              << "## Simulation step " << ptime << " ##"
+    std::cout << std::string(22 + ptime.size() + 4 + CTSIZE, '#') << "\n"
+              << "## Simulation step " << ptime
+              << " at " << utils::CurrentTime{} << " ##"
               << std::endl;
 
   _stats = Stats{};
@@ -391,7 +399,7 @@ void Simulation::step (void) {
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
-    p->step(_env);
+    _stats.derivations += p->step(_env);
     if (p->isDead()) {
       if (debugDeath) p->autopsy();
       corpses.insert(p->pos().x);
@@ -431,8 +439,7 @@ void Simulation::step (void) {
   });
 
   updateGenStats();
-  if (Config::logGlobalStats())
-    logGlobalStats();
+  if (Config::logGlobalStats()) logGlobalStats(false);
 
   if (_env.hasTopologyChanged()) {
     for (const auto &it: _plants) {
@@ -442,6 +449,8 @@ void Simulation::step (void) {
         updatePlantAltitude(*it.second, h);
     }
   }
+
+  _env.step();
 
   if (_env.time().isStartOfYear() && (_env.time().year() % Config::saveEvery()) == 0)
     periodicSave();
@@ -464,8 +473,6 @@ void Simulation::step (void) {
       std::cout << " (" << time.toTimestamp() << " steps)" << std::endl;
     }
   }
-
-  _env.step();
 }
 
 void Simulation::updatePlantAltitude(Plant &p, float h) {
@@ -481,69 +488,86 @@ void Simulation::updateGenStats (void) {
   }
 }
 
-void Simulation::logGlobalStats(void) {
-  const auto &time = _env.time();
-  bool first = time.isStartOf();
-
+void Simulation::logGlobalStats(bool header) {
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
-  if (first)  mode |= std::fstream::trunc;
+  if (header)  mode |= std::fstream::trunc;
   else        mode |= std::fstream::app;
   ofs.open("global.dat", mode);
 
-  if (first)
-    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass Organs"
-           " Flowers Fruits Matings"
+  if (header)
+    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass "
+           " Derivations Organs Flowers Fruits Matings"
            " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
            " Species MinX MaxX\n";
 
-  using decimal = Plant::decimal;
-  decimal biomass = 0;
-  uint seeds = 0;
-  uint organs = 0, flowers = 0, fruits = 0;
-  uint females = 0, males = 0;
-  float minx = _env.xextent(), maxx = -_env.xextent();
+  else {
+    using decimal = Plant::decimal;
+    decimal biomass = 0;
+    uint seeds = 0;
+    uint organs = 0, flowers = 0, fruits = 0;
+    uint females = 0, males = 0;
+    float minx = _env.xextent(), maxx = -_env.xextent();
 
-  for (const auto &p: _plants) {
-    const Plant &plant = *p.second;
-    seeds += plant.isInSeedState();
-    biomass += plant.biomass();
+    for (const auto &p: _plants) {
+      const Plant &plant = *p.second;
+      seeds += plant.isInSeedState();
+      biomass += plant.biomass();
 
-    organs += plant.organs().size();
-    flowers += plant.flowers().size();
-    fruits += plant.fruits().size();
+      organs += plant.organs().size();
+      flowers += plant.flowers().size();
+      fruits += plant.fruits().size();
 
-    females += (plant.sex() == Plant::Sex::FEMALE);
-    males += (plant.sex() == Plant::Sex::MALE);
+      females += (plant.sex() == Plant::Sex::FEMALE);
+      males += (plant.sex() == Plant::Sex::MALE);
 
-    float x = plant.pos().x;
-    minx = std::min(minx, x);
-    maxx = std::max(maxx, x);
+      float x = plant.pos().x;
+      minx = std::min(minx, x);
+      maxx = std::max(maxx, x);
+    }
+
+    ofs << _env.time().pretty()
+        << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
+             Stats::clock::now() - _stats.start).count()
+        << " " << _stats.minGeneration << " " << _stats.maxGeneration
+        << " " << _plants.size() << " " << seeds
+        << " " << females << " " << males
+        << " " << biomass
+
+        << " " << _stats.derivations
+        << " " << organs << " " << flowers << " " << fruits
+
+        << " " << _stats.matings << " " << _stats.reproductions
+        << " " << _stats.newSeeds << " " << _stats.newPlants
+        << " " << _stats.deadPlants << " " << _stats.trimmed
+
+        << " " << _stats.sumDistances / float(_stats.matings)
+        << " " << _stats.sumCompatibilities / float(_stats.matings)
+
+        << " " << _ptree.width()
+
+        << " " << minx << " " << maxx
+        << std::endl;
   }
 
-  ofs << time.pretty()
-      << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
-           Stats::clock::now() - _stats.start).count()
-      << " " << _stats.minGeneration << " " << _stats.maxGeneration
-      << " " << _plants.size() << " " << seeds
-      << " " << females << " " << males
-      << " " << biomass
-
-      << " " << organs << " " << flowers << " " << fruits
-
-      << " " << _stats.matings << " " << _stats.reproductions
-      << " " << _stats.newSeeds << " " << _stats.newPlants
-      << " " << _stats.deadPlants << " " << _stats.trimmed
-
-      << " " << _stats.sumDistances / float(_stats.matings)
-      << " " << _stats.sumCompatibilities / float(_stats.matings)
-
-      << " " << _ptree.width()
-
-      << " " << minx << " " << maxx
-      << std::endl;
+//  debugPrintAll();
 }
 
+void Simulation::periodicSave (void) const {
+  if (!stdfs::exists("autosaves"))  stdfs::create_directory("autosaves");
+  if (_env.startTime() == _env.time()) {
+    if (!stdfs::is_empty("autosaves")) {
+      std::cerr << "WARNING: autosaves folder is not empty. Purge anyway ?"
+                << std::endl;
+      if(std::cin.get() == 'y') {
+        stdfs::remove_all("autosaves");
+        stdfs::create_directory("autosaves");
+      }
+    }
+  }
+
+  save(periodicSaveName());
+}
 
 // Low level writing of a bytes array
 bool save (const std::string &file, const std::vector<uint8_t> &bytes) {
@@ -581,54 +605,102 @@ const auto duration = [] (const clock::time_point &start) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - start).count();
 };
 
-void Simulation::periodicSave (void) const {
+void Simulation::debugPrintAll(void) const {
+  std::ostringstream oss;
+  oss << "simulation_" << _env.startTime().pretty() << "_to_"
+      << _env.time().pretty() << ".state";
+  std::ofstream ofs (oss.str());
+
+  ofs << "Simulation:\n"
+      << "\tEnvironment:\n"
+      << "\t\tTime: " << _env.time().pretty() << "\n";
+
+  {
+    std::ostringstream doss;
+    serialize(doss, _env.dice());
+    ofs << "\t\tDice: " << doss.str() << "\n";
+  }
+
+  ofs
+//      << "\t\tTopology: " << _env.topology() << "\n"
+//      << "\t\tHygrometry: " << _env.hygrometry() << "\n"
+//      << "\t\tTemperature: " << _env.temperature() << "\n"
+      << "\tPlants:\n";
+
+  for (const auto &pair: _plants) {
+    Plant * p = pair.second.get();
+    ofs << "\t\t" << PlantID(p) << "\n"
+        << "\t\t\tGenome: " << p->genome() << "\n"
+        << "\t\t\tPos: " << p->pos() << "\n"
+        << "\t\t\tBiomasses: " << p->biomass() << "\n"
+        << "\t\t\tOrgans:\n";
+
+    std::vector<Organ*> organs (p->organs().begin(), p->organs().end());
+    std::sort(organs.begin(), organs.end(),
+              [] (const Organ *lhs, const Organ *rhs) { return lhs->id() < rhs->id(); });
+    for (Organ *o: organs)
+      ofs << "\t\t\t\t" << OrganID(o) << ":\n"
+          << "\t\t\t\t\tRotation: " << o->localRotation() << "\n"
+          << "\t\t\t\t\tBiomasses:\n"
+          << "\t\t\t\t\t\tBase: " << o->baseBiomass() << "\n"
+          << "\t\t\t\t\t\tAcc: " << o->accumulatedBiomass() << "\n"
+          << "\t\t\t\t\t\tReq: " << o->requiredBiomass() << "\n";
+  }
+
+  ofs << "\tPTree:\n"
+      << std::endl;
+}
+
+void Simulation::save (const std::string &file) const {
   auto startTime = clock::now();
 
-  json je, jp, jt, j = { je, jp, jt };
-  save(je, _env);
+  json je, jp, jt;
+  Environment::save(je, _env);
   for (const auto &p: _plants) {
     json jp_;
-    save(jp_, *p.second);
+    Plant::save(jp_, *p.second);
     jp.push_back(jp_);
   }
-  jt = _ptree;
+  PTree::toJson(jt, _ptree, true);
+
+  json j = { je, jp, jt };
 
   if (debugSerialization)
     std::cerr << "Serializing took " << duration(startTime) << " ms" << std::endl;
 
-  std::ostringstream oss;
-  oss << "last_run_y" << _env.time().year() << ".save";
-
   startTime = clock::now();
 
   std::vector<std::uint8_t> v_cbor = json::to_cbor(j);
-  save(oss.str() + ".cbor", v_cbor);
+  simu::save(file + ".cbor", v_cbor);
 
   if (debugSerialization)
-    std::cerr << "Saving " << oss.str() << ".cbor (" << v_cbor.size()
+    std::cerr << "Saving " << file << ".cbor (" << v_cbor.size()
               << " bytes) took " << duration(startTime)
               << " ms" << std::endl;
 
   startTime = clock::now();
 
   std::vector<std::uint8_t> v_msgpack = json::to_msgpack(j);
-  save(oss.str() + ".msgpack", v_msgpack);
+  simu::save(file + ".msgpack", v_msgpack);
 
   if (debugSerialization)
-    std::cerr << "Saving " << oss.str() << ".msgpack (" << v_msgpack.size()
+    std::cerr << "Saving " << file << ".msgpack (" << v_msgpack.size()
               << " bytes) took " << duration(startTime)
               << " ms" << std::endl;
 
   startTime = clock::now();
 
   std::vector<std::uint8_t> v_ubjson = json::to_ubjson(j);
-  save(oss.str() + ".ubjson", v_ubjson);
+  simu::save(file + ".ubjson", v_ubjson);
 
   if (debugSerialization)
-    std::cerr << "Saving " << oss.str() << ".ubjson (" << v_ubjson.size()
+    std::cerr << "Saving " << file << ".ubjson (" << v_ubjson.size()
               << " bytes) took " << duration(startTime)
               << " ms" << std::endl;
 }
+
+
+/// FIXME Decide on a file format and clean this shit up
 
 void Simulation::load (const std::string &file, Simulation &s) {
   auto startTime = clock::now();
@@ -666,13 +738,14 @@ void Simulation::load (const std::string &file, Simulation &s) {
 
   startTime = clock::now();
 
-  assert(j_from_cbor == j_from_msgpack);
-  assert(j_from_cbor == j_from_ubjson);
-  assert(j_from_msgpack == j_from_ubjson);
+  // Cannot work if containing ANY nan
+//  assert(j_from_cbor == j_from_msgpack);
+//  assert(j_from_cbor == j_from_ubjson);
+//  assert(j_from_msgpack == j_from_ubjson);
 
-  const json &j = j_from_cbor;
+  const auto j = j_from_cbor;
   Environment::load(j[0], s._env);
-  s._ptree = j[2];
+  PTree::fromJson(j[2], s._ptree, true);
   for (const auto &jp: j[1]) {
     Plant *p = Plant::load(jp);
     s._plants.insert({p->pos().x, Plant_ptr(p)});
@@ -682,17 +755,19 @@ void Simulation::load (const std::string &file, Simulation &s) {
     PStats *pstats = s._ptree.getUserData(p->id());
     p->setPStatsPointer(pstats);
 
-    _env.updateCollisionDataFinal(p);
+    s._env.updateCollisionDataFinal(p);
     if (p->sex() == Plant::Sex::FEMALE)
-      for (const Organ *o: p->flowers())
-        _env.disseminateGeneticMaterial(o);
+      for (Organ *o: p->pistils())
+        s._env.disseminateGeneticMaterial(o);
   }
 
-  _env.processNewObjects();
+  s._env.processNewObjects();
 
   if (debugSerialization)
     std::cerr << "Deserializing took "
               << duration(startTime) << " ms" << std::endl;
+
+  if (Config::logGlobalStats()) s.logGlobalStats(true);
 }
 
 } // end of namespace simu

@@ -18,6 +18,10 @@ public:
 
   void graphicalStep (void);
 
+  void saveAs (void) const;
+
+  void savePhylogeny (void) const;
+
 private:
   bool addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x, simu::Plant::Seeds &seeds) override;

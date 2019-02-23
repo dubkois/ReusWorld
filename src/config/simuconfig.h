@@ -2,7 +2,7 @@
 #define SIMUCONFIG_H
 
 #include "kgd/settings/configfile.h"
-#include "../genotype/ecosystem.h"
+#include "../genotype/environment.h"
 
 namespace config {
 struct PTree;

@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
 
   std::string envGenomeFile, plantGenomeFile;
 
-  float speed = 1.f;
+  float speed = 0.f;
   bool autoQuit = false;
 
   cxxopts::Options options("ReusWorld",
@@ -27,10 +27,10 @@ int main(int argc, char *argv[]) {
     ("a,auto-config", "[2;D] Load configuration data from default location")
     ("c,config", "[2] File containing configuration data", cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
-    ("p,plant", "[M] Plant genome to start from", cxxopts::value(envGenomeFile))
-    ("e,environment", "[M] Environment's genome", cxxopts::value(plantGenomeFile))
+    ("e,environment", "[M] Environment's genome", cxxopts::value(envGenomeFile))
+    ("p,plant", "[M] Plant genome to start from", cxxopts::value(plantGenomeFile))
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
-      cxxopts::value(speed)->implicit_value("1"))
+      cxxopts::value(speed))
     ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value(autoQuit))
     ;
 

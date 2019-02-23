@@ -1,7 +1,7 @@
 #ifndef SIMU_ENVIRONMENT_H
 #define SIMU_ENVIRONMENT_H
 
-#include "../genotype/ecosystem.h"
+#include "../genotype/environment.h"
 #include "physicstypes.hpp"
 #include "types.h"
 
@@ -33,6 +33,7 @@ class Environment {
 
   bool _updatedTopology;
 
+  Time _start;
   Time _time;
 
   std::unique_ptr<physics::TinyPhysicsEngine> _physics;
@@ -84,8 +85,16 @@ public:
     return _dice;
   }
 
+  const auto& dice (void) const {
+    return _dice;
+  }
+
   bool hasTopologyChanged (void) const {
     return _updatedTopology;
+  }
+
+  const auto& startTime (void) const {
+    return _start;
   }
 
   const auto& time (void) const {
@@ -135,7 +144,7 @@ public:
     return *_physics;
   }
 
-  friend void save (nlohmann::json &j, const Environment &e);
+  static void save (nlohmann::json &j, const Environment &e);
   static void load (const nlohmann::json &j, Environment &e);
 
 private:
