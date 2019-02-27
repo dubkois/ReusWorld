@@ -35,6 +35,25 @@ public:
     Corners corners;
   };
 
+  using Collection = std::set<Organ*>;
+
+  struct OID_CMP {
+    using is_transparent = void;
+    bool operator() (const OID &lhs, const OID &rhs) const {
+      return lhs < rhs;
+    }
+    bool operator() (const OID &lhs, const Organ *rhs) const {
+      return operator() (lhs, rhs->_id);
+    }
+    bool operator() (const Organ *lhs, const OID &rhs) const {
+      return operator() (lhs->_id, rhs);
+    }
+    bool operator() (const Organ *lhs, const Organ *rhs) const {
+      return operator() (lhs->_id, rhs->_id);
+    }
+  };
+  using SortedCollection = std::set<Organ*, OID_CMP>;
+
 private:
   OID _id;
   Plant *const _plant;
@@ -48,16 +67,22 @@ private:
   char _symbol;   // To choose color and shape
   Layer _layer;   // To check altitude and symbol
 
+  bool _cloned; ///< Whether there exists another organ with the same id
+
   Organ *_parent;
-  std::set<Organ*> _children;
+  Collection _children;
   uint _depth;  ///< Height of the subtree rooted here
 
   float _surface;
   float _baseBiomass, _accumulatedBiomass, _requiredBiomass;
 
 public:
-  Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
-         Organ *p = nullptr);
+  Organ (Plant *plant, float w, float l, float r, char c, Layer t,
+         Organ *parent);
+
+  void setID (OID id) {
+    _id = id;
+  }
 
   /// surface, biomass
   void accumulate (float biomass);
@@ -71,7 +96,8 @@ public:
   void updateRotation (float d_angle);
 
   void removeFromParent(void);
-  void restoreInParent(void);
+
+  Organ* cloneAndUpdate (Organ *newParent, float rotation);
 
   auto id (void) const {    return _id;     }
   auto plant (void) const { return _plant;  }
@@ -113,6 +139,9 @@ public:
   auto& children (void) { return _children; }
   const auto& children (void) const { return _children; }
 
+  bool isCloned (void) const {  return _cloned; }
+  void unsetCloned (void) { _cloned = false;  }
+
   void updateDepth (uint newDepth);
   void updateParentDepth (void);
   auto depth (void) const {
@@ -144,7 +173,7 @@ public:
 
   static void save (nlohmann::json &j, const Organ &o);
   static Organ* load (const nlohmann::json &j, Organ *parent, Plant *plant,
-                      std::set<Organ *> &organs);
+                      Collection &organs);
 };
 
 } // end of namespace simu

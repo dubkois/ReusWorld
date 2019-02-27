@@ -8,10 +8,10 @@ using GConfig = genotype::Plant::config_t;
 
 static constexpr bool debugGrowth = false;
 
-Organ::Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
-              Organ *p)
-  : _id(id), _plant(plant), _width(w), _length(l),
-    _symbol(c), _layer(t), _parent(nullptr) {
+Organ::Organ (Plant *plant, float w, float l, float r, char c, Layer t,
+              Organ *parent)
+  : _id(OID::INVALID), _plant(plant), _width(w), _length(l),
+    _symbol(c), _layer(t), _cloned(false), _parent(nullptr) {
 
   _baseBiomass = -1;
   _accumulatedBiomass = 0;
@@ -21,7 +21,29 @@ Organ::Organ (OID id, Plant *plant, float w, float l, float r, char c, Layer t,
   _globalCoordinates = {};
 
   _depth = 0;
-  updateParent(p);
+  updateParent(parent);
+}
+
+Organ* Organ::cloneAndUpdate(Organ *newParent, float rotation) {
+  Organ *clone = new Organ(_plant, _width, _length,
+                           _parentCoordinates.rotation + rotation,
+                           _symbol,  _layer, newParent);
+
+  _cloned = true;
+
+  clone->_cloned = true;
+  clone->_id = _id;
+  clone->_surface = _surface;
+  clone->_baseBiomass = _baseBiomass;
+  clone->_accumulatedBiomass = _accumulatedBiomass;
+  clone->_requiredBiomass = _requiredBiomass;
+
+  clone->updateTransformation();
+
+  for (Organ *c: _children)
+    clone->_children.insert(c->cloneAndUpdate(clone, 0));
+
+  return clone;
 }
 
 float Organ::fullness(void) const {
@@ -145,18 +167,8 @@ void Organ::removeFromParent(void) {
   }
 }
 
-void Organ::restoreInParent(void) {
-  if (_parent) {
-    _parent->_children.insert(this);
-    uint depth = 0;
-    for (Organ *c: _parent->_children)
-      depth = std::max(depth, c->_depth);
-    _parent->updateDepth(depth);
-  }
-}
-
 void Organ::updateParentDepth(void) {
-  if (_parent)  _parent->updateDepth(_depth + (isNonTerminal() ? 0 : 1));
+  if (_parent)  _parent->updateDepth(_depth + (isStructural() ? 1 : 0));
 }
 
 void Organ::updateDepth(uint newDepth) {
@@ -175,8 +187,8 @@ void Organ::updateParent (Organ *newParent) {
   assert(newParent != this);
   if (_parent != newParent) {
     removeFromParent();
-    if (newParent)  newParent->_children.insert(this);
     _parent = newParent;
+    if (_parent)  _parent->_children.insert(this);
     updateParentDepth();
 
     updateTransformation();
@@ -233,9 +245,10 @@ void Organ::save (nlohmann::json &j, const Organ &o) {
 }
 
 Organ* Organ::load (const nlohmann::json &j, Organ *parent, Plant *plant,
-                    std::set<Organ*> &organs) {
+                    Collection &organs) {
 
-  Organ *o = new Organ(j[0], plant, j[3], j[4], j[1], j[5].get<char>(), j[6], parent);
+  Organ *o = new Organ(plant, j[3], j[4], j[1], j[5].get<char>(), j[6], parent);
+  o->setID(j[0]);
 
   simu::load(j[2], o->_plantCoordinates);
 

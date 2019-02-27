@@ -171,6 +171,19 @@ if (NOT CLUSTER_BUILD)
     )
     set_property(TARGET visualizer PROPERTY AUTOMOC ON)
     target_link_libraries(visualizer ${QT_LIBS} ${apt_LIBRARIES})
+
+
+################################################################################
+## Target (visualizer)
+################################################################################
+
+    add_executable(
+      pviewer
+      $<TARGET_OBJECTS:SIMU_OBJS>
+      "src/phylogenyviewer.cpp"
+    )
+    set_property(TARGET pviewer PROPERTY AUTOMOC ON)
+    target_link_libraries(pviewer ${QT_LIBS} ${apt_LIBRARIES})
 endif()
 
 

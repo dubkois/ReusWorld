@@ -30,6 +30,7 @@ void GraphicSimulation::updatePlantAltitude(simu::Plant &p, float h) {
 bool GraphicSimulation::init(const EGenome &env, const PGenome &plant) {
   bool ok = Simulation::init(env, plant);
   emit initialized(ok);
+  _controller->view()->updateEnvironment();
   return ok;
 }
 
@@ -76,6 +77,14 @@ void GraphicSimulation::doScreenshot(void) const {
   std::ostringstream oss;
   oss << screenshotFolder << "sc_" << _env.time().pretty() << ".png";
   p.save(QString::fromStdString(oss.str()));
+}
+
+void GraphicSimulation::load (const std::string &file, GraphicSimulation &s) {
+  Simulation::load(file, s);
+  s._controller->view()->updateEnvironment();
+  for (const auto &p: s._plants)
+    s._controller->view()->addPlantItem(*p.second);
+  emit s.initialized(true);
 }
 
 } // end of namespace visu

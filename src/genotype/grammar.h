@@ -77,6 +77,10 @@ struct Rule_base {
     return controls.find(c) != controls.end();
   }
 
+  static bool isTerminal (char c) {
+    return std::islower(c);
+  }
+
   static auto fruitSymbol (void) {
     return 'g';
   }
@@ -112,18 +116,22 @@ struct Rule_t : public Rule_base {
   }
 
   template <typename Dice>
-  static auto nonBracketSymbol (const Symbols &nonTerminals, Dice &dice) {
-    static const Symbols base = [] {
+  static auto nonBracketSymbol (char original, const Symbols &nonTerminals,
+                                Dice &dice, bool controlOnly) {
+    static const Symbols nonBracketsControl = [] {
       Symbols symbols;
-      symbols.insert(terminals.begin(), terminals.end());
       for (char c: controls)
         if (!isBracket(c))
           symbols.insert(c);
       return symbols;
     }();
-    Symbols nonBrackets = base;
-    nonBrackets.insert(nonTerminals.begin(), nonTerminals.end());
-    return *dice(nonBrackets);
+    Symbols candidates = nonBracketsControl;
+    if (!controlOnly) {
+      candidates.insert(terminals.begin(), terminals.begin());
+      candidates.insert(nonTerminals.begin(), nonTerminals.end());
+    }
+    candidates.erase(original);
+    return *dice(candidates);
   }
 
   static auto checkers (void) {

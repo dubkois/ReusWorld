@@ -11,20 +11,21 @@ namespace simu {
 using Config = config::Simulation;
 
 static constexpr bool debugPlantManagement = false;
-static constexpr bool debugReproduction = false;
+static constexpr int debugReproduction = 0;
 static constexpr bool debugDeath = false;
 static constexpr int debugTopology = 0;
-static constexpr bool debugSerialization = true;
+static constexpr bool debugSerialization = false;
 
 static constexpr bool debug = false
   | debugPlantManagement | debugReproduction | debugTopology;
 
 #ifndef NDEBUG
-//#define INSTRUMENTALISE
-//#define CUSTOM_PLANTS
+//#define CUSTOM_ENVIRONMENT
+#define CUSTOM_PLANTS 1
+#define DISTANCE_TEST
 #endif
 
-#if !defined(NDEBUG) && defined(INSTRUMENTALISE)
+#ifdef CUSTOM_ENVIRONMENT
 auto instrumentaliseEnvGenome (genotype::Environment g) {
   std::cerr << __PRETTY_FUNCTION__ << " Bypassing environmental genomic values" << std::endl;
 
@@ -33,28 +34,16 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 
   return g;
 }
-
-auto instrumentalisePlantGenome (genotype::Plant g) {
-  std::cerr << __PRETTY_FUNCTION__ << " Bypassing plant genomic values" << std::endl;
-
-//  g.temperatureOptimal = 10;
-//  std::cerr << "genome.temperatureOptimal = " << g.temperatureOptimal << std::endl;
-
-//  g.temperatureRange = 15;
-//  std::cerr << "genome.temperatureRange = " << g.temperatureRange << std::endl;
-
-  return g;
-}
 #endif
+
 
 Simulation::Simulation (void) : _stats(), _aborted(false) {}
 
 bool Simulation::init (const EGenome &env, const PGenome &plant) {
 #ifdef INSTRUMENTALISE
     _env.init(instrumentaliseEnvGenome(env));
-    _primordialPlant(instrumentalisePlantGenome(plant)),
 #else
-  _env.init(env);
+    _env.init(env);
 #endif
 
   _ptree.addGenome(plant);
@@ -64,34 +53,39 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   float dx = .5; // m
 
 #ifdef CUSTOM_PLANTS
-  N = 5;
-  std::vector<PGenome> genomes;
-
   using SRule = genotype::grammar::Rule_t<genotype::LSystemType::SHOOT>;
   using RRule = genotype::grammar::Rule_t<genotype::LSystemType::ROOT>;
+  std::vector<PGenome> genomes;
 
-  PGenome modifiedPrimordialPlant = _primordialPlant;
+  PGenome modifiedPrimordialPlant = plant;
+
+#define SRULE(X) SRule::fromString(X).toPair()
+#define RRULE(X) RRule::fromString(X).toPair()
+
+#if CUSTOM_PLANTS == 1
+  N = 5;
+
   modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
 
   genomes[0].shoot.rules = {
-    SRule::fromString("S -> s-s-s-A").toPair(),
-    SRule::fromString("A -> s[B]A").toPair(),
-    SRule::fromString("B -> [-l][+l]").toPair(),
+    SRULE("S -> s-s-s-A"),
+    SRULE("A -> s[B]A"),
+    SRULE("B -> [-l][+l]"),
   };
   genomes[0].root.rules = {
-    RRule::fromString("S -> A").toPair(),
-    RRule::fromString("A -> [+Bh][Bh][-Bh]").toPair(),
-    RRule::fromString("B -> tB").toPair(),
+    RRULE("S -> A"),
+    RRULE("A -> [+Bh][Bh][-Bh]"),
+    RRULE("B -> tB"),
   };
   genomes[0].root.recursivity = 10;
 
   genomes[1].dethklok = 25;
   genomes[1].shoot.rules = {
-    SRule::fromString("S -> s[-Al][+Bl]").toPair(),
-    SRule::fromString("A -> -sA").toPair(),
-    SRule::fromString("B -> +sB").toPair(),
+    SRULE("S -> s[-Al][+Bl]"),
+    SRULE("A -> -sA"),
+    SRULE("B -> +sB"),
   };
 
   genomes[2].shoot.rules = genomes[1].shoot.rules;
@@ -101,12 +95,46 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   genomes[3].shoot.rules = genomes[1].shoot.rules;
 
   genomes[4].shoot.rules = {
-    SRule::fromString("S -> ss+s+s+A").toPair(),
-    SRule::fromString("A -> s[B]A").toPair(),
-    SRule::fromString("B -> [-l][+l]").toPair()
+    SRULE("S -> ss+s+s+A"),
+    SRULE("A -> s[B]A"),
+    SRULE("B -> [-l][+l]")
   };
   genomes[4].root = genomes[0].root;
 
+
+#elif CUSTOM_PLANTS == 2
+  N = 10;
+  dx = .075;
+
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+
+  genomes[0].shoot.rules = {
+    SRULE("S -> A[fl][-A]f"),
+    SRULE("A -> s")
+  };
+
+  genomes[1].shoot.rules = {
+    SRULE("S -> s[+l][Al]f"),
+    SRULE("A -> f")
+  };
+
+#endif
+#endif
+
+#ifdef DISTANCE_TEST
+  std::cerr << "Distance matrix:\n\t    ";
+  for (uint i=0; i<N; i++)
+    std::cerr << " " << std::setw(4) << i;
+  std::cerr << "\n";
+  for (uint i=0; i<N; i++) {
+    std::cerr << "\t" << std::setw(4) << i;
+    for (uint j=0; j<N; j++)
+      std::cerr << " " << std::setprecision(2) << std::setw(4)
+                << distance(genomes[i], genomes[j]);
+    std::cerr << "\n";
+  }
+  std::cerr << std::endl;
+  exit(255);
 #endif
 
   float x0 = - dx * int(N / 2);
@@ -186,7 +214,7 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
     }
   }
 
-  if (insertionAborted)  _ptree.delGenome(g);
+  if (insertionAborted) _ptree.delGenome(g);
 
   return !insertionAborted;
 }
@@ -223,7 +251,7 @@ void Simulation::performReproductions(void) {
       if (stamen->requiredBiomass() > 0)  continue;
       physics::Pistil s = _env.collectGeneticMaterial(stamen);
 
-      if (debugReproduction) {
+      if (debugReproduction > 1) {
         if (s.isValid())
           std::cerr << "\t" << OrganID(stamen) << " Got a spore: "
                     << OrganID(s.organ) << std::endl;
@@ -253,7 +281,12 @@ void Simulation::performReproductions(void) {
       _stats.matings++;
 
       if (fecundated) {
-        for (const auto &g: litter) _ptree.addGenome(g);
+        if (debugReproduction)  std::cerr << "\t\tOffsprings:";
+        for (const auto &g: litter) {
+          _ptree.addGenome(g);
+          if (debugReproduction)  std::cerr << " " << g.cdata.id;
+        }
+        if (debugReproduction)  std::cerr << std::endl;
 
         mother->replaceWithFruit(s.organ, litter, _env);
         mother->updateGeometry(); /// TODO Probably multiple updates... not great
@@ -456,6 +489,14 @@ void Simulation::step (void) {
     periodicSave();
 
   if (finished()) {
+    // Update once more so that data goes from y0d0h0 to yLd0h0 with L = stopAtYear()
+    _stats.start = std::chrono::high_resolution_clock::now();
+    if (Config::logGlobalStats()) logGlobalStats(false);
+    _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
+                [] (const Plants::value_type &pair) {
+      return pair.second->genome().cdata.id;
+    });
+
     _ptree.saveTo("phylogeny.ptree.json");
 
     if (Config::verbosity() > 0) {
@@ -496,7 +537,7 @@ void Simulation::logGlobalStats(bool header) {
   ofs.open("global.dat", mode);
 
   if (header)
-    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass "
+    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
            " Derivations Organs Flowers Fruits Matings"
            " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
            " Species MinX MaxX\n";
@@ -558,11 +599,12 @@ void Simulation::periodicSave (void) const {
   if (_env.startTime() == _env.time()) {
     if (!stdfs::is_empty("autosaves")) {
       std::cerr << "WARNING: autosaves folder is not empty. Purge anyway ?"
-                << std::endl;
+                << std::flush;
       if(std::cin.get() == 'y') {
         stdfs::remove_all("autosaves");
         stdfs::create_directory("autosaves");
       }
+      std::cerr << std::endl;
     }
   }
 
@@ -651,7 +693,7 @@ void Simulation::debugPrintAll(void) const {
       << std::endl;
 }
 
-void Simulation::save (const std::string &file) const {
+void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
 
   json je, jp, jt;
@@ -670,71 +712,41 @@ void Simulation::save (const std::string &file) const {
 
   startTime = clock::now();
 
-  std::vector<std::uint8_t> v_cbor = json::to_cbor(j);
-  simu::save(file + ".cbor", v_cbor);
+  std::vector<std::uint8_t> v;
+
+  const auto ext = file.extension();
+  if (ext == ".cbor")         v = json::to_cbor(j);
+  else if (ext == ".msgpack") v = json::to_msgpack(j);
+  else {
+    if (ext != ".ubjson") file += ".ubjson";
+    v = json::to_ubjson(j);
+  }
+
+  simu::save(file, v);
 
   if (debugSerialization)
-    std::cerr << "Saving " << file << ".cbor (" << v_cbor.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
-
-  startTime = clock::now();
-
-  std::vector<std::uint8_t> v_msgpack = json::to_msgpack(j);
-  simu::save(file + ".msgpack", v_msgpack);
-
-  if (debugSerialization)
-    std::cerr << "Saving " << file << ".msgpack (" << v_msgpack.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
-
-  startTime = clock::now();
-
-  std::vector<std::uint8_t> v_ubjson = json::to_ubjson(j);
-  simu::save(file + ".ubjson", v_ubjson);
-
-  if (debugSerialization)
-    std::cerr << "Saving " << file << ".ubjson (" << v_ubjson.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
+    std::cerr << "Saving " << file << " (" << v.size() << " bytes) took "
+              << duration(startTime) << " ms" << std::endl;
 }
 
-
-/// FIXME Decide on a file format and clean this shit up
-
-void Simulation::load (const std::string &file, Simulation &s) {
+void Simulation::load (const stdfs::path &file, Simulation &s) {
   auto startTime = clock::now();
 
-  std::vector<uint8_t> v_cbor;
-  simu::load(file + ".cbor", v_cbor);
-  json j_from_cbor = json::from_cbor(v_cbor);
+  std::vector<uint8_t> v;
+  simu::load(file, v);
+
+  json j;
+  const auto ext = file.extension();
+  if (ext == ".cbor")         j = json::from_cbor(v);
+  else if (ext == ".msgpack") j = json::from_msgpack(v);
+  else if (ext == ".ubjson")  j = json::from_ubjson(v);
+  else
+    utils::doThrow<std::invalid_argument>(
+      "Unkown save file type '", file, "' of extension '", ext, "'");
 
   if (debugSerialization)
-    std::cerr << "Loading " << file << ".cbor (" << v_cbor.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
-
-  startTime = clock::now();
-
-  std::vector<uint8_t> v_msgpack;
-  simu::load(file + ".msgpack", v_msgpack);
-  json j_from_msgpack = json::from_msgpack(v_msgpack);
-
-  if (debugSerialization)
-    std::cerr << "Loading " << file << ".msgpack (" << v_msgpack.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
-
-  startTime = clock::now();
-
-  std::vector<uint8_t> v_ubjson;
-  simu::load(file + ".ubjson", v_ubjson);
-  json j_from_ubjson = json::from_ubjson(v_ubjson);
-
-  if (debugSerialization)
-    std::cerr << "Loading " << file << ".ubjson (" << v_ubjson.size()
-              << " bytes) took " << duration(startTime)
-              << " ms" << std::endl;
+    std::cerr << "Loading " << file << " (" << v.size() << " bytes) took "
+              << duration(startTime) << " ms" << std::endl;
 
   startTime = clock::now();
 
@@ -743,11 +755,18 @@ void Simulation::load (const std::string &file, Simulation &s) {
 //  assert(j_from_cbor == j_from_ubjson);
 //  assert(j_from_msgpack == j_from_ubjson);
 
-  const auto j = j_from_cbor;
   Environment::load(j[0], s._env);
   PTree::fromJson(j[2], s._ptree, true);
+  Plant::ID lastID = Plant::ID(0);
   for (const auto &jp: j[1]) {
     Plant *p = Plant::load(jp);
+
+    // Find biggest GID
+    if (lastID < p->id()) lastID = p->id();
+    for (const auto &fd: p->fruits())
+      for (const genotype::Plant &g: fd.second.genomes)
+        if (lastID < g.cdata.id) lastID = g.cdata.id;
+
     s._plants.insert({p->pos().x, Plant_ptr(p)});
 
     s._env.addCollisionData(p);
@@ -761,6 +780,7 @@ void Simulation::load (const std::string &file, Simulation &s) {
         s._env.disseminateGeneticMaterial(o);
   }
 
+  genotype::BOCData::setFirstID(lastID);
   s._env.processNewObjects();
 
   if (debugSerialization)

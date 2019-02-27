@@ -22,6 +22,8 @@ public:
 
   void savePhylogeny (void) const;
 
+  static void load (const std::string &file, GraphicSimulation &s);
+
 private:
   bool addPlant (const PGenome &p, float x, float biomass) override;
   void delPlant (float x, simu::Plant::Seeds &seeds) override;

@@ -96,7 +96,7 @@ struct Rect {
     return { { ul.x + p.x, ul.y + p.y }, { br.x + p.x, br.y + p.y } };
   }
 
-  bool isValid (void) {
+  bool isValid (void) const {
     return width() >= 0 && height() >= 0;
   }
 
@@ -178,6 +178,12 @@ struct Time {
   uint toTimestamp (void) const;
 
   friend bool operator== (const Time &lhs, const Time &rhs);
+
+  friend bool operator< (const Time &lhs, const Time &rhs) {
+    if (lhs._year != rhs._year) return lhs._year < rhs._year;
+    if (lhs._day != rhs._day) return lhs._day < rhs._day;
+    return lhs._hour < rhs._hour;
+  }
 
   friend std::ostream& operator<< (std::ostream &os, const Time &t);
   friend std::istream& operator>> (std::istream &os, Time &t);

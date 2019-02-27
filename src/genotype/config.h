@@ -37,6 +37,7 @@ struct SAG_CONFIG_FILE(Metabolism) {
   DECLARE_PARAMETER(Bd, deltaWidthBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
+  DECLARE_PARAMETER(DW, distanceWeights)
 };
 
 template <>
@@ -54,6 +55,7 @@ struct SAG_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(Bf, temperatureRangeBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
+  DECLARE_PARAMETER(DW, distanceWeights)
 
   using Crossover = genotype::BOCData::config_t;
   DECLARE_SUBCONFIG(Crossover, genotypeCrossoverConfig)

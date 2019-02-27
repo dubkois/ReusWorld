@@ -25,7 +25,6 @@ MainView::MainView(const simu::Environment &e, QWidget *parent)
   setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 
   _scene->addItem(_env);
-  _scene->setSceneRect(_env->boundingRect());
 
   setRenderHint(QPainter::Antialiasing, true);
 
@@ -34,6 +33,11 @@ MainView::MainView(const simu::Environment &e, QWidget *parent)
 
 void MainView::setController(visu::Controller *c) {
   _controller = c;
+}
+
+void MainView::updateEnvironment (void) {
+  _env->updateBounds();
+  _scene->setSceneRect(_env->boundingRect());
 }
 
 void MainView::addPlantItem(simu::Plant &sp) {

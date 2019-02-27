@@ -34,6 +34,8 @@ public:
 
   void setController (visu::Controller *c);
 
+  void updateEnvironment (void);
+
   void addPlantItem(simu::Plant &sp);
   void updatePlantItem (simu::Plant &sp);
   void delPlantItem(float x);

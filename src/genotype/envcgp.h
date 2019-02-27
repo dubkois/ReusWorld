@@ -93,6 +93,7 @@ struct SAG_CONFIG_FILE(EnvCGP) {
   DECLARE_PARAMETER(Bf, c1Bounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
+  DECLARE_PARAMETER(DistanceWeights, distanceWeights)
 };
 
 } // end of namespace config

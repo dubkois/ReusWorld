@@ -8,6 +8,21 @@ namespace simu {
 
 struct Environment;
 
+struct Branch {
+  Rect bounds;
+  Organ::Collection organs;
+
+  Branch (Organ::Collection &bases) : bounds(Rect::invalid()) {
+    for (Organ *o: bases) insert(o);
+  }
+
+  void insert (Organ *o) {
+    organs.insert(o);
+    bounds.uniteWith(o->globalCoordinates().boundingRect);
+    for (Organ *c: o->children()) insert(c);
+  }
+};
+
 class Plant {
 public:
   using Genome = genotype::Plant;
@@ -24,6 +39,8 @@ public:
   };
   using Seeds = std::vector<Seed>;
 
+  using Organs = Organ::Collection;
+
   using decimal = genotype::Metabolism::decimal;
 
 private:
@@ -32,11 +49,13 @@ private:
 
   uint _age;
 
-  using Organs = std::set<Organ*>;
   Organs _organs;
 
-  using OrgansView = std::set<Organ*>;
-  OrgansView _bases, _nonTerminals, _hairs, _sinks, _flowers;
+  using OrgansView = Organs;
+  OrgansView _bases, _hairs, _sinks;
+
+  using OrgansSortedView = Organ::SortedCollection;
+  OrgansSortedView _nonTerminals, _flowers;
 
   uint _derived;  ///< Number of times derivation rules were applied
 
@@ -174,7 +193,7 @@ public:
   void autopsy (void) const;
 
   /// Steps the plant by one tick
-  /// \returns true if its phenotype changed
+  /// \returns how many derivations were applied
   uint step(Environment &env);
 
   void kill (void) {
@@ -184,9 +203,13 @@ public:
   void setPStatsPointer (PStats *stats) {
     if (_pstats != stats) {
       _pstats = stats;
-      if (_pstats)
-            _pstatsWC.reset(new PStatsWorkingCache);
-      else  _pstatsWC.reset(nullptr);
+
+      if (_pstats) {
+        _pstats->plant = this;
+        _pstatsWC.reset(new PStatsWorkingCache);
+
+      } else
+        _pstatsWC.reset(nullptr);
     }
   }
 
@@ -241,22 +264,29 @@ private:
 
   static float initialBiomassFor (const Genome &g);
 
-  Organ *addOrgan (Organ *parent, float angle, char symbol, Layer type,
-                   Environment &env);
+  Organ* makeOrgan (Organ *parent, float angle, char symbol, Layer type);
+  void addOrgan (Organ *o, Environment &env);
+  void addSubtree (Organ *o, Environment &env) {
+    addOrgan(o, env);
+    for (Organ *c: o->children()) addSubtree(c, env);
+  }
+
+  void commit (Organ *o) {
+    o->unsetCloned();
+    assignToViews(o);
+    for (Organ *c: o->children()) commit(c);
+  }
 
   void delOrgan (Organ *o, Environment &env);
   bool destroyDeadSubtree(Organ *o, Environment &env);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
-                      Layer type, Organs &newOrgans,
-                      const genotype::grammar::Checkers &checkers,
-                      Environment &env);
+                      Layer type, Organs &newOrgans);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float angle,
-                      Layer type, const genotype::grammar::Checkers &checkers,
-                      Environment &env) {
-    Organs newOrgans;
-    return turtleParse(parent, successor, angle, type, newOrgans, checkers, env);
+                      Layer type) {
+    Organs newOrgansDecoy;
+    return turtleParse(parent, successor, angle, type, newOrgansDecoy);
   }
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);
@@ -290,8 +320,12 @@ struct OrganID {
       PlantID::print(os, oid.o->plant());
       os << ":";
     }
-    return os << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0]
-              << "O" << oid.o->id() << oid.o->symbol() << "]";
+    os << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0] << "O";
+    if (oid.o->id() == Organ::OID::INVALID)
+          os << '?';
+    else  os << oid.o->id();
+    os << oid.o->symbol() << "]";
+    return os;
   }
 };
 

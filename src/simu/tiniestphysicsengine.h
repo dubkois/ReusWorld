@@ -83,7 +83,7 @@ public:
 
   bool addCollisionData (const Environment &env, Plant *p);
   void removeCollisionData (Plant *p);
-  bool isCollisionFree(const Plant *p) const;
+  bool isCollisionFree(const Plant *p, const Branch &b);
 
   void updateCollisions (Plant *p);
   void updateFinal (const Environment &env, Plant *p);
@@ -104,10 +104,18 @@ private:
   Collisions::iterator find (const Plant *p);
   Collisions::const_iterator find (const Plant *p) const;
 
+  template <EdgeSide S>
+  void updateEdge (Edge<S> *edge, float val);
+
+  template <EdgeSide S>
+  Edges<S>& getEdges (void);
+
   void broadphaseCollision (const CollisionObject *object,
-                            const_Collisions &objects) const;
+                            const_Collisions &objects,
+                            const Rect otherBounds = Rect::invalid());
 
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
+                                    const Branch &branch,
                                     const Rect &intersection);
 
   bool valid (const Pistil &p);

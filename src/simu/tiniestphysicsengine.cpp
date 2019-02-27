@@ -3,6 +3,8 @@
 #include "tiniestphysicsengine.h"
 #include "environment.h"
 
+/// FIXME Pistils yet again bugging out
+
 namespace simu {
 namespace physics {
 
@@ -230,8 +232,6 @@ void doLineSweep (const Plant *plant,
 
 } // end of namespace canopy
 
-/// FIXME Inter-shadowing should not be ignored !
-
 void UpperLayer::updateInIsolation (const simu::Environment &env, const Plant *p) {
   std::set<canopy::XEvent> xevents;
   for (Organ *o: p->organs()) {
@@ -326,9 +326,12 @@ struct XEvent {
   }
 };
 
+bool includes (const Rect &lhs, const Rect &rhs) {
+  return lhs.l() <= rhs.l() && rhs.r() <= lhs.r();
+}
+
 bool includes (const CollisionObject *lhs, const CollisionObject *rhs) {
-  return lhs->boundingRect.l() <= rhs->boundingRect.l()
-      && rhs->boundingRect.r() <= lhs->boundingRect.r();
+  return includes(lhs->boundingRect, rhs->boundingRect);
 }
 
 void englobes (CollisionObject *lhs, CollisionObject *rhs) {
@@ -397,7 +400,7 @@ void TinyPhysicsEngine::debug (void) const {
       utils::doThrow<std::logic_error>("Leftover pistil!");
   }
 #endif
-#if 1
+#if 0
   // Check that every pistil is correctly placed
   for (const CollisionObject *co: _data) {
     const Plant *p = co->plant;
@@ -554,17 +557,10 @@ void TinyPhysicsEngine::updateCollisions (Plant *p) {
   if (debugCollision) std::cerr << " to " << object->boundingRect << std::endl;
   it = _data.insert(object).first;
 
-  if (object->leftEdge->edge != object->boundingRect.l()) {
-    _leftEdges.erase(object->leftEdge.get());
-    object->leftEdge->edge = object->boundingRect.l();
-    _leftEdges.insert(object->leftEdge.get());
-  }
-
-  if (object->rightEdge->edge != object->boundingRect.r()) {
-    _rightEdges.erase(object->rightEdge.get());
-    object->rightEdge->edge = object->boundingRect.r();
-    _rightEdges.insert(object->rightEdge.get());
-  }
+  if (object->leftEdge->edge != object->boundingRect.l())
+    updateEdge(object->leftEdge.get(), object->boundingRect.l());
+  if (object->rightEdge->edge != object->boundingRect.r())
+    updateEdge(object->rightEdge.get(), object->boundingRect.r());
 }
 
 void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
@@ -576,6 +572,8 @@ void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
   it = _data.insert(object).first;
 
   const auto aabb = object->boundingRect;
+  if (object->leftEdge->edge != aabb.l())  updateEdge(object->leftEdge.get(), aabb.l());
+  if (object->rightEdge->edge != aabb.r())  updateEdge(object->rightEdge.get(), aabb.r());
 
   if (debugBroadphase)
     std::cerr << PlantID(p) << " Performing post-derivation physics update"
@@ -748,6 +746,7 @@ bool collisionSAT (const Organ *lhs, const Organ *rhs) {
 
 /// \returns true if a collision occured, false otherwise
 bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
+                                              const Branch &branch,
                                               const Rect &intersection) {
 
   using namespace narrowphase;
@@ -759,7 +758,7 @@ bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs
   // Collect organs in each plant at least touching the plant-plant intersection
   uint lhsO = 0, rhsO = 0;
   std::set<Event<X>> xevents;
-  for (const Organ *o: lhs->organs()) {
+  for (const Organ *o: branch.organs) {
     if (intersects(intersection, o->globalCoordinates().boundingRect)) {
       if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
       xevents.emplace(IN, o);
@@ -845,8 +844,48 @@ bool intersects (const CollisionObject *lhs, const CollisionObject *rhs) {
   return intersects(lhs->boundingRect, rhs->boundingRect);
 }
 
+template <>
+TinyPhysicsEngine::Edges<EdgeSide::LEFT>&
+TinyPhysicsEngine::getEdges<EdgeSide::LEFT> (void) {
+  return _leftEdges;
+}
+
+template <>
+TinyPhysicsEngine::Edges<EdgeSide::RIGHT>&
+TinyPhysicsEngine::getEdges<EdgeSide::RIGHT> (void) {
+  return _rightEdges;
+}
+
+template <EdgeSide S>
+void TinyPhysicsEngine::updateEdge (Edge<S> *edge, float val) {
+  auto &edges = getEdges<S>();
+  if (edge->edge != val) {
+    edges.erase(edge);
+    edge->edge = val;
+    edges.insert(edge);
+  }
+}
+
 void TinyPhysicsEngine::broadphaseCollision(const CollisionObject *object,
-                                            const_Collisions &objects) const {
+                                            const_Collisions &objects,
+                                            const Rect otherBounds) {
+
+  // Update edges to include new organs
+  Rect unitedBounds = object->boundingRect;
+  const float lEdge = object->leftEdge->edge,   // Keep backups
+              rEdge = object->rightEdge->edge;  //
+  if (otherBounds.isValid()) {
+    unitedBounds.uniteWith(otherBounds);
+    if (unitedBounds.l() < object->leftEdge->edge)
+      updateEdge(object->leftEdge.get(), unitedBounds.l());
+    if (object->rightEdge->edge < unitedBounds.r())
+      updateEdge(object->rightEdge.get(), unitedBounds.r());
+  }
+
+  if (debugBroadphase)
+    std::cerr << "\tOriginal bounds: " << object->boundingRect
+              << "\n\t   Other bounds: " << otherBounds
+              << "\n\t  United bounds: " << unitedBounds << std::endl;
 
   { // Start from right, scanning for edges untils reaching left
     if (debugBroadphase)  std::cerr << "\tScanning right to left:";
@@ -877,6 +916,10 @@ void TinyPhysicsEngine::broadphaseCollision(const CollisionObject *object,
     std::cerr << std::endl;
   }
 
+  // Restore edges if needed
+  if (object->leftEdge->edge < lEdge) updateEdge(object->leftEdge.get(), lEdge);
+  if (rEdge < object->rightEdge->edge) updateEdge(object->rightEdge.get(), rEdge);
+
   // Include (potentially) englobing objects
   objects.insert(object->englobingObjects.begin(),
                         object->englobingObjects.end());
@@ -884,13 +927,16 @@ void TinyPhysicsEngine::broadphaseCollision(const CollisionObject *object,
   objects.erase(object); // No self collision
 }
 
-/// FIXME Still not working at 100% (Newly inserted plants have no englobing information)
-bool TinyPhysicsEngine::isCollisionFree (const Plant *p) const {
+bool TinyPhysicsEngine::isCollisionFree (const Plant *p, const Branch &branch) {
   if (debugCollision) std::cerr << "\nTesting collisions for " << p->id() << std::endl;
+
+  Rect otherBounds = Rect::invalid();
+  if (!broadphase::includes(p->boundingRect(), branch.bounds))
+    otherBounds = branch.bounds;
 
   CollisionObject *object = *find(p);
   const_Collisions aabbCandidates;
-  broadphaseCollision(object, aabbCandidates);
+  broadphaseCollision(object, aabbCandidates, otherBounds);
 
   if (debugCollision) {
     std::cerr << "Possible collisions for " << p->id() << " ("
@@ -905,12 +951,12 @@ bool TinyPhysicsEngine::isCollisionFree (const Plant *p) const {
     if (that->plant->isInSeedState()) continue;
 
     Rect intersection;
-    intersection.ul.x = std::max(that->boundingRect.l(), object->boundingRect.l());
-    intersection.ul.y = std::min(that->boundingRect.t(), object->boundingRect.t());
-    intersection.br.x = std::min(that->boundingRect.r(), object->boundingRect.r());
-    intersection.br.y = std::max(that->boundingRect.b(), object->boundingRect.b());
+    intersection.ul.x = std::max(that->boundingRect.l(), branch.bounds.l());
+    intersection.ul.y = std::min(that->boundingRect.t(), branch.bounds.t());
+    intersection.br.x = std::min(that->boundingRect.r(), branch.bounds.r());
+    intersection.br.y = std::max(that->boundingRect.b(), branch.bounds.b());
     if (intersection.isValid()
-        && narrowPhaseCollision(object->plant, that->plant, intersection))
+      && narrowPhaseCollision(object->plant, that->plant, branch, intersection))
       return false;
   }
 
@@ -962,10 +1008,14 @@ void TinyPhysicsEngine::delPistil(const Organ *p) {
     if (debugReproduction)  std::cerr << "Deleting " << *it << std::endl;
 
     _pistils.erase(it);
-  } else
+  } else {
+#if !defined(NDEBUG) && 1
+
+#endif
     if (debugReproduction)  std::cerr << "Could not delete pistil for " << OrganID(p)
                                       << " at " << p->globalCoordinates().center
                                       << ": not found" << std::endl;
+  }
 }
 
 void TinyPhysicsEngine::updatePistil (Organ *p, const Point &oldPos) {

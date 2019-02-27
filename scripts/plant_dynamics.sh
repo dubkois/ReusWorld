@@ -19,7 +19,8 @@ OPTIND=1         # Reset in case getopts has been used previously in the shell.
 file=""
 columns=""
 persist=""
-while getopts "h?c:f:p" opt; do
+loop=""
+while getopts "h?c:f:pl:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -31,17 +32,26 @@ while getopts "h?c:f:p" opt; do
         ;;
     p)  persist="-"
         ;;
+    l)  loop="eval(loop($OPTARG))"
+        ;;
     esac
 done
 
 echo "   file: '$file'"
 echo "columns: '$columns'"
 
+lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
+tics=8
+
 cmd="set datafile separator ' ';
 set ytics nomirror;
 set y2tics nomirror;
-"
-prefix="plot"
+set key autotitle columnhead;
+loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';
+xticsCount=$tics;
+ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
+linesPerTic=ticsEvery(0);
+plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
 
 echo "reading columns specifications"
 IFS=';' read -r -a columnsArray <<< $columns
@@ -53,13 +63,18 @@ do
     gp_elt=$(cut -d: -f 1 <<< $elt | sed "s/\([^$W]*\)\([$W]\+\)\([^$W]*\)/\1column(\"\2\")\3/g")
     printf "$elt >> $gp_elt : $y\n"
     
-    cmd="$cmd$prefix '$file' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)',
-"
-    prefix="    "
+    cmd="$cmd,
+     '' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)'"
 done
 
-cmd="$cmd$prefix 0/0 notitle;"
-printf "$cmd\n"
+cmd="$cmd;"
+if [ "$loop" ]
+then
+  cmd="$cmd
+  $loop"
+fi
+
+printf "%s\n" "$cmd"
 
 gnuplot -e "$cmd" --persist $persist
 

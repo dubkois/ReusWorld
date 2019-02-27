@@ -64,7 +64,7 @@ Plant::~Plant (void) {
 void Plant::init (Environment &env, float biomass, PStats *pstats) {
   auto A = genotype::grammar::toSuccessor(GConfig::ls_axiom());
   for (Layer l: {Layer::SHOOT, Layer::ROOT})
-    turtleParse(nullptr, A, initialAngle(l), l, _genome.checkers(l), env);
+    addOrgan(turtleParse(nullptr, A, initialAngle(l), l), env);
 
 
   // Distribute initial resources to producer modules
@@ -104,6 +104,10 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
 
   assert(o->isFlower());
 
+  if (debugReproduction)
+    std::cerr << OrganID(o) << " Replacing with fruit at "
+              << o->globalCoordinates().center << std::endl;
+
   Organ *parent = o->parent();
   float rotation = o->localRotation();
   Layer l = o->layer();
@@ -113,7 +117,9 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
   assert(p.second);
 
   Organ *fruit = turtleParse(parent, toSuccessor(Rule::fruitSymbol()), rotation,
-                             l, _genome.checkers(l), env);
+                             l);
+
+  addOrgan(fruit, env);
 
   p.first->second.fruit = fruit;
 
@@ -170,16 +176,42 @@ void Plant::autopsy(void) const {
     std::cerr << std::endl;
 }
 
+void printSubTree (Organ *st, uint depth) {
+  std::cerr << std::string(depth, ' ') << OrganID(st) << "\n";
+  for (Organ *sst: st->children())  printSubTree(sst, depth+2);
+}
+
+bool isSelfColliding (const Plant::Organs &organs, const Plant::Organs &other = Plant::Organs()) {
+  std::set<float> rotationsView;
+  for (auto o: organs)  rotationsView.insert(o->inPlantCoordinates().rotation);
+  for (auto o: other)   rotationsView.insert(o->inPlantCoordinates().rotation);
+  if (rotationsView.size() != organs.size() + other.size())
+    return true;
+  else {
+    for (auto o: organs)
+      if (isSelfColliding(o->children()))
+        return true;
+    return false;
+  }
+}
+
 uint Plant::deriveRules(Environment &env) {
   // Store current pistils location in case of an update
-  std::map<Organ*, Point> oldPistilsPositions;
+  std::map<OID, Point> oldPistilsPositions;
   if (sex() == Sex::FEMALE)
     for (Organ *f: _flowers)
-      oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
 
-  auto nonTerminals = _nonTerminals;
   uint derivations = 0;
-  for (Organ *apex: nonTerminals) {
+  std::set<OID> unprocessed;
+  for (Organ *o: _nonTerminals) unprocessed.insert(o->id());
+
+  for (OID id: unprocessed) {
+    auto it = _nonTerminals.find(id);
+    if (it == _nonTerminals.end())
+      utils::doThrow<std::logic_error>("Lost track of non terminal ", id, "!");
+
+    Organ *apex = *it;
     Layer layer = apex->layer();
     auto succ = _genome.successor(layer, apex->symbol());
 
@@ -191,115 +223,123 @@ uint Plant::deriveRules(Environment &env) {
       continue;
 
     } else if (debugDerivation)
-      std::cerr << "Applying " << apex->symbol() << " -> " << succ << std::endl;
-
-//#ifndef NDEBUG
-    auto size_before = _organs.size();
-//#endif
+      std::cerr << OrganID(apex) << " Applying " << apex->symbol() << " -> "
+                << succ << std::endl;
 
     // Create new organs
-    Organs newOrgans;
-    float angle = apex->localRotation(); // will return the remaining rotation (e.g. A -> A++)
-    Organ *end = turtleParse(apex->parent(), succ, angle, layer, newOrgans,
-                             _genome.checkers(layer), env);
+    Organs newOrgans; // Collection of all newly created organs
+    Organ *newApex;   // Last organ of the new subtree
+    float angle = apex->localRotation();  // Remaining rotation after the last
+    newApex = turtleParse(apex->parent(), succ, angle, layer, newOrgans);
 
-    // Update physical data
-    apex->removeFromParent();
-    updateSubtree(apex, end, angle);
-    updateGeometry();
-    env.updateCollisionData(this);
+    Organs stBases; // Roots of the new subtree
+    for (Organ *o: newOrgans) if (o->parent() == apex->parent())  stBases.insert(o);
 
-//    /// NOTE This is a smelly piece of
-//    float sizeIncrease = 0;
-//    for (auto c: succ)
-//      sizeIncrease += GConfig::sizeOf(c).length;
+    // Create clones of subtree under 'apex'
+    for (Organ *c: apex->children()) {
+      Organ *c_ = c->cloneAndUpdate(newApex, angle);
+      if (newApex)  newApex->children().insert(c_);
+      if (apex->parent() == newApex)  stBases.insert(c_);
+    }
 
-    bool colliding = !env.isCollisionFree(this);
+    if (debugDerivation) {
+      std::cerr << PlantID(this) << "\tCreated:\n";
+      for (Organ *st: stBases)  printSubTree(st, 13);
+      std::cerr << std::endl;
+    }
 
-    if (colliding/* && sizeIncrease > 0*/) {
-      /// FIXME This is a bundle of spaghetti code. Need to clean it thoughroughly
+    // Test for self collision
+    /// TODO Does this work as expected? (i.e. not perfect but precise enough?)
+    Organs apexSiblings;
+    if (apex->parent())
+      for (Organ *as: apex->parent()->children())
+        if (as != apex)
+          apexSiblings.insert(as);
+    bool selfColliding = isSelfColliding(stBases, apexSiblings);
+    if (selfColliding) {
+      for (Organ *st: stBases)  delOrgan(st, env);
+      for (Organ *st: apex->children()) commit(st);
 
-      const auto deleter = [&newOrgans, &env, this] (auto collection) {
-        for (auto it = collection.begin(); it != collection.end();) {
-          auto newOrgans_it = newOrgans.find(*it);
-          if (newOrgans_it != newOrgans.end()) {
-            delOrgan(*it, env);
-            newOrgans.erase(newOrgans_it);
-            it = collection.erase(it);
+      if (debugDerivation)
+        std::cerr << "\tCanceled due to self-collision\n"
+                  << std::endl;
 
-          } else
-            ++it;
-        }
-      };
+      continue;
+    }
 
-      // Delete new organs at the end (eg. A[l], with A -> As[l])
-      if (end) deleter(end->children());
-
-      // Revert reparenting
-      if (end) updateSubtree(end, apex, -angle);
-      apex->restoreInParent();
-
-      // Delete newly created plant portion
-      Organ *o__ = end;
-      while (o__ != apex->parent()) {
-        Organ *tmp = o__;
-        o__ = o__->parent();
-        delOrgan(tmp, env);
-      }
-
-      // Delete remaining unparented organs
-      if (!apex->parent()) deleter(_bases);
-
-      // Re-update physical data
-      updateGeometry();
-      env.updateCollisionData(this);
+    // Create interplant collision data
+    Branch branch (stBases);
+    bool colliding = !env.isCollisionFree(this, branch);
+    if (colliding) {
+      for (Organ *st: stBases)  delOrgan(st, env);
+      for (Organ *st: apex->children()) commit(st);
 
       if (debugDerivation)
         std::cerr << "\tCanceled due to collision with another plant\n"
                   << std::endl;
 
-//#ifndef NDEBUG
-      auto size_after = _organs.size();
-      assert(size_before == size_after);
-      if (size_before != size_after)
-        utils::doThrow<std::logic_error>(
-          "Rollback failed (", size_before, " != ", size_after,
-              "), faulty genome:", _genome);
-//#endif
-
-    } else { // All's good
-
-      // Divide remaining biomass into newly created sinks
-      float leftOverBiomass = apex->biomass() - ruleBiomassCost(apex->layer(), apex->symbol());
-      if (leftOverBiomass > 0) {
-        if (debugMetabolism || debugDerivation)
-          std::cerr << PlantID(this) << " Dispatching " << leftOverBiomass
-                    << " left over biomass" << std::endl;
-        distributeBiomass(leftOverBiomass, newOrgans,
-                          [] (Organ*) { return true; });
-      }
-
-      derivations++;
-
-      // Destroy
-      delOrgan(apex, env);
-
-      // Update pistils positions cache
-      if (sex() == Sex::FEMALE)
-        for (Organ *p: _flowers)
-          if (oldPistilsPositions.find(p) == oldPistilsPositions.end())
-            oldPistilsPositions.emplace(p, p->globalCoordinates().center);
+      continue;
     }
+
+
+    float leftOverBiomass = apex->biomass()
+                          - ruleBiomassCost(apex->layer(), apex->symbol());
+
+    if (debugDerivation)
+      std::cerr << "\tDerivation validated. Commiting." << std::endl;
+
+    if (apex->parent()) {
+      Organ *ap = apex->parent();
+      for (Organ *b: stBases) ap->children().insert(b);
+    }
+
+    // Destroy
+    delOrgan(apex, env);
+
+    for (Organ *st: stBases) {
+      commit(st);
+      addSubtree(st, env);
+    }
+
+    updateGeometry();
+//      env.updateCollisionData(this);
+
+    // Divide remaining biomass into newly created sinks
+    if (leftOverBiomass > 0) {
+      if (debugMetabolism || debugDerivation)
+        std::cerr << PlantID(this) << " Dispatching " << leftOverBiomass
+                  << " left over biomass" << std::endl;
+      distributeBiomass(leftOverBiomass, newOrgans,
+                        [] (Organ*) { return true; });
+    }
+
+    derivations++;
+
+
+    // Update pistils positions cache
+    if (sex() == Sex::FEMALE)
+      for (Organ *p: _flowers)
+        if (oldPistilsPositions.find(p->id()) == oldPistilsPositions.end())
+          oldPistilsPositions.emplace(p->id(), p->globalCoordinates().center);
+
+    if (debugDerivation)
+      std::cerr << "\t\t>>> " << toString(layer) << std::endl;
   }
 
   // Update pistils as needed
   for (auto &p: oldPistilsPositions) {
-    if (p.second != p.first->globalCoordinates().center) {
-      env.updateGeneticMaterial(p.first, p.second); // If position changed
+    auto it = _flowers.find(p.first);
+    if (it == _flowers.end())
+      utils::doThrow<std::logic_error>("Lost track of pistil ", p.first, "!");
+
+    Organ *pistil = *it;
+    if (p.second != pistil->globalCoordinates().center) {
+      env.updateGeneticMaterial(pistil, p.second); // If position changed
 
       // Check if this freed up some space for others
       for (Organ *f: _flowers)
-        if (f != p.first && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
+        if (f->id() != p.first
+            && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
           env.updateGeneticMaterial(f, f->globalCoordinates().center);
     }
   }
@@ -334,13 +374,13 @@ void Plant::updateGeometry(void) {
 }
 
 Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
-                           float &angle, Layer type, Organs &newOrgans,
-                           const genotype::grammar::Checkers &checkers,
-                           Environment &env) {
+                           float &angle, Layer type, Organs &newOrgans) {
+
+  using R = Rule_base;
 
   for (size_t i=0; i<successor.size(); i++) {
     char c = successor[i];
-    if (checkers.control(c)) {
+    if (R::isValidControl(c)) {
       switch (c) {
       case ']':
         utils::doThrow<std::logic_error>(
@@ -351,12 +391,12 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
       case '[':
         float a = angle;
         turtleParse(parent, genotype::grammar::extractBranch(successor, i, i),
-                    a, type, newOrgans, checkers, env);
+                    a, type, newOrgans);
         break;
       }
-    } else if (checkers.nonTerminal(c) || checkers.terminal(c)
+    } else if (R::isValidNonTerminal(c) || R::isTerminal(c)
                || c == genotype::grammar::Rule_base::fruitSymbol()) {
-      Organ *o = addOrgan(parent, angle, c, type, env);
+      Organ *o = makeOrgan(parent, angle, c, type);
       newOrgans.insert(o);
       parent = o;
       angle = 0;
@@ -369,30 +409,49 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
   return parent;
 }
 
-Organ* Plant::addOrgan(Organ *parent, float angle, char symbol, Layer type,
-                       Environment &env) {
 
+Organ* Plant::makeOrgan(Organ *parent, float angle, char symbol, Layer type) {
   auto size = GConfig::sizeOf(symbol);
-  Organ *o = new Organ(_nextOrganID, this, size.width, size.length, angle,
+  Organ *o = new Organ(this, size.width, size.length, angle,
                        symbol, type, parent);
-  _nextOrganID = OID(uint(_nextOrganID)+1);
-  _organs.insert(o); 
 
   if (debugOrganManagement) {
-    std::cerr << "Created " << *o;
+    std::cerr << PlantID(this) << " Created " << *o;
     if (parent) std::cerr << " under " << *parent;
     std::cerr << std::endl;
   }
 
-  assignToViews(o);
-
   o->updateDimensions(true);
+
+  return o;
+}
+
+void Plant::addOrgan(Organ *o, Environment &env) {
+  assert(!o->isCloned()); // Must be commited
+
+  if (o->id() == OID::INVALID) {
+    o->setID(_nextOrganID);
+    _nextOrganID = OID(uint(_nextOrganID)+1);
+  }
+
+  _organs.insert(o);
+
+  if (debugOrganManagement) {
+    std::cerr << PlantID(this) << " Inserted " << *o;
+    if (o->parent())  std::cerr << " under " << *o->parent();
+    std::cerr << std::endl;
+  }
+
+  assignToViews(o);
   o->setRequiredBiomass(isSink(o) ? sinkRequirement(o) : 0);
+
+  if (o->isFruit()) {
+    FruitData &fd = _fruits.at(o->id());
+    fd.fruit = o;
+  }
 
   if (o->isFlower() && sex() == Sex::FEMALE)
     env.disseminateGeneticMaterial(o);
-
-  return o;
 }
 
 void Plant::assignToViews(Organ *o) {
@@ -426,7 +485,12 @@ void Plant::delOrgan(Organ *o, Environment &env) {
     if (sex() == Sex::FEMALE) env.removeGeneticMaterial(o);
   }
 
-  if (o->isFruit()) collectSeedsFrom(o);
+  if (o->isFruit() && !o->isCloned()) {
+    if (debugOrganManagement || debugReproduction)
+      std::cerr << PlantID(this) << " Collecting seeds from fruit "
+                << OrganID(o) << std::endl;
+    collectSeedsFrom(o);
+  }
 
   _dirty.set(DIRTY_COLLISION, true);
   delete o;
@@ -955,7 +1019,8 @@ uint Plant::step(Environment &env) {
     if (starvedOut) kill();
   }
 
-  if (_age % SConfig::stepsPerDay() == 0 && !_nonTerminals.empty()) {
+  if ((SConfig::DEBUG_NO_METABOLISM() || _age % SConfig::stepsPerDay() == 0)
+    && !_nonTerminals.empty()) {
 
     uint derived = deriveRules(env);
     _derived += bool(derived);
@@ -987,10 +1052,10 @@ uint Plant::step(Environment &env) {
 
   /// Recursively delete dead organs
   // First take note of the current flowers
-  std::map<Organ*, Point> oldPistilsPositions;
+  std::map<OID, Point> oldPistilsPositions;
   if (sex() == Sex::FEMALE)
     for (Organ *f: _flowers)
-      oldPistilsPositions.emplace(f, f->globalCoordinates().center);
+      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
 
   // Perform suppressions
   bool deleted = false;
@@ -1024,15 +1089,13 @@ void Plant::updatePStats(Environment &env) {
   auto &ps = *_pstats;
   auto &wc = *_pstatsWC;
 
-  assert(ps.plant == this);
+  assert(ps.plant->id() == id());
 
   float b = biomass();
   if (wc.largestBiomass <= b) {
     wc.largestBiomass = b;
     ps.shoot = toString(Layer::SHOOT);
     ps.root = toString(Layer::ROOT);
-
-    assert(!ps.shoot.empty());
   }
 
   ps.seed = isInSeedState();
@@ -1040,11 +1103,12 @@ void Plant::updatePStats(Environment &env) {
   ps.death = env.time();
   ps.lifespan = age();
 
-//  wc.sumTemperature
+  ps.avgTemperature = wc.sumTemperature / _age;
   ps.avgHygrometry = wc.sumHygrometry / _age;
   ps.avgLight = wc.sumLight / _age;
 
   assert(!std::isnan(wc.largestBiomass));
+  assert(!std::isnan(wc.sumTemperature));
   assert(!std::isnan(wc.sumHygrometry));
   assert(!std::isnan(wc.sumLight));
 

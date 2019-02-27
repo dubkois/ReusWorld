@@ -46,6 +46,11 @@ template <typename R, typename Dice>
 void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dice) {
   auto sizeWCC = rule.sizeWithoutControlChars();
 
+#ifndef NDEBUG
+  R ruleBefore = rule;
+  (void)ruleBefore;
+#endif
+
   bool swappable = false;
   std::vector<float> swapWeights (rule.rhs.size()-1, 0);
   for (uint i=0; i<rule.rhs.size()-1; i++)
@@ -53,8 +58,10 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
                    = !grammar::Rule_base::isBracket(rule.rhs[i])
                   && !grammar::Rule_base::isBracket(rule.rhs[i+1]);
 
+  bool extendable = (sizeWCC < Config::ls_maxRuleSize());
+
   auto ruleRates = Config::ls_ruleMutationRates();
-  ruleRates["dupSymb"] *= (sizeWCC < Config::ls_maxRuleSize());
+  ruleRates["dupSymb"] *= extendable;
 //  ruleRates["swpSymb"] // Always true (at least should be)
   ruleRates["swpSymb"] *= swappable;
 //  ruleRates["brkSymb"] // Idem
@@ -64,28 +71,30 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
 
   if (debugMutations)  std::cerr << "\tMutation " << field << " on '" << rule;
 
+  char c = '?';
+  size_t i = std::string::npos;
+
   if (field == "dupSymb") {
-    size_t i = nonBracketSymbol(rule.rhs, dice);
+    i = nonBracketSymbol(rule.rhs, dice);
     rule.rhs.replace(i, 1, std::string(2, rule.rhs[i]));
 
   } else if (field == "mutSymb") {
-    size_t i = nonBracketSymbol(rule.rhs, dice);
-    char c = R::nonBracketSymbol(nonTerminals, dice);
+    i = nonBracketSymbol(rule.rhs, dice);
+    c = R::nonBracketSymbol(rule.rhs[i], nonTerminals, dice, !extendable);
     rule.rhs[i] = c;
     assert(R::isValidNonTerminal(c) || R::isValidTerminal(c) || R::isValidControl(c));
 
   } else if (field == "swpSymb") {
-
-    size_t i = dice(rng::rdist(swapWeights.begin(), swapWeights.end()));
+    i = dice(rng::rdist(swapWeights.begin(), swapWeights.end()));
     std::swap(rule.rhs[i], rule.rhs[i+1]);
 
   } else if (field == "brkSymb") {
-    size_t i = nonBracketSymbol(rule.rhs, dice);
+    i = nonBracketSymbol(rule.rhs, dice);
     rule.rhs.insert(i, "[");
     rule.rhs.insert(i+2, "]");
 
   } else if (field == "delSymb") {
-    size_t i = nonBracketSymbol(rule.rhs, dice);
+    i = nonBracketSymbol(rule.rhs, dice);
     if (i > 0 && i+1 < rule.rhs.size() && rule.rhs[i-1] == '[' && rule.rhs[i+1] == ']')
       rule.rhs.replace(i-1, 3, "");
     else
@@ -94,6 +103,8 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
   } else
     utils::doThrow<std::logic_error>("Unhandled field '", field,
                                      "' for lsystem rule mutation");
+
+  assert(rule.sizeWithoutControlChars() <= Config::ls_maxRuleSize());
 
   if (debugMutations)  std::cerr << " >> " << rule << std::endl;
 }
@@ -181,13 +192,13 @@ double distanceLSystemRules (const R &lhs, const R &rhs) {
         d_ += (rLhs.rhs[i] != rRhs.rhs[i]);
       for (; i<rLhs.size(); i++)  d_ += 1;
       for (; i<rRhs.size(); i++)  d_ += 1;
-      d += d_ / double(2 * Config::ls_maxRuleSize());
+      d += d_ / Config::ls_maxRuleSize();
 
     } else {
       d += 1;
     }
   }
-  return d / double(maxRuleCount());
+  return 2.f * d / maxRuleCount();
 }
 
 template <typename R>
@@ -299,6 +310,12 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(    growthSpeed, 1.f),
   MUTATION_RATE(     deltaWidth, 1.f)
 })
+DEFINE_GENOME_DISTANCE_WEIGHTS({
+  MUTATION_RATE(conversionRates, 1.f),
+  MUTATION_RATE(      resistors, 1.f),
+  MUTATION_RATE(    growthSpeed, 1.f),
+  MUTATION_RATE(     deltaWidth, 1.f)
+})
 #undef GENOME
 
 /// ============================================================================
@@ -393,6 +410,17 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(      seedsPerFruit, .5f),
   MUTATION_RATE( temperatureOptimal, .5f),
   MUTATION_RATE(   temperatureRange, .5f),
+})
+DEFINE_GENOME_DISTANCE_WEIGHTS({
+  DISTANCE_WEIGHT(              cdata, 0.f),
+  DISTANCE_WEIGHT(              shoot, 1.f),
+  DISTANCE_WEIGHT(               root, 1.f),
+  DISTANCE_WEIGHT(         metabolism, 1.f),
+  DISTANCE_WEIGHT(           dethklok, .5f),
+  DISTANCE_WEIGHT(     fruitOvershoot, .5f),
+  DISTANCE_WEIGHT(      seedsPerFruit, .5f),
+  DISTANCE_WEIGHT( temperatureOptimal, .5f),
+  DISTANCE_WEIGHT(   temperatureRange, .5f),
 })
 
 namespace config {

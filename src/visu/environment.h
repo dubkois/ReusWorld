@@ -12,6 +12,10 @@ class Environment : public QGraphicsItem {
 public:
   Environment(const simu::Environment &e) : _object(e) {}
 
+  void updateBounds (void) {
+    prepareGeometryChange();
+  }
+
   QRectF boundingRect (void) const override {
     return QRectF(-_object.xextent(), -_object.yextent(),
                   _object.width(), _object.height());

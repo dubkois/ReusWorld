@@ -50,8 +50,6 @@ struct PStats {
     j["avgT"] = ps.avgTemperature;
     j["avgH"] = ps.avgHygrometry;
     j["avgL"] = ps.avgLight;
-
-//    assert(!std::isnan(ps.pos.x));
   }
 
   friend void from_json (const nlohmann::json &j, PStats &ps) {
@@ -59,15 +57,16 @@ struct PStats {
     ps.id = j["_id"];
     ps.born = j["_isBorn"];
     ps.seed = j["_isSeed"];
-    ps.pos = { j["pos"][0], j["pos"][1] };
+    if (!j["pos"][0].is_null()) ps.pos.x = j["pos"][0];
+    if (!j["pos"][1].is_null()) ps.pos.y = j["pos"][1];
     ps.birth = j["birth"];
     ps.death = j["death"];
     ps.lifespan = j["lspan"];
     ps.shoot = j["shoot"];
     ps.root = j["root"];
-    ps.avgTemperature = j["avgT"];
-    ps.avgHygrometry = j["avgH"];
-    ps.avgLight = j["avgL"];
+    if (!j["avgT"].is_null()) ps.avgTemperature = j["avgT"];
+    if (!j["avgH"].is_null()) ps.avgHygrometry = j["avgH"];
+    if (!j["avgL"].is_null()) ps.avgLight = j["avgL"];
   }
 };
 

@@ -14,6 +14,7 @@ struct TinyPhysicsEngine;
 } // end of namespace physics
 
 struct Plant;
+struct Branch;
 
 /// Manages everything related to the external conditions:
 ///  - abiotic inputs (sunlight, water, temperature, topology)
@@ -131,7 +132,7 @@ public:
   void updateCollisionDataFinal (Plant *p); ///< At the end of the step (no rollback allowed)
   void removeCollisionData (Plant *p);
 
-  bool isCollisionFree (const Plant *p) const;
+  bool isCollisionFree (const Plant *p, const Branch &b) const;
 
   void disseminateGeneticMaterial (Organ *f);
   void updateGeneticMaterial (Organ *f, const Point &oldPos);

@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
 
-  std::string envGenomeFile, plantGenomeFile;
+  std::string envGenomeFile, plantGenomeFile, loadSaveFile;
 
   float speed = 0.f;
   bool autoQuit = false;
@@ -24,11 +24,12 @@ int main(int argc, char *argv[]) {
                            "2D simulation of plants in a changing environment");
   options.add_options()
     ("h,help", "Display help")
-    ("a,auto-config", "[2;D] Load configuration data from default location")
-    ("c,config", "[2] File containing configuration data", cxxopts::value(configFile))
+    ("a,auto-config", "Load configuration data from default location")
+    ("c,config", "File containing configuration data", cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
-    ("e,environment", "[M] Environment's genome", cxxopts::value(envGenomeFile))
-    ("p,plant", "[M] Plant genome to start from", cxxopts::value(plantGenomeFile))
+    ("e,environment", "Environment's genome", cxxopts::value(envGenomeFile))
+    ("p,plant", "Plant genome to start from", cxxopts::value(plantGenomeFile))
+    ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
       cxxopts::value(speed))
     ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value(autoQuit))
@@ -37,15 +38,31 @@ int main(int argc, char *argv[]) {
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
-      std::cout << options.help() << std::endl;
-      return 0;
+    std::cout << options.help()
+              << "\n\nOption 'auto-config' is the default and overrides 'config'"
+                 " if both are provided"
+              << "\nEither both 'plant' and 'environment' options are used or "
+                 "a valid file is to be provided to 'load' (the former has "
+                 "precedance in case all three options are specified)"
+              << std::endl;
+    return 0;
   }
 
-  if (!result.count("environment"))
-    utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
+  bool missingArgument = (!result.count("environment") || !result.count("plant"))
+      && !result.count("load");
 
-  if (!result.count("plant"))
-    utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+  if (missingArgument) {
+    if (result.count("environment"))
+      utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
+
+    else if (result.count("plant"))
+      utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
+
+    else
+      utils::doThrow<std::invalid_argument>(
+        "No starting state provided. Either provide both an environment and plant genomes"
+        " or load a previous simulation");
+  }
 
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
@@ -56,8 +73,6 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  genotype::Environment e = genotype::Environment::fromFile(envGenomeFile);
-  genotype::Plant p = genotype::Plant::fromFile(plantGenomeFile);
   visu::GraphicSimulation s;
 
   // ===========================================================================
@@ -71,7 +86,14 @@ int main(int argc, char *argv[]) {
   visu::Controller c (s, w, v);
 
   w.show();
-  s.init(e, p);
+
+  if (loadSaveFile.empty()) {
+    genotype::Environment e = genotype::Environment::fromFile(envGenomeFile);
+    genotype::Plant p = genotype::Plant::fromFile(plantGenomeFile);
+    s.init(e, p);
+
+  } else
+    visu::GraphicSimulation::load(loadSaveFile, s);
 
   c.nextPlant();
   c.setAutoQuit(autoQuit);

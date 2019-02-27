@@ -87,7 +87,6 @@ int main(int argc, char *argv[]) {
   config::Simulation::setupConfig(configFile, verbosity);
   if (configFile.empty()) config::Simulation::printConfig("");
 
-  std::cerr << "save file: '" << loadSaveFile << "'" << std::endl;
   if (loadSaveFile.empty()) {
     if (!isValidSeed(envGenomeArg)) {
       std::cout << "Reading environment genome from input file '"
