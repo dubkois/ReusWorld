@@ -40,15 +40,23 @@ int main(int argc, char *argv[]) {
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
 
+  decltype(genotype::Environment::rngSeed) envOverrideSeed;
+
   cxxopts::Options options("ReusWorld (headless)",
                            "2D simulation of plants in a changing environment (no gui output)");
   options.add_options()
     ("h,help", "Display help")
     ("a,auto-config", "Load configuration data from default location")
-    ("c,config", "File containing configuration data", cxxopts::value(configFile))
-    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
-    ("e,environment", "Environment's genome or a random seed", cxxopts::value(envGenomeArg))
-    ("p,plant", "Plant genome to start from or a random seed", cxxopts::value(plantGenomeArg))
+    ("c,config", "File containing configuration data",
+     cxxopts::value(configFile))
+    ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
+     cxxopts::value(verbosity))
+    ("e,environment", "Environment's genome or a random seed",
+     cxxopts::value(envGenomeArg))
+    ("p,plant", "Plant genome to start from or a random seed",
+     cxxopts::value(plantGenomeArg))
+    ("s,env-seed", "Overrides enviroment's seed with provided value",
+     cxxopts::value(envOverrideSeed))
     ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
     ;
 
@@ -98,8 +106,9 @@ int main(int argc, char *argv[]) {
       std::cout << "Generating environment genome from rng seed "
                 << dice.getSeed() << std::endl;
       envGenome = genotype::Environment::random(dice);
-      envGenome.toFile("last", 2);
     }
+    if (result.count("env-seed")) envGenome.rngSeed = envOverrideSeed;
+    envGenome.toFile("last", 2);
 
     if (!isValidSeed(plantGenomeArg)) {
       std::cout << "Reading plant genome from input file '"
@@ -111,8 +120,12 @@ int main(int argc, char *argv[]) {
       std::cout << "Generating plant genome from rng seed "
                 << dice.getSeed() << std::endl;
       plantGenome = genotype::Plant::random(dice);
-      plantGenome.toFile("last", 2);
     }
+    plantGenome.toFile("last", 2);
+
+    std::cout << "Environment:\n" << envGenome
+              << "\nPlant:\n" << plantGenome
+              << std::endl;
   }
 
   // ===========================================================================
@@ -127,9 +140,6 @@ int main(int argc, char *argv[]) {
 
   // ===========================================================================
   // == Core setup
-
-  std::cout << "Starting genomes:\n" << envGenome << "\n" << plantGenome
-            << std::endl;
 
   simu::Simulation s;
   if (loadSaveFile.empty()) {

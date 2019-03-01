@@ -21,8 +21,8 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 1
-#define DISTANCE_TEST
+#define CUSTOM_PLANTS 3
+//#define DISTANCE_TEST
 #endif
 
 #ifdef CUSTOM_ENVIRONMENT
@@ -40,6 +40,8 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 Simulation::Simulation (void) : _stats(), _aborted(false) {}
 
 bool Simulation::init (const EGenome &env, const PGenome &plant) {
+  _start = Stats::clock::now();
+
 #ifdef INSTRUMENTALISE
     _env.init(instrumentaliseEnvGenome(env));
 #else
@@ -118,6 +120,10 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
     SRULE("A -> f")
   };
 
+#elif CUSTOM_PLANTS == 3
+  N = 1;
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+  genomes[0].dethklok = -1;
 #endif
 #endif
 
@@ -490,7 +496,7 @@ void Simulation::step (void) {
 
   if (finished()) {
     // Update once more so that data goes from y0d0h0 to yLd0h0 with L = stopAtYear()
-    _stats.start = std::chrono::high_resolution_clock::now();
+    _stats.start = Stats::clock::now();
     if (Config::logGlobalStats()) logGlobalStats(false);
     _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
                 [] (const Plants::value_type &pair) {
@@ -501,17 +507,19 @@ void Simulation::step (void) {
 
     if (Config::verbosity() > 0) {
       std::cout << "Simulation ";
-      if (_aborted) std::cout << "canceled by user after";
-      else          std::cout << "completed in";
+      if (_aborted) std::cout << "canceled by user ";
+      else          std::cout << "completed ";
 
-      const Time &time = _env.time();
+      std::cout << "at " << _env.time() << " (simulated ";
+      const Time &time = _env.time() - _env.startTime();
       std::cout << " " << time.year() << " year";
       if (time.year() > 1)  std::cout << "s";
       std::cout << " " << time.day() << " day";
       if (time.day() > 1)   std::cout << "s";
       std::cout << " " << time.hour() << " hour";
       if (time.hour() > 1)  std::cout << "s";
-      std::cout << " (" << time.toTimestamp() << " steps)" << std::endl;
+      std::cout << " = " << time.toTimestamp() << " steps, wall time = "
+                << Stats::duration(_start) << " ms)" << std::endl;
     }
   }
 }
@@ -568,8 +576,7 @@ void Simulation::logGlobalStats(bool header) {
     }
 
     ofs << _env.time().pretty()
-        << " " << std::chrono::duration_cast<std::chrono::milliseconds>(
-             Stats::clock::now() - _stats.start).count()
+        << " " << Stats::duration(_stats.start)
         << " " << _stats.minGeneration << " " << _stats.maxGeneration
         << " " << _plants.size() << " " << seeds
         << " " << females << " " << males
@@ -730,6 +737,7 @@ void Simulation::save (stdfs::path file) const {
 }
 
 void Simulation::load (const stdfs::path &file, Simulation &s) {
+  s._start = Stats::clock::now();
   auto startTime = clock::now();
 
   std::vector<uint8_t> v;

@@ -17,7 +17,9 @@ int main(int argc, char *argv[]) {
 
   std::string envGenomeFile, plantGenomeFile, loadSaveFile;
 
-  float speed = 0.f;
+  std::string morphologiesSaveFolder;
+
+  int speed = 0;
   bool autoQuit = false;
 
   cxxopts::Options options("ReusWorld",
@@ -33,6 +35,8 @@ int main(int argc, char *argv[]) {
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
       cxxopts::value(speed))
     ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value(autoQuit))
+    ("collect-morphologies", "Save morphologies in the provided folder",
+     cxxopts::value(morphologiesSaveFolder))
     ;
 
   auto result = options.parse(argc, argv);
@@ -64,6 +68,10 @@ int main(int argc, char *argv[]) {
         " or load a previous simulation");
   }
 
+  if (!morphologiesSaveFolder.empty() && loadSaveFile.empty())
+    utils::doThrow<std::invalid_argument>(
+        "Generating morphologies is only meaningful when loading a simulation");
+
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
@@ -71,44 +79,53 @@ int main(int argc, char *argv[]) {
   if (configFile.empty()) config::Visualization::printConfig("");
 
   // ===========================================================================
-  // == Core setup
-
-  visu::GraphicSimulation s;
-
-  // ===========================================================================
   // == Qt setup
 
   QApplication a(argc, argv);
   setlocale(LC_NUMERIC,"C");
 
-  QMainWindow w;
-  gui::MainView *v = new gui::MainView(s.environment(), &w);
-  visu::Controller c (s, w, v);
+  visu::GraphicSimulation s;
 
-  w.show();
+  QMainWindow *w = new QMainWindow;
+  gui::MainView *v = new gui::MainView(s.environment(), w);
+  visu::Controller c (s, *w, v);
 
   if (loadSaveFile.empty()) {
     genotype::Environment e = genotype::Environment::fromFile(envGenomeFile);
     genotype::Plant p = genotype::Plant::fromFile(plantGenomeFile);
+
+    std::cout << "Environment:\n" << e
+              << "\nPlant:\n" << p
+              << std::endl;
+
     s.init(e, p);
 
   } else
     visu::GraphicSimulation::load(loadSaveFile, s);
 
-  c.nextPlant();
-  c.setAutoQuit(autoQuit);
+  if (morphologiesSaveFolder.empty()) { // Regular simulation
+    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->show();
 
-  if (speed > 0) {
-    QTimer::singleShot(500, [&c, speed] {
-      c.setSpeed(speed);
-      c.play(true);
-    });
+    c.nextPlant();
+    c.setAutoQuit(autoQuit);
+
+    if (speed != 0) {
+      QTimer::singleShot(500, [&c, speed] {
+        if (speed > 0)  c.play(true);
+        c.setSpeed(std::abs(speed));
+      });
+    }
+
+    auto ret = a.exec();
+
+    s.abort();
+    s.step();
+
+    return ret;
+
+  } else {
+    v->saveMorphologies(QString::fromStdString(morphologiesSaveFolder));
+    return 0;
   }
-
-  auto ret = a.exec();
-
-  s.abort();
-  s.step();
-
-  return ret;
 }

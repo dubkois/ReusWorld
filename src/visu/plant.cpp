@@ -140,7 +140,8 @@ void desaturate (QColor &c) {
   c = QColor::fromHsvF(c.hueF(), .25 * s, .5 * c.valueF());
 }
 
-Plant::Plant(simu::Plant &p) : _plant(p), _selected(false) {
+Plant::Plant(simu::Plant &p, Species s)
+  : _plant(p), _species(s), _selected(false), _highlighted(false) {
   setPos(toQPoint(_plant.pos()));
   updateGeometry();
   updateTooltip();
@@ -157,7 +158,7 @@ void Plant::updateGeometry(void) {
 
 void Plant::updateTooltip(void) {
   std::ostringstream oss;
-  oss << _plant.genome();
+  oss << "Species " << _species << "\n" << _plant.genome();
   setToolTip(QString::fromStdString(oss.str()));
 }
 
@@ -187,11 +188,13 @@ void Plant::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
   contextMenu()->popup(e->screenPos(), this);
 }
 
-void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
+void paint(QPainter *painter, const simu::Organ *o, bool dead,
+           Qt::GlobalColor contour = Qt::transparent, float scale = 1) {
+
   static const float AS = apexSize();
 
   for (simu::Organ *c: o->children())
-    paint(painter, c, contour, dead);
+    paint(painter, c, dead, contour, scale);
 
   const auto &p = o->inPlantCoordinates();
   QPointF p0 = toQPoint(p.origin);
@@ -205,21 +208,30 @@ void paint(QPainter *painter, const simu::Organ *o, bool contour, bool dead) {
       if (o->length() == 0) {
         path = &pathForApex();
 
-        painter->scale(AS, AS);
+        painter->scale(scale * AS, scale * AS);
 
       } else {
         path = &pathForSymbol(o->symbol());
-        painter->scale(o->length(), o->width());
+        painter->scale(
+          (scale - 1) * std::min(o->length(), o->width()) + o->length(),
+          (scale - 1) * std::min(o->length(), o->width()) + o->width());
       }
 
-      if (contour)
+      if (contour != Qt::transparent) {
+        QPen pen = painter->pen();
+        pen.setColor(contour);
+        painter->setPen(pen);
         painter->drawPath(*path);
-
-      else {
-        QColor c = color(o);
-        if (dead)  desaturate(c);
-        painter->fillPath(*path, c);
       }
+
+      QColor c;
+      if (scale > 1)  c = contour;
+      else {
+        c = color(o);
+        if (dead)  desaturate(c);
+      }
+
+      painter->fillPath(*path, c);
 
     painter->restore();
 
@@ -262,10 +274,15 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
 
   bool dead = _plant.isDead();
 
+  if (_highlighted) {
+    for (const simu::Organ *o: _plant.bases())
+      gui::paint(painter, o, dead, Qt::yellow, 1.5);
+  }
+
   pen.setColor(Qt::NoPen);
   painter->setPen(pen);
   for (const simu::Organ *o: _plant.bases())
-    gui::paint(painter, o, false, dead);
+    gui::paint(painter, o, dead);
 
   if (drawOrganCorners) {
     pen.setColor(Qt::white);
@@ -282,7 +299,7 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
     pen.setColor(Qt::black);
     painter->setPen(pen);
     for (const simu::Organ *o: _plant.bases())
-      gui::paint(painter, o, true, dead);
+      gui::paint(painter, o, dead, Qt::black);
   }
 
   if (drawPlantID) {
@@ -303,6 +320,30 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   }
 
   painter->restore();
+}
+
+void Plant::renderTo(const QString &filename, int width) const {
+  QRectF pbounds = boundingRect();
+  QSizeF psize = pbounds.size();
+  int height = width * psize.height() / psize.width();
+
+  QPixmap image (width, height);
+  image.fill(Qt::transparent);
+
+  QPainter painter (&image);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.scale(width / psize.width(), height / psize.height());
+  painter.translate(-pbounds.left(), -pbounds.top());
+
+  for (const simu::Organ *o: _plant.bases())  gui::paint(&painter, o, false);
+
+  {
+    float x0 = pbounds.left(), x1 = pbounds.right();
+    float y = pbounds.bottom() - .1 * pbounds.height();
+    painter.drawLine(x0, y, x1, y);
+  }
+
+  image.save(filename);
 }
 
 Plant::PlantMenu* Plant::contextMenu(void) {

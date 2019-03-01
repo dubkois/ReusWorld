@@ -3,6 +3,8 @@
 
 #include <QObject>
 
+#include "kgd/apt/visu/phylogenyviewer.h"
+
 #include "../simu/simulation.h"
 
 namespace visu {
@@ -11,14 +13,26 @@ struct Controller;
 class GraphicSimulation : public QObject, public simu::Simulation {
   Q_OBJECT
   Controller *_controller;
+
+  using PViewer = gui::PhylogenyViewer<
+    simu::Simulation::PTree::Genome,
+    simu::Simulation::PTree::UserData>;
+  PViewer _pviewer;
+
 public:
+  GraphicSimulation (void);
+
   void setController (Controller *_controller);
 
   bool init (const EGenome &env, const PGenome &plant) override;
 
-  void graphicalStep (void);
+  void graphicalStep (uint speed);
 
   void saveAs (void) const;
+
+  void togglePViewer (void) {
+    _pviewer.setVisible(!_pviewer.isVisible());
+  }
 
   void savePhylogeny (void) const;
 

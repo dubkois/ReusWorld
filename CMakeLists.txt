@@ -194,6 +194,17 @@ endif()
 
 message(STATUS "")
 
+set(ENV_CTRL "Manual" CACHE STRING "What controls the environmental dynamics")
+set_property(CACHE ENV_CTRL PROPERTY STRINGS Manual CGP)
+message(STATUS "Environment is controlled by " ${ENV_CTRL})
+if (${ENV_CTRL} STREQUAL "Manual")
+    add_definitions(-DENV_MANUAL)
+elseif (${ENV_CTRL} STREQUAL "CGP")
+    add_definitions(-DENV_CGP)
+else ()
+    message(ERROR "Unknown controller type '${ENV_CTRL}' for environment")
+endif()
+
 option(CLUSTER_BUILD "Whether or not building on a cluster (i-e no gui and local linkage)" ON)
 message(STATUS "Cluster building mode is " ${CLUSTER_BUILD})
 if(CLUSTER_BUILD)

@@ -104,8 +104,16 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
 
   // == Phylogeny ==============================================================
 
+  MultiAction *togglePTree = buildMultiAction(
+                              QKeySequence("T"),
+                              QStyle::SP_TitleBarUnshadeButton, "Show PTree",
+                              QStyle::SP_TitleBarShadeButton, "Hide PTree");
+
   QAction *savePTree = buildAction(QStyle::SP_DialogSaveButton, "Save",
                                    QKeySequence("Ctrl+Shift+S"));
+
+  QAction *saveMorphologies = buildAction(QStyle::SP_DialogSaveButton, "Save phenotypes",
+                                          QKeySequence("Ctrl+Shift+M"));
 
   // ===========================================================================
 
@@ -127,7 +135,9 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   menuVisualisation->addAction(zoomOut);
   menuVisualisation->addAction(zoomIn);
 
+  menuPhylogeny->addAction(togglePTree);
   menuPhylogeny->addAction(savePTree);
+  menuPhylogeny->addAction(saveMorphologies);
 
   statusToolbar->setMovable(false);
   _window.addToolBar(Qt::BottomToolBarArea, statusToolbar);
@@ -159,9 +169,10 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   connect(playPause, &MultiAction::triggered, [this] (const QString&, uint index) {
     playInternal(index);
   });
-  connect(this, &Controller::playStatusChanged, playPause, &MultiAction::trigger);
+  connect(this, &Controller::playStatusChanged,
+          playPause, &MultiAction::trigger);
   connect(slower, &QAction::triggered, [this] {
-    _speed /= 2.f; play(_timer.isActive());
+    _speed = std::min(1.f, _speed / 2.f); play(_timer.isActive());
   });
   connect(faster, &QAction::triggered, [this] {
     _speed *= 2.f; play(_timer.isActive());
@@ -174,8 +185,10 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
     updateDisplays();
     _view->update();
   });
-  connect(nextPlant, &QAction::triggered, _view, &gui::MainView::selectNextPlant);
-  connect(prevPlant, &QAction::triggered, _view, &gui::MainView::selectPreviousPlant);
+  connect(nextPlant, &QAction::triggered, _view,
+          &gui::MainView::selectNextPlant);
+  connect(prevPlant, &QAction::triggered, _view,
+          &gui::MainView::selectPreviousPlant);
 
   connect(fullscreen, &QAction::triggered, [this] {
     if (!_window.isFullScreen())
@@ -186,7 +199,12 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   connect(zoomIn, &QAction::triggered, _view, &gui::MainView::zoomIn);
   connect(zoomOut, &QAction::triggered, _view, &gui::MainView::zoomOut);
 
-  connect(savePTree, &QAction::triggered, &_simulation, &GraphicSimulation::savePhylogeny);
+  connect(togglePTree, &MultiAction::triggered,
+          &_simulation, &GraphicSimulation::togglePViewer);
+  connect(savePTree, &QAction::triggered,
+          &_simulation, &GraphicSimulation::savePhylogeny);
+  connect(saveMorphologies, &QAction::triggered,
+          _view, &gui::MainView::saveMorphologiesAs);
 
   _speed = 1;
   connect(&_timer, &QTimer::timeout, this, &Controller::step);
@@ -218,19 +236,18 @@ QAction* Controller::buildAction(const QIcon &icon,
 }
 
 void Controller::play(bool b) {
-  if (_timer.isActive() != b)
-    emit playStatusChanged(b);
+  if (_timer.isActive() != b) emit playStatusChanged(b);
   playInternal(b);
 }
 
 void Controller::playInternal(bool b) {
-  if (b)  _timer.start(1000 / (_speed * config::Simulation::stepsPerDay()));
+  if (b)  _timer.start(1000 / config::Simulation::stepsPerDay());
   else    _timer.stop();
   updateDisplays();
 }
 
 void Controller::step(void) {
-  _simulation.graphicalStep();
+  _simulation.graphicalStep(_speed);
   updateDisplays();
 }
 

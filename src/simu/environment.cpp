@@ -5,7 +5,7 @@
 
 namespace simu {
 
-static constexpr bool debugCGP = false;
+static constexpr int debugEnvCTRL = 0;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 
@@ -18,11 +18,13 @@ Environment::~Environment(void) {}
 
 void Environment::init (const Genome &g) {
   _genome = g;
+  _genome.envCtrl.init();
 
   _topology.resize(_genome.voxels+1, 0.f);
   _temperature.resize(_genome.voxels+1, .5 * (_genome.maxT + _genome.minT));
 
-  _hygrometry[UndergroundLayers::SHALLOW].resize(_genome.voxels+1, config::Simulation::baselineShallowWater());
+  _hygrometry[UndergroundLayers::SHALLOW].resize(_genome.voxels+1,
+                                                 config::Simulation::baselineShallowWater());
   _hygrometry[UndergroundLayers::DEEP].resize(_genome.voxels+1, 1.f);
 
   _dice.reset(_genome.rngSeed);
@@ -46,37 +48,40 @@ void Environment::step (void) {
 }
 
 void Environment::cgpStep (void) {
-  using CGP = genotype::EnvCGP;
-  using CGP_I = genotype::cgp::Inputs;
-  using CGP_O = genotype::cgp::Outputs;
-  CGP::Inputs inputs;
-  CGP::Outputs outputs;
+  using CTRL = genotype::EnvCTRL;
+  using I = CTRL::I;
+  using O = CTRL::O;
+  auto &inputs = _genome.envCtrl.inputs();
+  const auto &outputs = _genome.envCtrl.outputs();
 
   _updatedTopology = _time.isStartOfYear()
       && (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
 
-  inputs[CGP_I::DAY] = _time.timeOfYear();
-  inputs[CGP_I::YEAR] = _time.timeOfWorld();
+  inputs[I::DAY] = _time.timeOfYear();
+  inputs[I::YEAR] = _time.timeOfWorld();
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
     float &H = _hygrometry[SHALLOW][i];
 
-    inputs[CGP_I::COORDINATE] = float(i) / _genome.voxels;
-    inputs[CGP_I::ALTITUDE] = A / _genome.depth;
-    inputs[CGP_I::TEMPERATURE] = (_genome.maxT - T) / (_genome.maxT - _genome.minT);
-    inputs[CGP_I::HYGROMETRY] = H;
+    inputs[I::COORDINATE] = float(i) / _genome.voxels;
+    inputs[I::ALTITUDE] = A / _genome.depth;
+    inputs[I::TEMPERATURE] = (_genome.maxT - T) / (_genome.maxT - _genome.minT);
+    inputs[I::HYGROMETRY] = H;
 
-    _genome.cgp.process(inputs, outputs);
+    if (debugEnvCTRL > 1)
+      std::cerr << _genome.envCtrl.evaluate();
+    else
+      _genome.envCtrl.evaluate();
 
     if (_updatedTopology)
-      A = outputs[CGP_O::ALTITUDE_] * _genome.depth;
+      A = outputs[O::ALTITUDE_] * _genome.depth;
 
-    T = .5 * (outputs[CGP_O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
-    H = .5 * outputs[CGP_O::HYGROMETRY_];
+    T = .5 * (outputs[O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
+    H = .5 * outputs[O::HYGROMETRY_];
   }
 
-  if (debugCGP) {
+  if (debugEnvCTRL) {
     std::cerr << __PRETTY_FUNCTION__ << " CGP Stepped" << std::endl;
     std::cerr << "\tTopology:";
     for (uint i=0; i<=_genome.voxels; i++)

@@ -60,6 +60,11 @@ public:
 protected:
   struct Stats {
     using clock = std::chrono::high_resolution_clock;
+    using duration_t = std::chrono::milliseconds;
+    static constexpr auto duration = [] (clock::time_point start) {
+      return std::chrono::duration_cast<duration_t>(
+            clock::now() - start).count();
+    };
     clock::time_point start;
 
     uint derivations = 0;
@@ -86,6 +91,7 @@ protected:
   using PTree = phylogeny::PhylogenicTree<PGenome, PStats>;
   PTree _ptree;
 
+  Stats::clock::time_point _start;
   bool _aborted;
 
   virtual bool addPlant(const PGenome &g, float x, float biomass);

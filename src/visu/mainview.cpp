@@ -1,3 +1,6 @@
+#include <QDir>
+#include <QFileDialog>
+
 #include <QGraphicsScene>
 #include <QEvent>
 #include <QMouseEvent>
@@ -40,8 +43,8 @@ void MainView::updateEnvironment (void) {
   _scene->setSceneRect(_env->boundingRect());
 }
 
-void MainView::addPlantItem(simu::Plant &sp) {
-  Plant *gp = new Plant(sp);
+void MainView::addPlantItem(simu::Plant &sp, phylogeny::SID species) {
+  Plant *gp = new Plant(sp, species);
   _plants[sp.pos().x] = gp;
   _scene->addItem(gp);
 
@@ -75,6 +78,12 @@ void MainView::update(void) {
 
     if (p == _selection && _selection->isSelected())  focusOnSelection();
   }
+}
+
+void MainView::speciesHovered(phylogeny::SID sid, bool hovered) {
+  for (Plant *p: _plants)
+    if (p->species() == sid)
+      p->setHighlighted(hovered);
 }
 
 bool MainView::eventFilter(QObject*, QEvent *event) {
@@ -204,6 +213,95 @@ QPixmap MainView::screenshot(QSize size) {
   render(&painter, pixmap.rect(), src);
 
   return pixmap;
+}
+
+void MainView::saveMorphologiesAs(void) {
+  QString folder = QFileDialog::getExistingDirectory(this,
+                                                     "Save morphologies into");
+  if (!folder.isEmpty())  saveMorphologies(folder);
+}
+
+void MainView::saveMorphologies (const QString &dir, int width) {
+  using SID = phylogeny::SID;
+  using Layer = simu::Plant::Layer;
+
+  std::map<SID, std::map<std::string, std::pair<gui::Plant*, uint>>> map;
+  std::map<SID, uint> totals;
+
+  std::cerr << "Building nested map                         \r";
+  for (Plant *p: _plants) {
+    if (p->plant().isInSeedState()) continue;
+
+    auto &smap = map[p->species()];
+    std::ostringstream poss;
+    poss << "[+++" << p->plant().toString(Layer::SHOOT)
+         << "][---" << p->plant().toString(Layer::ROOT)
+         << "]";
+
+    std::string phenotype = poss.str();
+
+    std::cerr << simu::PlantID(&p->plant()) << " from species " << p->species()
+              << ", phenotype: " << phenotype << "                         \r";
+
+    auto it = smap.find(phenotype);
+    if (it == smap.end())
+      smap[phenotype] = std::make_pair(p, 1);
+    else
+      it->second.second++;
+    totals[p->species()]++;
+  }
+
+  for (auto &spair: map) {
+    SID species = spair.first;
+    std::map<uint, uint> duplicates;
+
+    for (auto &ppair: spair.second) {
+      uint count = ppair.second.second;
+      uint duplicate = 1;
+
+      auto it = duplicates.find(count);
+      if (it == duplicates.end())
+        duplicates[count] = duplicate;
+      else
+        duplicate = ++it->second;
+
+      Plant *plant = ppair.second.first;
+
+      std::ostringstream oss;
+      oss << dir.toStdString() << "/SID" << spair.first
+          << "_" << std::setw(7) << std::setprecision(3) << std::setfill('0')
+          << std::fixed << 100.0 * count / totals.at(species) << "p";
+      if (duplicate > 1)  oss << "_" << duplicate;
+      std::string basename = oss.str();
+
+      QString isolatedFile = QString::fromStdString(basename) + "_isolated.png";
+      std::cerr << "Rendering " << isolatedFile.toStdString()
+                << "                         \r";
+      plant->renderTo(isolatedFile, width);
+
+
+      QString inplaceFile = QString::fromStdString(basename) + "_inplace.png";
+      std::cerr << "Rendering " << inplaceFile.toStdString()
+                << "                         \r";
+
+      QRectF pbounds = plant->boundingRect();
+      QSizeF psize = pbounds.size();
+      int height = width * psize.height() / psize.width();
+      QPixmap image (width, height);
+      image.fill(Qt::transparent);
+
+      QPainter painter (&image);
+      painter.setRenderHint(QPainter::Antialiasing, true);
+
+      updateSelection(plant);
+      render(&painter, image.rect(),
+             mapFromScene(plant->boundingRect().translated(plant->pos())).boundingRect(),
+             Qt::KeepAspectRatioByExpanding);
+      image.save(inplaceFile);
+    }
+  }
+
+  std::cerr << std::endl;
 }
 
 } // end of namespace gui

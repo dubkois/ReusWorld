@@ -5,6 +5,8 @@ show_help(){
   echo "       -f <file> the datafile to use"
   echo "       -c <columns> columns specifiation (see below)"
   echo "       -p persist"
+  echo "       -l <n> redraw graph every n seconds"
+  echo "       -o <file> output file (implies no loop and no persist)"
   echo 
   echo "Columns specifiation:"
   echo "  N, a column name"
@@ -20,7 +22,8 @@ file=""
 columns=""
 persist=""
 loop=""
-while getopts "h?c:f:pl:" opt; do
+outfile=""
+while getopts "h?c:f:pl:o:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -34,8 +37,18 @@ while getopts "h?c:f:pl:" opt; do
         ;;
     l)  loop="eval(loop($OPTARG))"
         ;;
+    o)  outfile="set term pngcairo size 1680,1050;
+set output '$OPTARG';
+"
+        ;;
     esac
 done
+
+if [ "$outfile" ]
+then
+  persist=""
+  loop=""
+fi
 
 echo "   file: '$file'"
 echo "columns: '$columns'"
@@ -46,8 +59,18 @@ tics=8
 cmd="set datafile separator ' ';
 set ytics nomirror;
 set y2tics nomirror;
-set key autotitle columnhead;
-loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';
+set key autotitle columnhead;"
+
+if [ "$outfile" ]
+then
+  cmd="$cmd
+$outfile"
+else
+  cmd="$cmd
+loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';"
+fi
+
+cmd="$cmd
 xticsCount=$tics;
 ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
 linesPerTic=ticsEvery(0);

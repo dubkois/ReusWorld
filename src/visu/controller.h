@@ -61,7 +61,7 @@ class Controller : public QObject {
   QLabel *_ldisplay, *_mdisplay, *_rdisplay;
 
   QTimer _timer;
-  float _speed;
+  uint _speed;
   bool _autoquit;
 
 public:

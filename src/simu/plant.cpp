@@ -1138,9 +1138,11 @@ void toString (const Organ *o, std::string &str) {
     str += std::string(n, c);
   }
 
-  bool children = o->children().size() > 1;
+  using SortedOrgans = Organ::SortedCollection;
+  SortedOrgans sortedChildren (o->children().begin(), o->children().end());
+  bool children = sortedChildren.size() > 1;
   str += o->symbol();
-  for (Organ *c: o->children()) {
+  for (Organ *c: sortedChildren) {
     if (children) str += "[";
     toString(c, str);
     if (children) str += "]";
@@ -1149,10 +1151,14 @@ void toString (const Organ *o, std::string &str) {
 
 std::string Plant::toString(Layer type) const {
   uint n = 0;
-  for (Organ *o: _bases)  n += (o->layer() == type);
+  Organ::SortedCollection sortedBases;
+  for (Organ *o: _bases) {
+    n += (o->layer() == type);
+    sortedBases.insert(o);
+  }
 
   std::string str;
-  for (Organ *o: _bases) {
+  for (Organ *o: sortedBases) {
     if (o->layer() != type)
       continue;
 

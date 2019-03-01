@@ -15,7 +15,7 @@ public:
   float minT, maxT;
   uint voxels;
 
-  EnvCGP cgp;
+  EnvCTRL envCtrl;
 
   std::string extension (void) const override {
     return ".env.json";
@@ -28,7 +28,7 @@ DECLARE_GENOME_FIELD(Environment, float, depth)
 DECLARE_GENOME_FIELD(Environment, float, minT)
 DECLARE_GENOME_FIELD(Environment, float, maxT)
 DECLARE_GENOME_FIELD(Environment, uint, voxels)
-DECLARE_GENOME_FIELD(Environment, EnvCGP, cgp)
+DECLARE_GENOME_FIELD(Environment, EnvCTRL, envCtrl)
 
 } // end of namespace genotype
 
@@ -45,7 +45,7 @@ struct SAG_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bf, maxTBounds)
   DECLARE_PARAMETER(Bui, voxelsBounds)
 
-  DECLARE_SUBCONFIG(genotype::EnvCGP::config_t, genotypeCGPConfig)
+  DECLARE_SUBCONFIG(genotype::EnvCTRL::config_t, genotypeEnvCtrlConfig)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
 };

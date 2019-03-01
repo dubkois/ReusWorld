@@ -15,8 +15,10 @@ callgrind*
 *.user
 *.gz
 
+*saves/
 build*/
 configs/
+*results/
 scenarii/
 snapshots/
 tmp/

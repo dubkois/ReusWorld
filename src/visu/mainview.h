@@ -7,6 +7,8 @@
 #include "environment.h"
 #include "plant.h"
 
+struct QDir;
+
 namespace visu {  struct Controller;  }
 
 namespace gui {
@@ -36,9 +38,11 @@ public:
 
   void updateEnvironment (void);
 
-  void addPlantItem(simu::Plant &sp);
+  void addPlantItem(simu::Plant &sp, phylogeny::SID species);
   void updatePlantItem (simu::Plant &sp);
   void delPlantItem(float x);
+
+  void speciesHovered (phylogeny::SID sid, bool hovered);
 
   void mouseMoveEvent(QMouseEvent *e);
   void mouseDoubleClickEvent(QMouseEvent *e);
@@ -71,6 +75,9 @@ public slots:
   }
 
   QPixmap screenshot (QSize size);
+
+  void saveMorphologiesAs (void);
+  void saveMorphologies (const QString &dir, int width = 200);
 };
 
 } // end of namespace gui

@@ -65,20 +65,6 @@ uint Time::toTimestamp(void) const {
   return _hour + H() * (_day + _year * D());
 }
 
-bool operator== (const Time &lhs, const Time &rhs) {
-  return lhs._year == rhs._year && lhs._day == rhs._day && lhs._hour == rhs._hour;
-}
-
-std::ostream& operator<< (std::ostream &os, const Time &t) {
-  return os << "y" << t._year << "d" << t._day << "h" << t._hour;
-}
-
-std::istream& operator>> (std::istream& is, Time &t) {
-  char c;
-  is >> c >> t._year >> c >> t._day >> c >> t._hour;
-  return is;
-}
-
 void to_json (nlohmann::json &j, const Time &t) {
   std::ostringstream oss;
   oss << t;

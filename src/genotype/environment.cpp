@@ -9,7 +9,7 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(float, depth, "", 50, 50)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, minT, "", -20, -20)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, maxT, "", 40, 40)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, voxels, "", 100, 100)
-DEFINE_GENOME_FIELD_AS_SUBGENOME(EnvCGP, cgp, "")
+DEFINE_GENOME_FIELD_AS_SUBGENOME(EnvCTRL, envCtrl, "ctrl")
 
 DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(rngSeed, .1f),
@@ -18,12 +18,12 @@ DEFINE_GENOME_MUTATION_RATES({
   MUTATION_RATE(   minT, .1f),
   MUTATION_RATE(   maxT, .1f),
   MUTATION_RATE( voxels, .1f),
-  MUTATION_RATE(    cgp, 1.f)
+  MUTATION_RATE(envCtrl, 1.f)
 })
 
 namespace config {
 #define CFILE config::SAGConfigFile<genotype::Environment>
-DEFINE_SUBCONFIG(genotype::EnvCGP::config_t, genotypeCGPConfig)
+DEFINE_SUBCONFIG(genotype::EnvCTRL::config_t, genotypeEnvCtrlConfig)
 #undef CFILE
 }
 

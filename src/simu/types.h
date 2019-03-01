@@ -177,7 +177,11 @@ struct Time {
   static Time fromTimestamp (uint step);
   uint toTimestamp (void) const;
 
-  friend bool operator== (const Time &lhs, const Time &rhs);
+  friend bool operator== (const Time &lhs, const Time &rhs) {
+    return lhs._year == rhs._year
+        && lhs._day == rhs._day
+        && lhs._hour == rhs._hour;
+  }
 
   friend bool operator< (const Time &lhs, const Time &rhs) {
     if (lhs._year != rhs._year) return lhs._year < rhs._year;
@@ -185,8 +189,19 @@ struct Time {
     return lhs._hour < rhs._hour;
   }
 
-  friend std::ostream& operator<< (std::ostream &os, const Time &t);
-  friend std::istream& operator>> (std::istream &os, Time &t);
+  friend Time operator- (const Time &lhs, const Time &rhs) {
+    return fromTimestamp(lhs.toTimestamp() - rhs.toTimestamp());
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const Time &t) {
+    return os << "y" << t._year << "d" << t._day << "h" << t._hour;
+  }
+
+  friend std::istream& operator>> (std::istream &is, Time &t) {
+    char c;
+    is >> c >> t._year >> c >> t._day >> c >> t._hour;
+    return is;
+  }
 
   friend void to_json (nlohmann::json &j, const Time &t);
   friend void from_json (const nlohmann::json &j, Time &t);
