@@ -123,6 +123,17 @@ if (AUTO_CALIBRATION_TOOL)
   target_link_libraries(auto-calibrator ${apt_LIBRARIES})
 endif()
 
+option(ANALYZER_TOOL "Whether or not to build the analyzer tool" OFF)
+message("Building analyzer tool: " ${ANALYZER_TOOL})
+if (ANALYZER_TOOL)
+    add_executable(
+        analyzer
+        $<TARGET_OBJECTS:SIMU_OBJS>
+        "src/misc/analyzer.cpp"
+        )
+    target_link_libraries(analyzer ${apt_LIBRARIES})
+endif()
+
 if (NOT CLUSTER_BUILD)
 ################################################################################
 ## Sources files (visualizer)

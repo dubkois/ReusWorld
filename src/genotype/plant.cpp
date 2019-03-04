@@ -33,22 +33,27 @@ void remove (std::string &s, char c) {
 }
 
 template <typename Dice>
-size_t nonBracketSymbol (const std::string &s, Dice &dice) {
+size_t randomPosNotIn(const std::string &s, Dice &dice, bool (*p) (char)) {
   std::vector<float> weights (s.size(), 1);
-  for (uint i=0; i<s.size(); i++)
-    if(grammar::Rule_base::isBracket(s[i]))
-      weights[i] = 0;
-
+  for (uint i=0; i<s.size(); i++) if(p(s[i])) weights[i] = 0;
   return dice(rng::rdist(weights.begin(), weights.end()));
+}
+
+template <typename Dice>
+size_t nonBracketSymbol(const std::string &s, Dice &dice) {
+  return randomPosNotIn(s, dice, grammar::Rule_base::isBracket);
 }
 
 template <typename R, typename Dice>
 void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dice) {
   auto sizeWCC = rule.sizeWithoutControlChars();
 
-#ifndef NDEBUG
+  if(rule.sizeWithoutControlChars() > Config::ls_maxRuleSize())
+    utils::doThrow<std::logic_error>("Starting from too long a rule!");
+
   R ruleBefore = rule;
   (void)ruleBefore;
+#ifndef NDEBUG
 #endif
 
   bool swappable = false;
@@ -104,7 +109,9 @@ void mutateLSystemRule (R &rule, const grammar::Symbols &nonTerminals, Dice &dic
     utils::doThrow<std::logic_error>("Unhandled field '", field,
                                      "' for lsystem rule mutation");
 
-  assert(rule.sizeWithoutControlChars() <= Config::ls_maxRuleSize());
+  if(rule.sizeWithoutControlChars() > Config::ls_maxRuleSize())
+    utils::doThrow<std::logic_error>("Mutation '", field,
+                                     "' generated too long a rule!");
 
   if (debugMutations)  std::cerr << " >> " << rule << std::endl;
 }
@@ -123,8 +130,13 @@ void mutateLSystemRules (R &rules, Dice &dice) {
     // Pick a rule
     Rule &r = dice(rules)->second;
 
-    // Pick a non bracket char
-    size_t i = nonBracketSymbol(r.rhs, dice);
+    // Pick a char
+    // If the rule is saturated, only pick non-control symbols
+    bool ruleFull = r.sizeWithoutControlChars() == Config::ls_maxRuleSize();
+    size_t i = randomPosNotIn(r.rhs, dice,
+                              ruleFull ? grammar::Rule_base::isValidControl
+                                       : grammar::Rule_base::isBracket);
+
 
     // Find next non-terminal
     char c = 'A';

@@ -53,6 +53,9 @@ public:
   const auto& outputs (void) const {
     return _outputs;
   }
+
+  static void save (nlohmann::json &j, const EnvCTRL &c);
+  static void load (const nlohmann::json &j, EnvCTRL &c);
 };
 
 DECLARE_GENOME_FIELD(EnvCTRL, std::string, _expression)

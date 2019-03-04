@@ -24,6 +24,8 @@ template <template <typename> class ConfigValue, typename T>
 struct Test : public ITest {
   ConfigValue<T> &cvalue;
 
+  const T baseValue;
+
   T min, max;
   float margin;
   bool decreasing;
@@ -34,7 +36,8 @@ struct Test : public ITest {
   mutable T finalValue;
 
   Test (ConfigValue<T> &cvalue, T min, T value, T max, float margin, bool decreasing)
-    : cvalue(cvalue), min(min), max(max), margin(margin), decreasing(decreasing),
+    : cvalue(cvalue), baseValue(value),
+      min(min), max(max), margin(margin), decreasing(decreasing),
       currMin(min), currVal(value), currMax(max),
       converged(false), finalValue(currVal) {}
 
@@ -83,7 +86,7 @@ struct Test : public ITest {
 
   std::string finalState (void) const override {
     std::ostringstream oss;
-    oss << name() << ": " << finalValue << " ("
+    oss << name() << ": " << baseValue << " >> " << finalValue << " ("
         << currVal << " "
         << (decreasing ? "*" : "/")
         << " " << (1.f + margin)
@@ -107,11 +110,11 @@ using SConfig = config::Simulation;
 int main(void) {
   static constexpr uint SEEDS = 20;
   static const std::unique_ptr<ITest> tests[] {
-    upperBoundTest(SConfig::lifeCost, 1, .2),
-    lowerBoundTest(SConfig::assimilationRate, 0, .2),
-    upperBoundTest(SConfig::saturationRate, 10, .2),
-    lowerBoundTest(SConfig::baselineShallowWater, 0, .2),
-    lowerBoundTest(SConfig::baselineLight, 0, .2),
+//    upperBoundTest(SConfig::lifeCost, 1., .2),
+//    lowerBoundTest(SConfig::assimilationRate, 0., .2),
+//    upperBoundTest(SConfig::saturationRate, 10., .2),
+    lowerBoundTest(SConfig::baselineShallowWater, 0., .2),
+    lowerBoundTest(SConfig::baselineLight, 0., .2),
     upperBoundTest(SConfig::floweringCost, 9, 0),
   };
   static const auto envGenome = [] {
@@ -126,7 +129,6 @@ int main(void) {
     }
     return genomes;
   }();
-
 
   auto oldStopAtYear = SConfig::stopAtYear.overrideWith(5);
   auto oldStopAtMinGen = SConfig::stopAtMinGen.overrideWith(10);

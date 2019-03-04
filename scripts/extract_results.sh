@@ -23,32 +23,46 @@ fi
 
 outFolder=$resultFolder/sumup
 
-mkdir -vp $outFolder $outFolder/morphologies
-
-if [ -z "$(ls -A $outFolder/morphologies/)" ]
+if [ ! -f $resultFolder/phylogeny.ptree.json ]
 then
-  $buildFolder/visualizer --load=$resultFolder/autosaves/last_run_y100.save.ubjson --collect-morphologies=$outFolder/morphologies/
+  echo "No phylogeny.ptree.json file in '$resultFolder'. Presumably not completed. Skipping"
+  
 else
-  echo "Morphologies folder already contains stuff"
+  echo "Generating content into '$outFolder'"
+  mkdir -vp $outFolder $outFolder/morphologies
+
+  morphoOut=$outFolder/morphologies/
+  if [ -z "$(ls -A $outFolder/morphologies/)" ]
+  then
+    lastSave=$(find $resultFolder/autosaves/ -name "*.save.ubjson" -printf "%T@ %p\n" | sort -n | cut -d " " -f 2- | tail -n 1)
+    $buildFolder/visualizer --verbosity=QUIET --load=$lastSave --collect-morphologies=$morphoOut
+  else
+    echo "Morphologies folder '$morphoOut' already contains stuff"
+  fi
+
+  ptreeOut=$outFolder/phylogeny.svg
+  if [ ! -f $ptreeOut ]
+  then
+    $buildFolder/pviewer --verbosity=QUIET --config=$resultFolder/configs/PTree.config --tree=$resultFolder/phylogeny.ptree.json --minEnveloppe 1 --showNames=false --print $ptreeOut
+  else
+    echo "Phylogenic tree '$ptreeOut' already generated"
+  fi
+
+  dtOut=$outFolder/dynamics_time.png
+  if [ ! -f $dtOut ]
+  then
+    $buildFolder/../scripts/plant_dynamics.sh -q -f $resultFolder/global.dat -c "Plants;Time:y2" -o $dtOut
+  else
+    echo "Time dynamics '$dtOut' already generated"
+  fi
+
+  dsOut=$outFolder/dynamics_species.png
+  if [ ! -f $dsOut ]
+  then
+    $buildFolder/../scripts/plant_dynamics.sh -q -f $resultFolder/global.dat -c "Plants;Species:y2" -o $dsOut
+  else
+    echo "Species dynamics '$dsOut' already generated"
+  fi
 fi
 
-if [ ! -f $outFolder/phylogeny.png ]
-then
-  $buildFolder/pviewer --config=$resultFolder/configs/PTree.config --tree=$resultFolder/phylogeny.ptree.json --print $outFolder/phylogeny.png
-else
-  echo "Phylogenic tree already generated"
-fi
-
-if [ ! -f $outFolder/dynamics_time.png ]
-then
-  $buildFolder/../scripts/plant_dynamics.sh -f $resultFolder/global.dat -c "Plants;Time:y2" -o $outFolder/dynamics_time.png
-else
-  echo "Time dynamics already generated"
-fi
-
-if [ ! -f $outFolder/dynamics_species.png ]
-then
-  $buildFolder/../scripts/plant_dynamics.sh -f $resultFolder/global.dat -c "Plants;Species:y2" -o $outFolder/dynamics_species.png
-else
-  echo "Species dynamics already generated"
-fi
+echo

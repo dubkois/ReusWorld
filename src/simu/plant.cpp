@@ -249,7 +249,6 @@ uint Plant::deriveRules(Environment &env) {
     }
 
     // Test for self collision
-    /// TODO Does this work as expected? (i.e. not perfect but precise enough?)
     Organs apexSiblings;
     if (apex->parent())
       for (Organ *as: apex->parent()->children())

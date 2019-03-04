@@ -199,12 +199,14 @@ void load (const nlohmann::json &j, rng::FastDice &d) {
 }
 
 void Environment::save (nlohmann::json &j, const Environment &e) {
-  nlohmann::json jd;
+  nlohmann::json jd, jc;
   simu::save(jd, e._dice);
+  genotype::EnvCTRL::save(jc, e._genome.envCtrl);
   j = {
     e._genome, jd,
     e._topology, e._temperature, e._hygrometry,
-    { e._time.year(), e._time.day(), e._time.hour() }
+    { e._time.year(), e._time.day(), e._time.hour() },
+    jc
   };
 }
 
@@ -219,6 +221,9 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   float y = j[i][0], d = j[i][1], h = j[i][2];
   e._start.set(y, d, h);
   e._time = e._start;
+  i++;
+
+  genotype::EnvCTRL::load(j[i++], e._genome.envCtrl);
 }
 
 } // end of namespace simu

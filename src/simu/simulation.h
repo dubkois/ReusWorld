@@ -47,9 +47,13 @@ public:
     return _env.time();
   }
 
+  const auto& phylogeny (void) const {
+    return _ptree;
+  }
+
   std::string periodicSaveName (void) const {
     std::ostringstream oss;
-    oss << "autosaves/last_run_y" << _env.time().year() << ".save";
+    oss << "autosaves/y" << _env.time().year() << ".save";
     return oss.str();
   }
   void periodicSave (void) const;

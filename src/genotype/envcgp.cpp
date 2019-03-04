@@ -164,6 +164,14 @@ float EnvCTRL::evaluate(void) {
 //                       + (1 - c1) * (1 - gauss(x, w_m, w_s));
 }
 
+void EnvCTRL::save (nlohmann::json &j, const EnvCTRL &c) {
+  j = c._expression;
+}
+
+void EnvCTRL::load (const nlohmann::json &j, EnvCTRL &c) {
+  c._expression = j;
+  c.init();
+}
 
 } // end of namespace genotype
 

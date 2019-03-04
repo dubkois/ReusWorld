@@ -9,10 +9,11 @@
 namespace visu {
 
 GraphicSimulation::GraphicSimulation (void)
-  : _pviewer(nullptr, _ptree) {}
+  : _pviewer(nullptr, _ptree, PViewer::Direction::LeftToRight) {}
 
 void GraphicSimulation::setController(visu::Controller *c) {
   _controller = c;
+//  _pviewer.setParent(c->view());
 }
 
 bool GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
@@ -97,7 +98,9 @@ void GraphicSimulation::load (const std::string &file, GraphicSimulation &s) {
   for (const auto &p: s._plants)
     s._controller->view()->addPlantItem(*p.second,
                                         s._ptree.getSpeciesID(p.second->id()));
+
   s._pviewer.build();
+//  s._pviewer.
 
   connect(&s._pviewer, &PViewer::onSpeciesHoverEvent,
           s._controller->view(), &gui::MainView::speciesHovered);

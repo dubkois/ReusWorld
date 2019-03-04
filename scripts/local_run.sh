@@ -2,7 +2,7 @@
 
 if [ $# -lt 5 ]
 then
-  echo "Usage: $0 <build-type> <res-folder>  <config-folder> <environment> <plant><other simulator arguments...>"
+  echo "Usage: $0 <build-type> <res-folder>  <config-folder> <environment> <plant> <other simulator arguments...>"
   echo "       Performs a run with build type <build-type> inside <res-folder>"
   exit 10
 fi
@@ -52,3 +52,5 @@ mkdir -pv $resFolder \
   && echo "Starting at $(date)" | tee -a log \
   && eval $cmd \
   && echo "Completed at $(date)" | tee -a log
+
+printf "\a"

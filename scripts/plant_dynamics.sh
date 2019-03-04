@@ -23,7 +23,8 @@ columns=""
 persist=""
 loop=""
 outfile=""
-while getopts "h?c:f:pl:o:" opt; do
+quiet=""
+while getopts "h?c:f:pl:o:q" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -37,9 +38,12 @@ while getopts "h?c:f:pl:o:" opt; do
         ;;
     l)  loop="eval(loop($OPTARG))"
         ;;
-    o)  outfile="set term pngcairo size 1680,1050;
-set output '$OPTARG';
+    o)  outfile=$OPTARG
+        output="set term pngcairo size 1680,1050;
+set output '$outfile';
 "
+        ;;
+    q)  quiet=true
         ;;
     esac
 done
@@ -50,8 +54,8 @@ then
   loop=""
 fi
 
-echo "   file: '$file'"
-echo "columns: '$columns'"
+[ -z "$quiet" ] && echo "   file: '$file'"
+[ -z "$quiet" ] && echo "columns: '$columns'"
 
 lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
 tics=8
@@ -64,7 +68,7 @@ set key autotitle columnhead;"
 if [ "$outfile" ]
 then
   cmd="$cmd
-$outfile"
+$output"
 else
   cmd="$cmd
 loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';"
@@ -76,7 +80,7 @@ ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
 linesPerTic=ticsEvery(0);
 plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
 
-echo "reading columns specifications"
+[ -z "$quiet" ] && echo "reading columns specifications"
 IFS=';' read -r -a columnsArray <<< $columns
 for elt in "${columnsArray[@]}"
 do
@@ -84,7 +88,7 @@ do
     y=$(cut -s -d: -f 2 <<< $elt)
     [ "$y" == "" ] && y="y1"
     gp_elt=$(cut -d: -f 1 <<< $elt | sed "s/\([^$W]*\)\([$W]\+\)\([^$W]*\)/\1column(\"\2\")\3/g")
-    printf "$elt >> $gp_elt : $y\n"
+    [ -z "$quiet" ] && printf "$elt >> $gp_elt : $y\n"
     
     cmd="$cmd,
      '' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)'"
@@ -97,9 +101,13 @@ then
   $loop"
 fi
 
-printf "%s\n" "$cmd"
+if [ -z "$quiet" ]
+then
+  printf "%s\n" "$cmd"
+else
+  printf "Plotting from '$file' using '$columns'"
+  [ ! -z "$outfile" ] && printf " into '$outfile'"
+  printf "\n"
+fi
 
 gnuplot -e "$cmd" --persist $persist
-
-# plot for [i=1:words(lcols)] file using (column(word(lcols, i))) with lines title columnheader, \
-#      for [i=1:words(rcols)] file using (column(word(rcols, i))) axes x1y2 with lines title columnheader

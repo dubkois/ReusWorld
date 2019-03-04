@@ -8,6 +8,10 @@
 
 namespace gui {
 
+enum class PlantHighlighting {
+  ON, OFF, IGNORED
+};
+
 class Plant : public QGraphicsObject {
   Q_OBJECT
 
@@ -17,7 +21,8 @@ class Plant : public QGraphicsObject {
   Species _species;
 
   QRectF _boundingRect;
-  bool _selected, _highlighted;
+  bool _selected;
+  PlantHighlighting _highlighted;
 
 public:
   Plant(simu::Plant &p, Species s);
@@ -41,7 +46,7 @@ public:
     return _selected;
   }
 
-  void setHighlighted (bool highlighted) {
+  void setHighlighted (PlantHighlighting highlighted) {
     _highlighted = highlighted;
     update();
   }

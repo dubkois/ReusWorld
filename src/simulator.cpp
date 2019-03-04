@@ -6,9 +6,8 @@
 
 /*!
  * TODO Table of todos
- *  TODO Limit plant count (how???)
- *  TODO PTree noise resilience
- *  TODO Binary save
+ *  FIXME PTree noise resilience: Still not shiny
+ *  FIXME Binary save : not deterministic
  *  TODO Evolutionary algo (timeline picking)
  */
 

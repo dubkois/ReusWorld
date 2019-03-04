@@ -81,9 +81,13 @@ void MainView::update(void) {
 }
 
 void MainView::speciesHovered(phylogeny::SID sid, bool hovered) {
-  for (Plant *p: _plants)
-    if (p->species() == sid)
-      p->setHighlighted(hovered);
+  for (Plant *p: _plants) {
+    if (hovered)
+      p->setHighlighted(p->species() == sid ? PlantHighlighting::ON
+                                            : PlantHighlighting::OFF);
+    else
+      p->setHighlighted(PlantHighlighting::IGNORED);
+  }
 }
 
 bool MainView::eventFilter(QObject*, QEvent *event) {

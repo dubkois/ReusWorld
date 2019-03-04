@@ -141,7 +141,8 @@ void desaturate (QColor &c) {
 }
 
 Plant::Plant(simu::Plant &p, Species s)
-  : _plant(p), _species(s), _selected(false), _highlighted(false) {
+  : _plant(p), _species(s), _selected(false),
+    _highlighted(PlantHighlighting::IGNORED) {
   setPos(toQPoint(_plant.pos()));
   updateGeometry();
   updateTooltip();
@@ -260,9 +261,6 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
   pen.setWidth(0);
   painter->setPen(pen);
 
-  // To have something to look at even with little resolution
-  painter->drawPoint(0,0);
-
   QRectF r = boundingRect();
   if (drawQtBoundingBox) {
     painter->save();
@@ -274,9 +272,13 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
 
   bool dead = _plant.isDead();
 
-  if (_highlighted) {
+  if (_highlighted == PlantHighlighting::ON) {
     for (const simu::Organ *o: _plant.bases())
       gui::paint(painter, o, dead, Qt::yellow, 1.5);
+
+  } else if (_highlighted == PlantHighlighting::IGNORED){
+    // To have something to look at even with little resolution
+    painter->drawPoint(0,0);
   }
 
   pen.setColor(Qt::NoPen);
