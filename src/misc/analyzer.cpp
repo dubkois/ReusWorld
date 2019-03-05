@@ -15,6 +15,16 @@ struct Count {
   }
 };
 
+void extractField (const Simulation &simu, const std::string &field) {
+  std::cout << "Extracting 'field'..." << std::endl;
+  std::string jqcmd = " | jq '" + field + "'";
+  for (const auto &pair: simu.plants()) {
+    genotype::Plant p = pair.second->genome();
+    std::string cmd = "echo '" + p.dump() + "'" + jqcmd;
+    system(cmd.c_str());
+  }
+}
+
 void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) {
   std::cout << "Generating density histogram..." << std::endl;
 
@@ -34,16 +44,18 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
   outfile += ".density.png";
 
   stdfs::path datafile = outfile.parent_path();
-  datafile /= ".";
-  datafile += outfile.filename();
+  datafile /= outfile.filename();
   datafile.replace_extension(".dat");
   std::ofstream ofs (datafile);
-  ofs << "SID Count Ratio\n";
+  ofs << "SID Count Ratio Appearance Extinction\n";
   uint i=0;
   for (auto &c: sortedCounts) {
     if (i++ > 15) break;
     float r = 100 * float(c.count) / plantCount;
-    ofs << c.sid << " " << c.count << " " << r << "\n";
+    auto data = phylogeny.nodeAt(c.sid)->data;
+    ofs << c.sid << " " << c.count << " " << r
+        << " " << data.firstAppearance << " " << data.lastAppearance
+        << "\n";
   }
   ofs.close();
 
@@ -64,9 +76,6 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
 
   if (0 != system(cmd.c_str()))
     std::cerr << "Error in generating plot..." << std::endl;
-
-  else
-    stdfs::remove(datafile);
 }
 
 void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
@@ -157,6 +166,7 @@ int main(int argc, char *argv[]) {
 
   std::string loadSaveFile;
 
+  std::string viewField;
   bool doDensityHistogram = false;
   std::string compatMatrixSIDList;
 
@@ -170,6 +180,8 @@ int main(int argc, char *argv[]) {
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
     ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
+    ("view-field", "Extracts field from the plant population",
+     cxxopts::value(viewField))
     ("density-histogram", "Plots the population count per species",
      cxxopts::value(doDensityHistogram))
     ("compatibility-matrix", "Computes average compatibilities between the "
@@ -200,6 +212,8 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Loading '" << loadSaveFile << "' ..." << std::endl;
   Simulation::load(loadSaveFile, s);
+
+  if (!viewField.empty()) extractField(s, viewField);
 
   if (doDensityHistogram) plotDensityHistogram(s, loadSaveFile);
 
