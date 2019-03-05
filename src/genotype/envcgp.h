@@ -6,12 +6,13 @@
 
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(
   genotype::env_controller, Inputs,
-    DAY, YEAR, COORDINATE, ALTITUDE, TEMPERATURE, HYGROMETRY
+    DAY, YEAR, COORDINATE,                // [0:1]
+    ALTITUDE, TEMPERATURE, HYGROMETRY     // [-1:1]
 )
 
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(
   genotype::env_controller, Outputs,
-    ALTITUDE_, TEMPERATURE_, HYGROMETRY_
+    ALTITUDE_, TEMPERATURE_, HYGROMETRY_  // [-1:1]
 )
 
 namespace genotype::env_controller {

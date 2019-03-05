@@ -136,7 +136,7 @@ float EnvCTRL::evaluate(void) {
   _outputs[TEMPERATURE_] = -c0 * pos(_inputs[ALTITUDE])
                          + (1-c0) * _outputs[TEMPERATURE_];
 
-  _outputs[HYGROMETRY_] = c1 * (1 - pos(_inputs[TEMPERATURE] - .5))
+  _outputs[HYGROMETRY_] = -c1 * pos(_inputs[TEMPERATURE])
                         + (1 - c1) * _outputs[HYGROMETRY_];
 
   return res;

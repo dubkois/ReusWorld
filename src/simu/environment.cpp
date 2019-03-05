@@ -5,7 +5,7 @@
 
 namespace simu {
 
-static constexpr int debugEnvCTRL = 0;
+static constexpr int debugEnvCTRL = 1;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 
@@ -66,8 +66,8 @@ void Environment::cgpStep (void) {
 
     inputs[I::COORDINATE] = float(i) / _genome.voxels;
     inputs[I::ALTITUDE] = A / _genome.depth;
-    inputs[I::TEMPERATURE] = (_genome.maxT - T) / (_genome.maxT - _genome.minT);
-    inputs[I::HYGROMETRY] = H;
+    inputs[I::TEMPERATURE] = 2 * (_genome.maxT - T) / (_genome.maxT - _genome.minT) - 1;
+    inputs[I::HYGROMETRY] = H / config::Simulation::baselineShallowWater() - 1;
 
     if (debugEnvCTRL > 1)
       std::cerr << _genome.envCtrl.evaluate();
@@ -78,7 +78,7 @@ void Environment::cgpStep (void) {
       A = outputs[O::ALTITUDE_] * _genome.depth;
 
     T = .5 * (outputs[O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
-    H = .5 * outputs[O::HYGROMETRY_];
+    H = (1 + outputs[O::HYGROMETRY_]) * config::Simulation::baselineShallowWater();
   }
 
   if (debugEnvCTRL) {

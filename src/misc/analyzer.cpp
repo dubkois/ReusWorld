@@ -137,10 +137,10 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
   }
   std::cout << std::endl;
 
-  std::cout << "plotData:";
+  std::cout << "plotData: Timestamp";
   for (const auto &p: compats)
     std::cout << " " << p.first.first << "-" << p.first.second;
-  std::cout << "\nplotData:";
+  std::cout << "\nplotData: " << simu.time().pretty();
   for (const auto &p: compats)
     std::cout << " " << p.second;
   std::cout << std::endl;

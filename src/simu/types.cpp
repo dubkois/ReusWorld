@@ -22,9 +22,9 @@ Time& Time::next (void) {
 }
 
 std::string Time::pretty (void) const {
-  static const int Y_digits = log10(Y());
-  static const int D_digits = log10(D());
-  static const int H_digits = log10(H());
+  static const int Y_digits = std::ceil(log10(Y()));
+  static const int D_digits = std::ceil(log10(D()));
+  static const int H_digits = std::ceil(log10(H()));
 
   std::ostringstream oss;
   oss << std::setfill('0')
