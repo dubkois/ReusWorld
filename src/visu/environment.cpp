@@ -2,6 +2,8 @@
 
 #include "environment.h"
 #include "../simu/tiniestphysicsengine.h"
+#include "../config/simuconfig.h"
+
 #include "qtconversions.hpp"
 
 #include <QDebug>
@@ -31,7 +33,8 @@ QColor Environment::colorForTemperature (float t) {
 }
 
 QColor colorForWater (float w) {
-  return QColor::fromRgbF(0,0,1, .2 * w);
+  static const auto baselineWater = config::Simulation::baselineShallowWater();
+  return QColor::fromRgbF(0,0,1, .1 * w / baselineWater);
 }
 
 void debugPaintAABB (QPainter *painter, const simu::physics::CollisionObject *obj,
@@ -116,7 +119,8 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
   for (uint i=0; i<voxels; i++) {
     const float x0 = -_object.xextent() + i * voxelWidth,
-                x1 = -_object.xextent() + (i+1) * voxelWidth;
+                x1 = std::min( _object.xextent(),
+                              -_object.xextent() + (i+1) * voxelWidth + 1);
 
     const auto y0 = _object.heightAt(x0), y1 = _object.heightAt(x1);
     const auto t0 = _object.temperatureAt(x0), t1 = _object.temperatureAt(x1);

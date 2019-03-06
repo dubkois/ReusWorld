@@ -152,6 +152,8 @@ private:
   float interpolate (const Voxels &voxels, float x) const;
 
   void cgpStep (void);
+
+  void showVoxelsContents (void) const;
 };
 
 } // end of namespace simu

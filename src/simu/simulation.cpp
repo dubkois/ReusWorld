@@ -538,6 +538,13 @@ void Simulation::updateGenStats (void) {
 }
 
 void Simulation::logGlobalStats(bool header) {
+  stdfs::path path = "global.dat";
+  if (header && stdfs::exists(path)) {
+    stdfs::path backup = path;
+    backup += "~";
+    stdfs::copy(path, backup, stdfs::copy_options::update_existing);
+  }
+
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
   if (header)  mode |= std::fstream::trunc;

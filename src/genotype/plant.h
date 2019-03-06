@@ -66,7 +66,7 @@ class Metabolism : public SelfAwareGenome<Metabolism> {
 public:
   using decimal = config_t::decimal;
   using Elements = config_t::Elements;
-  Elements conversionRates; // f_c, f_w
+  Elements conversionRates; // f_c, f_w /// FIXME Unused ?
   Elements resistors;  // rho_c, rho_w
   decimal growthSpeed;  // k_g
   decimal deltaWidth;

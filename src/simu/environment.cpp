@@ -5,7 +5,7 @@
 
 namespace simu {
 
-static constexpr int debugEnvCTRL = 0;
+static constexpr int debugEnvCTRL = 1;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 
@@ -66,7 +66,7 @@ void Environment::cgpStep (void) {
 
     inputs[I::COORDINATE] = float(i) / _genome.voxels;
     inputs[I::ALTITUDE] = A / _genome.depth;
-    inputs[I::TEMPERATURE] = 2 * (_genome.maxT - T) / (_genome.maxT - _genome.minT) - 1;
+    inputs[I::TEMPERATURE] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
     inputs[I::HYGROMETRY] = H / config::Simulation::baselineShallowWater() - 1;
 
     if (debugEnvCTRL > 1)
@@ -81,19 +81,7 @@ void Environment::cgpStep (void) {
     H = (1 + outputs[O::HYGROMETRY_]) * config::Simulation::baselineShallowWater();
   }
 
-  if (debugEnvCTRL) {
-    std::cerr << __PRETTY_FUNCTION__ << " CGP Stepped" << std::endl;
-    std::cerr << "\tTopology:";
-    for (uint i=0; i<=_genome.voxels; i++)
-      std::cerr << " " << _topology[i];
-    std::cerr << "\n\tTemperature:";
-    for (uint i=0; i<=_genome.voxels; i++)
-      std::cerr << " " << _temperature[i];
-    std::cerr << "\n\tHygrometry:";
-    for (uint i=0; i<=_genome.voxels; i++)
-      std::cerr << " " << _hygrometry[SHALLOW][i];
-    std::cerr << std::endl;
-  }
+  if (debugEnvCTRL) showVoxelsContents();
 }
 
 float Environment::heightAt(float x) const {
@@ -224,6 +212,21 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   i++;
 
   genotype::EnvCTRL::load(j[i++], e._genome.envCtrl);
+
+  if (debugEnvCTRL) e.showVoxelsContents();
+}
+
+void Environment::showVoxelsContents(void) const {
+  std::cerr << "\tTopology:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _topology[i];
+  std::cerr << "\n\tTemperature:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _temperature[i];
+  std::cerr << "\n\tHygrometry:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _hygrometry[SHALLOW][i];
+  std::cerr << std::endl;
 }
 
 } // end of namespace simu
