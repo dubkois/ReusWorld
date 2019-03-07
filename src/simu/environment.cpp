@@ -5,7 +5,7 @@
 
 namespace simu {
 
-static constexpr int debugEnvCTRL = 1;
+static constexpr int debugEnvCTRL = 0;
 
 using UL_EU = EnumUtils<UndergroundLayers>;
 

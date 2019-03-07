@@ -15,8 +15,7 @@ fi
 
 mkdir -vp $1 $1/configs $1/saves
 
-rename -v "s:autosaves/last:$1/saves/:" autosaves/last.*.json
-rename -v "s:autosaves/last_run_:$1/saves/:" autosaves/*.save.*
+mv -v autosaves/* $1/autosaves/
 cp -v configs/*.config $1/configs/
 mv -v global.dat phylogeny.ptree.json $1/
 mv -vf log $1

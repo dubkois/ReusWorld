@@ -15,6 +15,7 @@ struct Count {
   }
 };
 
+
 void extractField (const Simulation &simu, const std::string &field) {
   std::cout << "Extracting 'field'..." << std::endl;
   std::string jqcmd = " | jq '" + field + "'";
@@ -23,6 +24,65 @@ void extractField (const Simulation &simu, const std::string &field) {
     std::string cmd = "echo '" + p.dump() + "'" + jqcmd;
     system(cmd.c_str());
   }
+}
+
+stdfs::path replaceFullExtension (const stdfs::path &p, const std::string &ext) {
+  stdfs::path out = p.parent_path();
+  stdfs::path stem = p.filename();
+  while (!stem.extension().empty()) stem = stem.stem();
+  out /= stem;
+  out += ext;
+  return out;
+}
+
+void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
+  struct Range {
+    float min = std::numeric_limits<float>::max(), max = -min;
+    uint count = 0;
+  };
+  std::map<SID, Range> ranges;
+  const auto &phylogeny = simu.phylogeny();
+  for (const auto &pair: simu.plants()) {
+    simu::Plant &p = *pair.second;
+    Range &r = ranges[phylogeny.getSpeciesID(p.id())];
+    const simu::Rect b = p.boundingRect().translated(p.pos());
+    if (b.l() < r.min)  r.min = b.l();
+    if (r.max < b.r())  r.max = b.r();
+    r.count++;
+  }
+
+  stdfs::path datafile = replaceFullExtension(savefile, ".ranges.dat");
+  uint i=0;
+  std::ofstream ofs (datafile);
+  ofs << "SID Center Population Width\n";
+  for (const auto &pair: ranges) {
+    if (i++ > 15) break;
+    const Range &r = pair.second;
+    ofs << pair.first << " " << (r.max + r.min) / 2.f << " " << r.count
+        << " " << (r.max - r.min) << "\n";
+  }
+  ofs.close();
+
+  stdfs::path outfile = datafile;
+  outfile.replace_extension(".png");
+
+  std::ostringstream cmdOSS;
+  cmdOSS << "gnuplot -e \""
+              "set term pngcairo size 1680,1050;\n"
+              "set output '" << outfile.string() << "';\n"
+              "set style fill transparent solid .2 border -1;\n"
+              "set xlabel 'Position';\n"
+              "set ylabel 'Population';\n"
+              "plot '" << datafile.string() << "' using 2:3:4 with boxes notitle,"
+                  " '' u 2:(\\$3):(\\$1) with labels notitle;\"\n";
+
+  std::string cmd = cmdOSS.str();
+  std::cout << "Executing\n" << cmd << std::endl;
+
+  if (0 != system(cmd.c_str()))
+    std::cerr << "Error in generating plot..." << std::endl;
+  else
+    std::cout << "Generated '" << outfile.string() << "'" << std::endl;
 }
 
 void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) {
@@ -37,14 +97,9 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
   std::set<Count> sortedCounts;
   for (auto &p: counts) sortedCounts.insert({p.first, p.second});
 
-  stdfs::path outfile = savefile.parent_path();
-  stdfs::path filestem = savefile.filename();
-  while (!filestem.extension().empty()) filestem = filestem.stem();
-  outfile /= filestem;
-  outfile += ".density.png";
+  stdfs::path outfile = replaceFullExtension(savefile, ".density.png");
 
-  stdfs::path datafile = outfile.parent_path();
-  datafile /= outfile.filename();
+  stdfs::path datafile = outfile;
   datafile.replace_extension(".dat");
   std::ofstream ofs (datafile);
   ofs << "SID Count Ratio Appearance Extinction\n";
@@ -76,6 +131,8 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
 
   if (0 != system(cmd.c_str()))
     std::cerr << "Error in generating plot..." << std::endl;
+  else
+    std::cout << "Generated '" << outfile.string() << "'" << std::endl;
 }
 
 void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
@@ -167,6 +224,7 @@ int main(int argc, char *argv[]) {
   std::string loadSaveFile;
 
   std::string viewField;
+  bool doSpeciesRanges = false;
   bool doDensityHistogram = false;
   std::string compatMatrixSIDList;
 
@@ -182,6 +240,8 @@ int main(int argc, char *argv[]) {
     ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
     ("view-field", "Extracts field from the plant population",
      cxxopts::value(viewField))
+    ("species-ranges", "Plots the occupied ranges",
+     cxxopts::value(doSpeciesRanges))
     ("density-histogram", "Plots the population count per species",
      cxxopts::value(doDensityHistogram))
     ("compatibility-matrix", "Computes average compatibilities between the "
@@ -215,6 +275,7 @@ int main(int argc, char *argv[]) {
 
   if (!viewField.empty()) extractField(s, viewField);
 
+  if (doSpeciesRanges) plotSpeciesRanges(s, loadSaveFile);
   if (doDensityHistogram) plotDensityHistogram(s, loadSaveFile);
 
   if (!compatMatrixSIDList.empty())
