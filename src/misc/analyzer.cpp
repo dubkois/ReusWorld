@@ -51,11 +51,20 @@ void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
     r.count++;
   }
 
+  std::vector<std::pair<SID,Range>> sortedRanges;
+  for (const auto &pair: ranges)  sortedRanges.push_back({pair});
+  std::sort(sortedRanges.begin(), sortedRanges.end(),
+            [] (const auto &lhs, const auto &rhs) {
+    if (lhs.second.count != rhs.second.count)
+      return lhs.second.count > rhs.second.count;
+    return lhs.first > rhs.first;
+  });
+
   stdfs::path datafile = replaceFullExtension(savefile, ".ranges.dat");
   uint i=0;
   std::ofstream ofs (datafile);
   ofs << "SID Center Population Width\n";
-  for (const auto &pair: ranges) {
+  for (const auto &pair: sortedRanges) {
     if (i++ > 15) break;
     const Range &r = pair.second;
     ofs << pair.first << " " << (r.max + r.min) / 2.f << " " << r.count
@@ -71,10 +80,11 @@ void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
               "set term pngcairo size 1680,1050;\n"
               "set output '" << outfile.string() << "';\n"
               "set style fill transparent solid .2 border -1;\n"
+              "set style textbox opaque noborder;\n"
               "set xlabel 'Position';\n"
               "set ylabel 'Population';\n"
               "plot '" << datafile.string() << "' using 2:3:4 with boxes notitle,"
-                  " '' u 2:(\\$3):(\\$1) with labels notitle;\"\n";
+                  " '' u 2:(\\$3):(\\$1) with labels boxed notitle;\"\n";
 
   std::string cmd = cmdOSS.str();
   std::cout << "Executing\n" << cmd << std::endl;
@@ -161,7 +171,7 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
       plants[sid].push_back(p.second.get());
   }
 
-  std::map<std::pair<SID,SID>, float> compats;
+  std::map<SID, std::map<SID,float>> compats;
   for (const auto &lhsSpecies: plants) {
     const auto &lhsPlants = lhsSpecies.second;
 
@@ -184,20 +194,20 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
         }
       }
 
-      compats.try_emplace({lhsSpecies.first, rhsSpecies.first},
-                          compatSum / compatCount);
+      compats[lhsSpecies.first][rhsSpecies.first] = compatSum / compatCount;
     }
   }
 
-  std::cout << std::string(maxLength, ' ');
+  std::cout << "cm " << std::string(maxLength, ' ');
   for (SID sid: sids) std::cout << " " << std::setw(maxLength) << sid;
   std::cout << "\n";
   for (SID sidLhs: sids) {
-    std::cout << std::setw(maxLength) << sidLhs;
+    std::cout << "cm " << std::setw(maxLength) << sidLhs;
 
+    const auto &compats_ = compats.at(sidLhs);
     for (SID sidRhs: sids)
       std::cout << " " << std::setw(maxLength) << std::setprecision(3)
-                << compats.at({sidLhs, sidRhs});
+                << compats_.at(sidRhs);
 
     std::cout << "\n";
   }
@@ -205,10 +215,27 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
 
   std::cout << "plotData: Timestamp";
   for (const auto &p: compats)
-    std::cout << " " << p.first.first << "-" << p.first.second;
+    for (const auto &p_: p.second)
+    std::cout << " " << p.first << "-" << p_.first;
   std::cout << "\nplotData: " << simu.time().pretty();
   for (const auto &p: compats)
-    std::cout << " " << p.second;
+    for (const auto &p_: p.second)
+    std::cout << " " << p_.second;
+  std::cout << "\n" << std::endl;
+
+  std::cout << "rc " << std::string(maxLength, ' ');
+  for (SID sid: sids) std::cout << " " << std::setw(maxLength) << sid;
+  std::cout << "\n";
+  for (SID sidLhs: sids) {
+    std::cout << "rc " << std::setw(maxLength) << sidLhs;
+
+    const auto &compats_ = compats.at(sidLhs);
+    for (SID sidRhs: sids)
+      std::cout << " " << std::setw(maxLength) << std::setprecision(3)
+                << 100 * compats_.at(sidRhs) / compats_.at(sidLhs);
+
+    std::cout << "\n";
+  }
   std::cout << std::endl;
 }
 

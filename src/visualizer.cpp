@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     visu::GraphicSimulation::load(loadSaveFile, s);
 
   if (morphologiesSaveFolder.empty()) { // Regular simulation
-    w->setAttribute(Qt::WA_DeleteOnClose);
+    w->setAttribute(Qt::WA_QuitOnClose);
     w->show();
 
     c.nextPlant();

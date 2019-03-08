@@ -21,7 +21,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 3
+#define CUSTOM_PLANTS 1
 //#define DISTANCE_TEST
 #endif
 
@@ -494,7 +494,7 @@ void Simulation::step (void) {
   if (_env.time().isStartOfYear() && (_env.time().year() % Config::saveEvery()) == 0)
     periodicSave();
 
-  if (finished()) {
+  if (finished() && _env.startTime() < _env.time()) {
     // Update once more so that data goes from y0d0h0 to yLd0h0 with L = stopAtYear()
     _stats.start = Stats::clock::now();
     if (Config::logGlobalStats()) logGlobalStats(false);

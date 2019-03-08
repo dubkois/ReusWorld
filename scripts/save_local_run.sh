@@ -13,7 +13,7 @@ then
   exit 2
 fi
 
-mkdir -vp $1 $1/configs $1/saves
+mkdir -vp $1 $1/configs $1/autosaves
 
 mv -v autosaves/* $1/autosaves/
 cp -v configs/*.config $1/configs/
