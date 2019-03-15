@@ -114,6 +114,22 @@ DEFINE_GENOME_DISTANCE_WEIGHTS({
 
 namespace genotype {
 
+template <>
+struct Extractor<std::string> {
+  std::string operator() (const std::string &value, const std::string &) const {
+    return value;
+  }
+};
+
+template <>
+struct Aggregator<std::string, EnvCTRL> {
+  void operator() (std::ostream &/*os*/, const std::vector<EnvCTRL> &/*objects*/,
+                   std::function<const std::string& (const EnvCTRL&)> /*access*/,
+                   uint /*verbosity*/) {
+    throw std::logic_error("Not implemented");
+  }
+};
+
 float pos (float x) {
   return x < 0 ? 0 : x;
 }

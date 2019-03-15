@@ -744,11 +744,15 @@ void Simulation::save (stdfs::path file) const {
 }
 
 void Simulation::load (const stdfs::path &file, Simulation &s) {
+  std::cout << "Loading " << file << "...\r" << std::flush;
+
   s._start = Stats::clock::now();
   auto startTime = clock::now();
 
   std::vector<uint8_t> v;
   simu::load(file, v);
+
+  std::cout << "Expanding " << file << "...\r" << std::flush;
 
   json j;
   const auto ext = file.extension();
@@ -769,6 +773,8 @@ void Simulation::load (const stdfs::path &file, Simulation &s) {
 //  assert(j_from_cbor == j_from_msgpack);
 //  assert(j_from_cbor == j_from_ubjson);
 //  assert(j_from_msgpack == j_from_ubjson);
+
+  std::cout << "Deserializing " << file << "...\r" << std::flush;
 
   Environment::load(j[0], s._env);
   PTree::fromJson(j[2], s._ptree, true);
@@ -803,6 +809,8 @@ void Simulation::load (const stdfs::path &file, Simulation &s) {
               << duration(startTime) << " ms" << std::endl;
 
   if (Config::logGlobalStats()) s.logGlobalStats(true);
+
+  std::cout << "Loaded " << file << "          " << std::endl;;
 }
 
 } // end of namespace simu

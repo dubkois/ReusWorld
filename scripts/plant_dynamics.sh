@@ -19,6 +19,7 @@ show_help(){
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
 file=""
+files=""
 columns=""
 persist=""
 loop=""
@@ -33,6 +34,7 @@ while getopts "h?c:f:pl:o:q" opt; do
     c)  columns=$OPTARG
         ;;
     f)  file=$OPTARG
+        files="$files $OPTARG"
         ;;
     p)  persist="-"
         ;;
@@ -54,7 +56,45 @@ then
   loop=""
 fi
 
-[ -z "$quiet" ] && echo "   file: '$file'"
+if [ "$file" = "$files" ]
+then
+  [ -z "$quiet" ] && echo "   file: '$file'"
+else
+  [ -z "$quiet" ] && echo "  files: " $(echo $files | sed -e "s/ /' '/g" -e "s/^/'/" -e "s/$/'/")
+  index=$(head -n 1 $file | awk -v header=$columns '{ for(i=1;i<=NF;i++) if ($i == header) print i}')
+  echo "index: $index"
+  
+  i=0
+  cfiles=""
+  for file in $files
+  do
+    tmp=".$i.col"
+    cut -d ' ' -f $index $file > $tmp && cfiles="$cfiles $tmp"
+    i=$(expr $i + 1)
+  done
+  
+  pasted=".n.col"
+  paste -d " " $cfiles | awk -v cols=$columns 'BEGIN { print cols, cols "_lci", cols "_uci" } {
+    sum=0;
+    for (i=1; i<=NF; i++)  sum += $i;
+    sum /= NF;
+    std=0
+    for (i=1; i<=NF; i++)  std += (sum-$i)*(sum-$i);
+    std = sqrt(std / NF);
+    Z=1.960;
+    sr=sqrt(NF);
+    print sum, sum - Z * std / sr, sum + Z * std / sr;
+  }' > $pasted
+  
+  header=".header.col"
+  cut -d ' ' -f 1 $file > $header
+
+  decoyFile=".$columns.nh.col"
+  paste -d " " $header $pasted > $decoyFile
+  file=$decoyFile
+#   columns="$columns; ${columns}_lci; ${columns}_uci"
+fi
+
 [ -z "$quiet" ] && echo "columns: '$columns'"
 
 lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
@@ -63,7 +103,8 @@ tics=8
 cmd="set datafile separator ' ';
 set ytics nomirror;
 set y2tics nomirror;
-set key autotitle columnhead;"
+set key autotitle columnhead;
+set style fill solid .25;"
 
 if [ "$outfile" ]
 then
@@ -87,8 +128,15 @@ do
     W="A-Za-z_\{\}"
     y=$(cut -s -d: -f 2 <<< $elt)
     [ "$y" == "" ] && y="y1"
-    gp_elt=$(cut -d: -f 1 <<< $elt | sed "s/\([^$W]*\)\([$W]\+\)\([^$W]*\)/\1column(\"\2\")\3/g")
+    colname=$(cut -d: -f 1 <<< $elt)
+    gp_elt=$(sed "s/\([^$W]*\)\([$W]\+\)\([^$W]*\)/\1column(\"\2\")\3/g" <<< $colname)
     [ -z "$quiet" ] && printf "$elt >> $gp_elt : $y\n"
+    
+    if [ "$file" != "$files" ]
+    then
+      cmd="$cmd,
+    '' using 0:(column(\"${colname}_lci\")):(column(\"${colname}_uci\")) with filledcurves title '$colname confidence interval (95%)'"
+    fi
     
     cmd="$cmd,
      '' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)'"

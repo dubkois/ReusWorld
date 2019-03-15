@@ -15,15 +15,16 @@ struct Count {
   }
 };
 
+void finalCounts (const Simulation &simu) {
+  std::cout << "GID: " << genotype::BOCData::nextID() << "\n"
+            << "SID: " << simu.phylogeny().nextNodeID() << std::endl;
+}
 
 void extractField (const Simulation &simu, const std::string &field) {
   std::cout << "Extracting 'field'..." << std::endl;
-  std::string jqcmd = " | jq '" + field + "'";
-  for (const auto &pair: simu.plants()) {
-    genotype::Plant p = pair.second->genome();
-    std::string cmd = "echo '" + p.dump() + "'" + jqcmd;
-    system(cmd.c_str());
-  }
+  for (const auto &pair: simu.plants())
+    std::cout << field << ": " << pair.second->genome().getField(field) << "\n";
+  std::cout << std::endl;
 }
 
 stdfs::path replaceFullExtension (const stdfs::path &p, const std::string &ext) {
@@ -75,12 +76,14 @@ void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
   stdfs::path outfile = datafile;
   outfile.replace_extension(".png");
 
+  auto w = simu.environment().xextent();
   std::ostringstream cmdOSS;
   cmdOSS << "gnuplot -e \""
               "set term pngcairo size 1680,1050;\n"
               "set output '" << outfile.string() << "';\n"
               "set style fill transparent solid .2 border -1;\n"
               "set style textbox opaque noborder;\n"
+              "set xrange [" << -w << ":" << w << "];\n"
               "set xlabel 'Position';\n"
               "set ylabel 'Population';\n"
               "plot '" << datafile.string() << "' using 2:3:4 with boxes notitle,"
@@ -146,7 +149,7 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
 }
 
 void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
-  std::cout << "Generating compatibility matrix..." << std::endl;
+  std::cout << "Generating compatibility matrix...\r" << std::flush;
 
   int maxLength = 7;
   std::set<SID> sids;
@@ -163,23 +166,48 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
     if (maxLength < l)  maxLength = l;
   }
 
+  bool fullMatrix = sids.empty();
   const auto &ptree = simu.phylogeny();
-  std::map<SID, std::vector<const simu::Plant*>> plants;
+  uint i = 0, total = simu.plants().size();
+  std::map<SID, std::set<genotype::BOCData::Sex>> sexes;
+  std::map<SID, std::vector<const simu::Plant*>> species;
   for (const auto &p: simu.plants()) {
+    std::cout << "[" << std::setw(3) << 100 * (++i) / total
+              << "%] Examining GID: " << p.second->id() << std::flush;
+
     SID sid = ptree.getSpeciesID(p.second->id());
-    if (sids.find(sid) != sids.end())
-      plants[sid].push_back(p.second.get());
+    std::cout << " (SID: " << sid << ") ...\r" << std::flush;
+
+    if (fullMatrix || sids.find(sid) != sids.end())
+      species[sid].push_back(p.second.get());
+    if (fullMatrix) sids.insert(sid);
+    sexes[sid].insert(p.second->sex());
   }
 
+  std::set<SID> ignoredSpecies;
+  for (const auto &s: sexes) {
+    if (s.second.size() < 2 && sids.find(s.first) != sids.end()) {
+      sids.erase(s.first);
+      species.erase(s.first);
+      ignoredSpecies.insert(s.first);
+    }
+  }
+
+  i = 0;  total = species.size() * species.size();
   std::map<SID, std::map<SID,float>> compats;
-  for (const auto &lhsSpecies: plants) {
+  for (const auto &lhsSpecies: species) {
     const auto &lhsPlants = lhsSpecies.second;
 
-    for (const auto &rhsSpecies: plants) {
+    for (const auto &rhsSpecies: species) {
       const auto &rhsPlants = rhsSpecies.second;
 
       float compatSum = 0;
       uint compatCount = 0;
+
+      std::cout << "[" << std::setw(3)
+                << 100 * (++i) / total << "%] Computing "
+                << lhsSpecies.first << "x" << rhsSpecies.first
+                << "\r" << std::flush;
 
       for (const simu::Plant *lhsPlant: lhsPlants) {
         if (lhsPlant->sex() != Sex::FEMALE)  continue;
@@ -198,7 +226,11 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
     }
   }
 
-  std::cout << "cm " << std::string(maxLength, ' ');
+  std::cout << "                                                             \r";
+  std::cout << "Ignoring " << ignoredSpecies.size() << " species:";
+  for (SID sid: ignoredSpecies) std::cout << " " << sid;
+  std::cout << "\n";
+  std::cout << "cm " << std::string(maxLength-1, ' ') << "-";
   for (SID sid: sids) std::cout << " " << std::setw(maxLength) << sid;
   std::cout << "\n";
   for (SID sidLhs: sids) {
@@ -213,17 +245,17 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
   }
   std::cout << std::endl;
 
-  std::cout << "plotData: Timestamp";
-  for (const auto &p: compats)
-    for (const auto &p_: p.second)
-    std::cout << " " << p.first << "-" << p_.first;
-  std::cout << "\nplotData: " << simu.time().pretty();
-  for (const auto &p: compats)
-    for (const auto &p_: p.second)
-    std::cout << " " << p_.second;
-  std::cout << "\n" << std::endl;
+//  std::cout << "plotData: Timestamp";
+//  for (const auto &p: compats)
+//    for (const auto &p_: p.second)
+//    std::cout << " " << p.first << "-" << p_.first;
+//  std::cout << "\nplotData: " << simu.time().pretty();
+//  for (const auto &p: compats)
+//    for (const auto &p_: p.second)
+//    std::cout << " " << p_.second;
+//  std::cout << "\n" << std::endl;
 
-  std::cout << "rc " << std::string(maxLength, ' ');
+  std::cout << "rc " << std::string(maxLength-1, ' ') << "-";
   for (SID sid: sids) std::cout << " " << std::setw(maxLength) << sid;
   std::cout << "\n";
   for (SID sidLhs: sids) {
@@ -250,6 +282,7 @@ int main(int argc, char *argv[]) {
 
   std::string loadSaveFile;
 
+  bool doFinalCounts = false;
   std::string viewField;
   bool doSpeciesRanges = false;
   bool doDensityHistogram = false;
@@ -265,7 +298,9 @@ int main(int argc, char *argv[]) {
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
     ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
-    ("view-field", "Extracts field from the plant population",
+    ("final-counts", "Extracts number of generated plants (GID) and species (SID)",
+     cxxopts::value(doFinalCounts))
+    ("extract-field", "Extracts field from the plant population",
      cxxopts::value(viewField))
     ("species-ranges", "Plots the occupied ranges",
      cxxopts::value(doSpeciesRanges))
@@ -297,15 +332,25 @@ int main(int argc, char *argv[]) {
 
   Simulation s;
 
-  std::cout << "Loading '" << loadSaveFile << "' ..." << std::endl;
   Simulation::load(loadSaveFile, s);
+
+//  uint i=0;
+//  std::vector<genotype::Plant> testgenomes;
+//  for (const auto &p: s.plants()) {
+//    testgenomes.push_back(p.second->genome());
+//    if (i++ > 15) break;
+//  }
+//  genotype::Plant::aggregate(std::cout, testgenomes);
+//  exit (255);
+
+  if (doFinalCounts)    finalCounts(s);
 
   if (!viewField.empty()) extractField(s, viewField);
 
   if (doSpeciesRanges) plotSpeciesRanges(s, loadSaveFile);
   if (doDensityHistogram) plotDensityHistogram(s, loadSaveFile);
 
-  if (!compatMatrixSIDList.empty())
+  if (result.count("compatibility-matrix"))
     compatibilityMatrix(s, compatMatrixSIDList);
 
   s.destroy();

@@ -280,6 +280,59 @@ auto lsystemFunctor (void) {
   return functor;
 }
 
+namespace genotype {
+
+template <LSystemType L>
+struct Extractor<LSystem<L>> {
+  std::string operator() (const LSystem<L> ls, const std::string &field) {
+    if (field.size() != 1 || !LSystem<L>::Rule::isValidNonTerminal(field[0]))
+      utils::doThrow<std::invalid_argument>(
+        "'", field, "' is not a valid non terminal");
+
+    auto it = ls.rules.find(field[0]);
+    if (it == ls.rules.end())
+      return "";
+    else
+      return it->second.rhs;
+  }
+};
+
+template <LSystemType L>
+struct Aggregator<LSystem<L>, Plant> {
+  using LS = LSystem<L>;
+  void operator() (std::ostream &os, const std::vector<Plant> &genomes,
+                   std::function<const LS& (const Plant&)> access,
+                   uint /*verbosity*/) {
+    std::set<grammar::NonTerminal> nonTerminals;
+    for (const Plant &p: genomes)
+      for (const auto &pair: access(p).rules)
+        nonTerminals.insert(pair.first);
+
+    os << "\n";
+    _details::IndentingOStreambuf indent(os);
+    for (grammar::NonTerminal s: nonTerminals) {
+      std::map<grammar::Successor, uint> counts;
+      for (const Plant &p: genomes) {
+        const auto &map = access(p).rules;
+        auto it = map.find(s);
+        if (it != map.end())
+          counts[it->second.rhs]++;
+      }
+
+      uint i=0;
+      for (const auto &p: counts) {
+        if (i++ == 0)
+          os << s << " -> ";
+        else
+          os << "     ";
+        os << "(" << p.second << ") " << p.first << "\n";
+      }
+    }
+  }
+};
+
+} // end of namespace genotype
+
 namespace nlohmann {
 
 template <typename T>
