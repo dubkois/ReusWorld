@@ -22,7 +22,7 @@ DEFINE_GENOME_MUTATION_RATES({
 })
 
 namespace config {
-#define CFILE config::SAGConfigFile<genotype::Environment>
+#define CFILE config::EDNAConfigFile<genotype::Environment>
 DEFINE_SUBCONFIG(genotype::EnvCTRL::config_t, genotypeEnvCtrlConfig)
 #undef CFILE
 }

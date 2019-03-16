@@ -271,7 +271,7 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
   std::cout << std::endl;
 }
 
-int main(int argc, char *argv[]) {
+int main (int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing
 

@@ -104,7 +104,7 @@ cmd="set datafile separator ' ';
 set ytics nomirror;
 set y2tics nomirror;
 set key autotitle columnhead;
-set style fill solid .25;"
+set style fill solid .25;" 
 
 if [ "$outfile" ]
 then

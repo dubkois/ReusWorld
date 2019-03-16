@@ -40,7 +40,7 @@ size_t randomPosNotIn(const std::string &s, Dice &dice, bool (*p) (char)) {
 }
 
 template <typename Dice>
-size_t nonBracketSymbol(const std::string &s, Dice &dice) {
+size_t nonBracketSymbol (const std::string &s, Dice &dice) {
   return randomPosNotIn(s, dice, grammar::Rule_base::isBracket);
 }
 

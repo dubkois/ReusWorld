@@ -144,7 +144,7 @@ EnvCTRL::~EnvCTRL (void) {
   delete _controller;
 }
 
-float EnvCTRL::evaluate(void) {
+float EnvCTRL::evaluate (void) {
   auto res = _controller->evaluate();
 
   using namespace env_controller;

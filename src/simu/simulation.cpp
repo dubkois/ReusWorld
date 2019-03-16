@@ -165,7 +165,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   return true;
 }
 
-void Simulation::destroy(void) {
+void Simulation::destroy (void) {
   Plant::Seeds discardedSeeds;
   while (!_plants.empty())
     delPlant(_plants.begin()->first, discardedSeeds);

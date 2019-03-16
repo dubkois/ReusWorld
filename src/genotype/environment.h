@@ -6,8 +6,8 @@
 
 namespace genotype {
 
-class Environment : public SelfAwareGenome<Environment> {
-  APT_SAG()
+class Environment : public EDNA<Environment> {
+  APT_EDNA()
 public:
   uint rngSeed;
 
@@ -35,7 +35,7 @@ DECLARE_GENOME_FIELD(Environment, EnvCTRL, envCtrl)
 namespace config {
 
 template <>
-struct SAG_CONFIG_FILE(Environment) {
+struct EDNA_CONFIG_FILE(Environment) {
   using Bui = Bounds<uint>;
   using Bf = Bounds<float>;
   DECLARE_PARAMETER(Bui, rngSeedBounds)

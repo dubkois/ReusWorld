@@ -61,8 +61,8 @@ struct LSystem {
   }
 };
 
-class Metabolism : public SelfAwareGenome<Metabolism> {
-  APT_SAG()
+class Metabolism : public EDNA<Metabolism> {
+  APT_EDNA()
 public:
   using decimal = config_t::decimal;
   using Elements = config_t::Elements;
@@ -77,8 +77,8 @@ DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, growthSpeed)
 DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, deltaWidth)
 
 
-class Plant : public SelfAwareGenome<Plant> {
-  APT_SAG()
+class Plant : public EDNA<Plant> {
+  APT_EDNA()
 
 public:
   BOCData cdata;

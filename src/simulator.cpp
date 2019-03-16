@@ -5,9 +5,15 @@
 #include "kgd/external/cxxopts.hpp"
 
 /*!
- * TODO Table of todos
+ * NOTE Table of todos
  *  FIXME PTree noise resilience: Still not shiny
  *  FIXME Binary save : not deterministic
+ *  TODO Prevent interaction with filesystem when loading without stepping
+ *  TODO Reduce light (clearly not well calibrated)
+ *  TODO Find ways to increase morphological complexity
+ *  TODO Add a rand inputs in the env_controller
+ *   TODO Test if random group promotes vertical competition
+ *  TODO Binary save/load should work with config values
  *  TODO Evolutionary algo (timeline picking)
  */
 

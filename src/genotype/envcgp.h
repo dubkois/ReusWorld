@@ -24,8 +24,8 @@ struct Controller;
 
 namespace genotype {
 
-class EnvCTRL : public SelfAwareGenome<EnvCTRL> {
-  APT_SAG()
+class EnvCTRL : public EDNA<EnvCTRL> {
+  APT_EDNA()
 
   env_controller::Inputs_array _inputs;
   env_controller::Outputs_array _outputs;
@@ -68,7 +68,7 @@ DECLARE_GENOME_FIELD(EnvCTRL, float, c1)
 namespace config {
 
 template <>
-struct SAG_CONFIG_FILE(EnvCTRL) {
+struct EDNA_CONFIG_FILE(EnvCTRL) {
   using Bf = Bounds<float>;
   DECLARE_PARAMETER(Bf, c0Bounds)
   DECLARE_PARAMETER(Bf, c1Bounds)

@@ -24,7 +24,7 @@ using Symbols = std::set<char>;
 namespace config {
 
 template <>
-struct SAG_CONFIG_FILE(Metabolism) {
+struct EDNA_CONFIG_FILE(Metabolism) {
   using decimal = double;
   using Elements = std::array<decimal, EnumUtils<genotype::Element>::size()>;
 
@@ -41,7 +41,7 @@ struct SAG_CONFIG_FILE(Metabolism) {
 };
 
 template <>
-struct SAG_CONFIG_FILE(Plant) {
+struct EDNA_CONFIG_FILE(Plant) {
   using NonTerminal = genotype::grammar::NonTerminal;
   using Successor = genotype::grammar::Successor;
 
@@ -60,7 +60,7 @@ struct SAG_CONFIG_FILE(Plant) {
   using Crossover = genotype::BOCData::config_t;
   DECLARE_SUBCONFIG(Crossover, genotypeCrossoverConfig)
 
-  using Metabolism = SAGConfigFile<genotype::Metabolism>;
+  using Metabolism = EDNAConfigFile<genotype::Metabolism>;
   DECLARE_SUBCONFIG(Metabolism, genotypeMetabolismConfig)
 
   DECLARE_PARAMETER(NonTerminal, ls_axiom)
@@ -83,7 +83,7 @@ struct SAG_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(MutationRates, ls_ruleSetMutationRates)
   DECLARE_PARAMETER(MutationRates, ls_ruleMutationRates)
 };
-using PlantGenome = SAGConfigFile<genotype::Plant>;
+using PlantGenome = EDNAConfigFile<genotype::Plant>;
 
 std::ostream& operator<< (std::ostream &os, const PlantGenome::TerminalSize &ts);
 std::istream& operator>> (std::istream &is, PlantGenome::TerminalSize &ts);

@@ -1,7 +1,7 @@
 #ifndef SIMULATION_H
 #define SIMULATION_H
 
-#include "kgd/apt/core/tree/phylogenictree.hpp"
+#include "kgd/apt/core/tree/phylogenetictree.hpp"
 
 #include "../genotype/environment.h"
 #include "../config/simuconfig.h"
@@ -92,7 +92,7 @@ protected:
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
 
-  using PTree = phylogeny::PhylogenicTree<PGenome, PStats>;
+  using PTree = phylogeny::PhylogeneticTree<PGenome, PStats>;
   PTree _ptree;
 
   Stats::clock::time_point _start;
