@@ -12,6 +12,14 @@ std::istream& operator>> (std::istream &is, QSize &s) {
   return is;
 }
 
+void to_json (nlohmann::json &j, const QSize &s) {
+  j = { s.width(), s.height() };
+}
+
+void from_json (const nlohmann::json &j, QSize &s) {
+  s = QSize(j[0], j[1]);
+}
+
 namespace config {
 #define CFILE Visualization
 DEFINE_SUBCONFIG(Simulation, simuConfig)

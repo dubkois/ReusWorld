@@ -710,7 +710,8 @@ void Simulation::debugPrintAll(void) const {
 void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
 
-  json je, jp, jt;
+  json jc, je, jp, jt;
+  config::Simulation::serialize(jc);
   Environment::save(je, _env);
   for (const auto &p: _plants) {
     json jp_;
@@ -719,7 +720,7 @@ void Simulation::save (stdfs::path file) const {
   }
   PTree::toJson(jt, _ptree, true);
 
-  json j = { je, jp, jt };
+  json j = { jc, je, jp, jt };
 
   if (debugSerialization)
     std::cerr << "Serializing took " << duration(startTime) << " ms" << std::endl;
@@ -776,10 +777,11 @@ void Simulation::load (const stdfs::path &file, Simulation &s) {
 
   std::cout << "Deserializing " << file << "...\r" << std::flush;
 
-  Environment::load(j[0], s._env);
-  PTree::fromJson(j[2], s._ptree, true);
+  config::Simulation::deserialize(j[0]);
+  Environment::load(j[1], s._env);
+  PTree::fromJson(j[3], s._ptree, true);
   Plant::ID lastID = Plant::ID(0);
-  for (const auto &jp: j[1]) {
+  for (const auto &jp: j[2]) {
     Plant *p = Plant::load(jp);
 
     // Find biggest GID

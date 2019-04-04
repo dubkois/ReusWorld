@@ -1,12 +1,14 @@
 #include "kgd/apt/core/ptreeconfig.h"
 
 #include "simuconfig.h"
+#include "dependencies.h"
 
 namespace config {
 #define CFILE Simulation
-DEFINE_SUBCONFIG(PTree, ptreeConfig)
-DEFINE_SUBCONFIG(genotype::Plant::config_t, genotypePlantConfig)
-DEFINE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
+DEFINE_SUBCONFIG(PTree, configPTree)
+DEFINE_SUBCONFIG(genotype::Plant::config_t, configGenotypePlant)
+DEFINE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
+DEFINE_SUBCONFIG(Dependencies, configDependencies)
 
 DEFINE_PARAMETER(bool, logIndividualStats, false)
 DEFINE_PARAMETER(bool, logGlobalStats, false)

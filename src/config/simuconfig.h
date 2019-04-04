@@ -1,17 +1,18 @@
 #ifndef SIMUCONFIG_H
 #define SIMUCONFIG_H
 
-#include "kgd/settings/configfile.h"
 #include "../genotype/environment.h"
 
 namespace config {
 struct PTree;
+struct Dependencies;
 
 struct CONFIG_FILE(Simulation) {
-  DECLARE_SUBCONFIG(PTree, ptreeConfig)
+  DECLARE_SUBCONFIG(PTree, configPTree)
 
-  DECLARE_SUBCONFIG(genotype::Plant::config_t, genotypePlantConfig)
-  DECLARE_SUBCONFIG(genotype::Environment::config_t, genotypeEnvironmentConfig)
+  DECLARE_SUBCONFIG(genotype::Plant::config_t, configGenotypePlant)
+  DECLARE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
+  DECLARE_SUBCONFIG(Dependencies, configDependencies)
 
   DECLARE_PARAMETER(bool, logIndividualStats)
   DECLARE_PARAMETER(bool, logGlobalStats)

@@ -497,6 +497,13 @@ std::istream& operator>> (std::istream &is, Config::TerminalSize &ts) {
   is >> ts.width >> c >> ts.length;
   return is;
 }
+void to_json (nlohmann::json &j, const Config::TerminalSize &ts) {
+  j = { ts.width, ts.length };
+}
+void from_json (const nlohmann::json &j, Config::TerminalSize &ts) {
+  uint i = 0;
+  ts.width = j[i++], ts.length = j[i++];
+}
 } // end of namespace config
 
 #undef GENOME

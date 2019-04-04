@@ -96,6 +96,8 @@ PREPEND(CGP_SRC "src/cgp" ${CGP_SRC})
 set(S_MISC_SRC
     "config/simuconfig.h"
     "config/simuconfig.cpp"
+    "config/dependencies.h"
+    "config/dependencies.cpp"
 )
 PREPEND(S_MISC_SRC "src" ${S_MISC_SRC})
 
@@ -239,3 +241,27 @@ endif()
 message(STATUS "Build type is " ${CMAKE_BUILD_TYPE})
 message(STATUS "Compile flags are " ${CMAKE_CXX_FLAGS})
 message(STATUS "")
+
+
+####################################################################################################
+## Export configuration
+####################################################################################################
+
+set(DEPENDENCY_GENERATOR ${apt_DIR}/generate_dependency_data.sh)
+set(DEPENDENCY_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.dependency")
+add_custom_target(dependencies ALL DEPENDS ${DEPENDENCY_FILE} ${DEPENDENCY_DATA})
+add_custom_command(
+    OUTPUT ${DEPENDENCY_FILE}
+    COMMAND ${DEPENDENCY_GENERATOR} ${DEPENDENCY_FILE} ReusWorld
+    COMMENT "Generating dependency data"
+    DEPENDS always_check
+)
+set(DEPENDENCY_DATA ${PROJECT_SOURCE_DIR}/src/config/dependencies.cpp)
+add_custom_command(
+    OUTPUT ${DEPENDENCY_DATA}
+    COMMAND ${PROJECT_SOURCE_DIR}/scripts/format_dependencies_data.sh
+            ${DEPENDENCY_DATA} ${CMAKE_CURRENT_BINARY_DIR} ${apt_DIR}
+    COMMENT "Formatting dependency data"
+    DEPENDS always_check
+)
+add_custom_command(OUTPUT always_check COMMAND cmake -E echo)
