@@ -28,6 +28,48 @@ struct CONFIG_FILE(Dependencies) {
   DECLARE_CONST_PARAMETER(std::string, reusWorldCommitHash)
   DECLARE_CONST_PARAMETER(std::string, reusWorldCommitMsg)
   DECLARE_CONST_PARAMETER(std::string, reusWorldCommitDate)
+
+  static auto saveState (void) {
+    return config_iterator();
+  }
+
+  static bool compareStates (const ConfigIterator &previous,
+                             const std::string &constraints) {
+    const ConfigIterator &current = saveState();
+    std::set<ConfigIterator::key_type> keys;
+    for (const auto &lhs: previous) keys.insert(lhs.first);
+    for (const auto &rhs: current) keys.insert(rhs.first);
+
+    bool ok = true;
+    for (const auto &key: keys) {
+      auto lhsIT = previous.find(key);
+      if (lhsIT == previous.end()) {
+        ok = false;
+        std::cerr << "Found previously unkown key '" << key << "'" << std::endl;
+        continue;
+      }
+
+      auto rhsIT = current.find(key);
+      if (rhsIT == current.end()) {
+        ok = false;
+        std::cerr << "Lost track of key '" << key << "'" << std::endl;
+        continue;
+      }
+
+      std::string lhsStr, rhsStr;
+      lhsStr = static_cast<std::ostringstream&>((std::ostringstream() << lhsIT->second)).str();
+      rhsStr = static_cast<std::ostringstream&>((std::ostringstream() << rhsIT->second)).str();
+
+      if (lhsStr != rhsStr) {
+        ok = false;
+        std::cerr << "Mismatching values for key '" << key << "'\n"
+                  << "  previous: '" << lhsStr << "'\n"
+                  << "   current: '" << rhsStr << "'" << std::endl;
+      }
+    }
+
+    return ok;
+  }
 };
 }
 

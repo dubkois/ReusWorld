@@ -59,7 +59,8 @@ public:
   void periodicSave (void) const;
 
   void save (std::experimental::filesystem::__cxx11::path file) const;
-  static void load (const stdfs::path &file, Simulation &s);
+  static void load (const stdfs::path &file, Simulation &s,
+                    const std::string &constraints);
 
 protected:
   struct Stats {

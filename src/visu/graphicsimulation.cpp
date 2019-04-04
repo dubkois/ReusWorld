@@ -92,15 +92,15 @@ void GraphicSimulation::doScreenshot(void) const {
   p.save(QString::fromStdString(oss.str()));
 }
 
-void GraphicSimulation::load (const std::string &file, GraphicSimulation &s) {
-  Simulation::load(file, s);
+void GraphicSimulation::load (const std::string &file, GraphicSimulation &s,
+                              const std::string &constraints) {
+  Simulation::load(file, s, constraints);
   s._controller->view()->updateEnvironment();
   for (const auto &p: s._plants)
     s._controller->view()->addPlantItem(*p.second,
                                         s._ptree.getSpeciesID(p.second->id()));
 
   s._pviewer.build();
-//  s._pviewer.
 
   connect(&s._pviewer, &PViewer::onSpeciesHoverEvent,
           s._controller->view(), &gui::MainView::speciesHovered);

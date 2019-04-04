@@ -2,6 +2,7 @@
 #include "kgd/utils/functions.h"
 
 #include "simulation.h"
+#include "../config/dependencies.h"
 
 /// TODO Remove
 #include "kgd/utils/shell.hpp"
@@ -654,7 +655,37 @@ bool load (const std::string &file, std::vector<uint8_t> &bytes) {
   return true;
 }
 
+
 using json = nlohmann::json;
+using CRC = utils::CRC32<json>;
+
+void insertCRC (CRC::type crc, std::vector<std::uint8_t> &bytes) {
+  for (int i=(CRC::bytes-1)*8; i>=0; i-=8)
+    bytes.push_back((crc >> i) & 0xFF);
+
+  std::cout << std::hex << "Converted 0x" << crc << " into";
+  for (int i=CRC::bytes; i>0; i--)
+    std::cout << std::hex << " 0x" << uint(*(bytes.end()-i));
+  std::cout << std::endl;
+}
+
+
+CRC::type extractCRC (std::vector<std::uint8_t> &bytes) {
+  std::cout << std::hex << "Converted";
+  for (int i=CRC::bytes; i>0; i--)
+    std::cout << std::hex << " 0x" << uint(*(bytes.end()-i));
+
+  CRC::type crc = 0;
+  for (uint i=0; i<CRC::bytes; i++) {
+    CRC::type byte = bytes.back();
+    bytes.pop_back();
+    crc += byte << (i*8);
+  }
+
+  std::cout << " into 0x" << crc << std::endl;
+
+  return crc;
+}
 
 using clock = std::chrono::high_resolution_clock;
 const auto duration = [] (const clock::time_point &start) {
@@ -737,6 +768,10 @@ void Simulation::save (stdfs::path file) const {
     v = json::to_ubjson(j);
   }
 
+  CRC crcGenerator;
+  auto crc = crcGenerator(v.begin(), v.end());
+  insertCRC(crc, v);
+
   simu::save(file, v);
 
   if (debugSerialization)
@@ -744,7 +779,8 @@ void Simulation::save (stdfs::path file) const {
               << duration(startTime) << " ms" << std::endl;
 }
 
-void Simulation::load (const stdfs::path &file, Simulation &s) {
+void Simulation::load (const stdfs::path &file, Simulation &s,
+                       const std::string &constraints) {
   std::cout << "Loading " << file << "...\r" << std::flush;
 
   s._start = Stats::clock::now();
@@ -752,6 +788,13 @@ void Simulation::load (const stdfs::path &file, Simulation &s) {
 
   std::vector<uint8_t> v;
   simu::load(file, v);
+
+  CRC crcGenerator;
+  auto crcStored = extractCRC(v);
+  auto crcRecomputed = crcGenerator(v.begin(), v.end());
+  if (crcStored != crcRecomputed)
+    utils::doThrow<std::invalid_argument>(
+      "CRC Check failed: ", std::hex, crcStored, " != ", crcRecomputed);
 
   std::cout << "Expanding " << file << "...\r" << std::flush;
 
@@ -777,7 +820,13 @@ void Simulation::load (const stdfs::path &file, Simulation &s) {
 
   std::cout << "Deserializing " << file << "...\r" << std::flush;
 
+  auto dependencies = config::Dependencies::saveState();
   config::Simulation::deserialize(j[0]);
+  if (!config::Dependencies::compareStates(dependencies, constraints))
+    utils::doThrow<std::invalid_argument>(
+      "Provided save has different build parameters than this one.\n"
+      "See above for more details... (aborting)");
+
   Environment::load(j[1], s._env);
   PTree::fromJson(j[3], s._ptree, true);
   Plant::ID lastID = Plant::ID(0);

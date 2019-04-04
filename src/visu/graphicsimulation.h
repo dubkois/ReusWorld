@@ -36,7 +36,8 @@ public:
 
   void savePhylogeny (void) const;
 
-  static void load (const std::string &file, GraphicSimulation &s);
+  static void load (const std::string &file, GraphicSimulation &s,
+                    const std::string &constraints);
 
 private:
   bool addPlant (const PGenome &p, float x, float biomass) override;

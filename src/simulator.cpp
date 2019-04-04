@@ -41,9 +41,11 @@ int main(int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
 
-  std::string envGenomeArg, plantGenomeArg, loadSaveFile;
+  std::string envGenomeArg, plantGenomeArg;
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
+
+  std::string loadSaveFile, loadConstraints = "all";
 
   decltype(genotype::Environment::rngSeed) envOverrideSeed;
 
@@ -62,7 +64,10 @@ int main(int argc, char *argv[]) {
      cxxopts::value(plantGenomeArg))
     ("s,env-seed", "Overrides enviroment's seed with provided value",
      cxxopts::value(envOverrideSeed))
-    ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
+    ("l,load", "Load a previously saved simulation",
+     cxxopts::value(loadSaveFile))
+    ("load-constraints", "Constraints to apply on dependencies check",
+     cxxopts::value(loadConstraints))
     ;
 
   auto result = options.parse(argc, argv);
@@ -74,6 +79,11 @@ int main(int argc, char *argv[]) {
               << "\nEither both 'plant' and 'environment' options are used or "
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
+              << "\n\nOption 'load-constraints' is a complex one indeed..."
+                 "\nExemples:"
+                 "\n\t                 all\tall git hash and build date must match"
+                 "\n\t             allHash\tall git hash must match"
+                 "\n\tcxxoptsHash,jsonHash\tOnly git hashes for cxxopts and json must match"
               << std::endl;
     return 0;
   }
@@ -151,7 +161,7 @@ int main(int argc, char *argv[]) {
     s.init(envGenome, plantGenome);
     s.periodicSave();
 
-  } else  simu::Simulation::load(loadSaveFile, s);
+  } else  simu::Simulation::load(loadSaveFile, s, loadConstraints);
 
   while (!s.finished()) {
     if (aborted)  s.abort();
