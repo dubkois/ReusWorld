@@ -4,6 +4,8 @@
 
 #include "kgd/external/cxxopts.hpp"
 
+#include "config/dependencies.h"
+
 /*!
  * NOTE Table of todos
  *  FIXME PTree noise resilience: Still not shiny
@@ -14,6 +16,7 @@
  *  TODO Add a rand inputs in the env_controller
  *   TODO Test if random group promotes vertical competition
  *  TODO Binary save/load should work with config values
+ *  TODO Add lakes/seas ?
  *  TODO Evolutionary algo (timeline picking)
  */
 
@@ -79,11 +82,7 @@ int main(int argc, char *argv[]) {
               << "\nEither both 'plant' and 'environment' options are used or "
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
-              << "\n\nOption 'load-constraints' is a complex one indeed..."
-                 "\nExemples:"
-                 "\n\t                 all\tall git hash and build date must match"
-                 "\n\t             allHash\tall git hash must match"
-                 "\n\tcxxoptsHash,jsonHash\tOnly git hashes for cxxopts and json must match"
+              << "\n\n" << config::Dependencies::Help{}
               << std::endl;
     return 0;
   }

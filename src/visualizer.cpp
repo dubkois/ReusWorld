@@ -1,10 +1,12 @@
 #include <QApplication>
 #include <QMainWindow>
 
+#include "kgd/external/cxxopts.hpp"
+
 #include "config/visuconfig.h"
 #include "visu/controller.h"
 
-#include "kgd/external/cxxopts.hpp"
+#include "config/dependencies.h"
 
 int main(int argc, char *argv[]) {
   // ===========================================================================
@@ -15,7 +17,8 @@ int main(int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
 
-  std::string envGenomeFile, plantGenomeFile, loadSaveFile;
+  std::string envGenomeFile, plantGenomeFile;
+  std::string loadSaveFile, loadConstraints;
 
   std::string morphologiesSaveFolder;
 
@@ -27,14 +30,20 @@ int main(int argc, char *argv[]) {
   options.add_options()
     ("h,help", "Display help")
     ("a,auto-config", "Load configuration data from default location")
-    ("c,config", "File containing configuration data", cxxopts::value(configFile))
-    ("v,verbosity", "Verbosity level. " + config::verbosityValues(), cxxopts::value(verbosity))
+    ("c,config", "File containing configuration data",
+     cxxopts::value(configFile))
+    ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
+     cxxopts::value(verbosity))
     ("e,environment", "Environment's genome", cxxopts::value(envGenomeFile))
     ("p,plant", "Plant genome to start from", cxxopts::value(plantGenomeFile))
-    ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
+    ("l,load", "Load a previously saved simulation",
+     cxxopts::value(loadSaveFile))
+    ("load-constraints", "Constraints to apply on dependencies check",
+     cxxopts::value(loadConstraints))
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
       cxxopts::value(speed))
-    ("q,auto-quit", "Quit as soon as the simulation ends", cxxopts::value(autoQuit))
+    ("q,auto-quit", "Quit as soon as the simulation ends",
+     cxxopts::value(autoQuit))
     ("collect-morphologies", "Save morphologies in the provided folder",
      cxxopts::value(morphologiesSaveFolder))
     ;
@@ -48,6 +57,7 @@ int main(int argc, char *argv[]) {
               << "\nEither both 'plant' and 'environment' options are used or "
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
+              << "\n\n" << config::Dependencies::Help{}
               << std::endl;
     return 0;
   }
@@ -101,7 +111,7 @@ int main(int argc, char *argv[]) {
     s.init(e, p);
 
   } else
-    visu::GraphicSimulation::load(loadSaveFile, s);
+    visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints);
 
   if (morphologiesSaveFolder.empty()) { // Regular simulation
     w->setAttribute(Qt::WA_QuitOnClose);

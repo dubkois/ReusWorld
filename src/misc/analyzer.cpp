@@ -1,6 +1,8 @@
+#include "kgd/external/cxxopts.hpp"
+
 #include "../simu/simulation.h"
 
-#include "kgd/external/cxxopts.hpp"
+#include "../config/dependencies.h"
 
 using SID = phylogeny::SID;
 using Sex = simu::Plant::Sex;
@@ -280,7 +282,7 @@ int main (int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::QUIET;
 
-  std::string loadSaveFile;
+  std::string loadSaveFile, loadConstraints;
 
   bool doFinalCounts = false;
   std::string viewField;
@@ -297,7 +299,11 @@ int main (int argc, char *argv[]) {
      cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
-    ("l,load", "Load a previously saved simulation", cxxopts::value(loadSaveFile))
+    ("l,load", "Load a previously saved simulation",
+     cxxopts::value(loadSaveFile))
+    ("load-constraints", "Constraints to apply on dependencies check",
+     cxxopts::value(loadConstraints))
+
     ("final-counts", "Extracts number of generated plants (GID) and species (SID)",
      cxxopts::value(doFinalCounts))
     ("extract-field", "Extracts field from the plant population",
@@ -314,7 +320,9 @@ int main (int argc, char *argv[]) {
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
-    std::cout << options.help() << std::endl;
+    std::cout << options.help()
+              << "\n\n" << config::Dependencies::Help{}
+              << std::endl;
     return 0;
   }
 
@@ -332,7 +340,7 @@ int main (int argc, char *argv[]) {
 
   Simulation s;
 
-  Simulation::load(loadSaveFile, s);
+  Simulation::load(loadSaveFile, s, loadConstraints);
 
 //  uint i=0;
 //  std::vector<genotype::Plant> testgenomes;

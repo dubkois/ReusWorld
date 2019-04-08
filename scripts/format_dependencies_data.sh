@@ -19,7 +19,7 @@ echo >> $out
 
 echo "namespace config {" >> $out
 echo "#define CFILE Dependencies" >> $out
-for dep in $them/cxxopts $them/json $them/Tools $them/apt $me/ReusWorld
+for dep in $them/cxxopts $them/json $them/tools $them/apt $me/reus
 do
   proj=$(basename $dep)
   proj=${proj,}
