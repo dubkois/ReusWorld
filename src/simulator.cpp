@@ -106,10 +106,10 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  config::Simulation::setupConfig(configFile, verbosity);
-  if (configFile.empty()) config::Simulation::printConfig("");
-
   if (loadSaveFile.empty()) {
+    config::Simulation::setupConfig(configFile, verbosity);
+    if (configFile.empty()) config::Simulation::printConfig("");
+
     if (!isValidSeed(envGenomeArg)) {
       std::cout << "Reading environment genome from input file '"
                 << envGenomeArg << "'" << std::endl;
@@ -135,6 +135,7 @@ int main(int argc, char *argv[]) {
                 << dice.getSeed() << std::endl;
       plantGenome = genotype::Plant::random(dice);
     }
+
     plantGenome.toFile("last", 2);
 
     std::cout << "Environment:\n" << envGenome
@@ -160,7 +161,10 @@ int main(int argc, char *argv[]) {
     s.init(envGenome, plantGenome);
     s.periodicSave();
 
-  } else  simu::Simulation::load(loadSaveFile, s, loadConstraints);
+  } else {
+    simu::Simulation::load(loadSaveFile, s, loadConstraints);
+    config::Simulation::printConfig();
+  }
 
   while (!s.finished()) {
     if (aborted)  s.abort();

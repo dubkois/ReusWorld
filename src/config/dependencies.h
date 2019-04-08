@@ -14,6 +14,8 @@ struct CONFIG_FILE(Dependencies) {
     "BuildDate", "CommitHash"
   };
 
+  static const std::map<std::string, bool> buildables;
+
   DECLARE_CONST_PARAMETER(std::string, cxxoptsCommitHash)
   DECLARE_CONST_PARAMETER(std::string, cxxoptsCommitMsg)
   DECLARE_CONST_PARAMETER(std::string, cxxoptsCommitDate)
@@ -37,11 +39,9 @@ struct CONFIG_FILE(Dependencies) {
   DECLARE_CONST_PARAMETER(std::string, reusCommitMsg)
   DECLARE_CONST_PARAMETER(std::string, reusCommitDate)
 
-  static auto saveState (void) {
-    return config_iterator();
-  }
-
-  static bool compareStates (const ConfigIterator &previous,
+  using Save = std::map<std::string, std::string>;
+  static Save saveState (void);
+  static bool compareStates (const Save &previous,
                              std::string constraints);
 
   struct Help {
