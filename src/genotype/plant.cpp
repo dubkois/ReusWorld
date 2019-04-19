@@ -280,8 +280,6 @@ auto lsystemFunctor (void) {
   return functor;
 }
 
-namespace genotype {
-
 template <LSystemType L>
 struct Extractor<LSystem<L>> {
   std::string operator() (const LSystem<L> ls, const std::string &field) {
@@ -331,6 +329,24 @@ struct Aggregator<LSystem<L>, Plant> {
   }
 };
 
+
+namespace genotype {
+
+namespace grammar {
+template <LSystemType L>
+void assertEqual (const Rule_t<L> &lhs, const Rule_t<L> &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.lhs, rhs.lhs);
+  assertEqual(lhs.rhs, rhs.rhs);
+}
+} // end of namespace grammar
+
+template <LSystemType L>
+void assertEqual (const LSystem<L> &lhs, const LSystem<L> &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.recursivity, rhs.recursivity);
+  assertEqual(lhs.rules, rhs.rules);
+}
 } // end of namespace genotype
 
 namespace nlohmann {

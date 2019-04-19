@@ -36,19 +36,20 @@ public:
   };
 
   using Collection = std::set<Organ*>;
+  using const_Collection = std::set<Organ const *>;
 
   struct OID_CMP {
     using is_transparent = void;
-    bool operator() (const OID &lhs, const OID &rhs) const {
+    bool operator() (const OID &lhs, const OID &rhs) const noexcept {
       return lhs < rhs;
     }
-    bool operator() (const OID &lhs, const Organ *rhs) const {
+    bool operator() (const OID &lhs, const Organ *rhs) const noexcept {
       return operator() (lhs, rhs->_id);
     }
-    bool operator() (const Organ *lhs, const OID &rhs) const {
+    bool operator() (const Organ *lhs, const OID &rhs) const noexcept {
       return operator() (lhs->_id, rhs);
     }
-    bool operator() (const Organ *lhs, const Organ *rhs) const {
+    bool operator() (const Organ *lhs, const Organ *rhs) const noexcept {
       return operator() (lhs->_id, rhs->_id);
     }
   };
@@ -174,6 +175,8 @@ public:
   static void save (nlohmann::json &j, const Organ &o);
   static Organ* load (const nlohmann::json &j, Organ *parent, Plant *plant,
                       Collection &organs);
+
+  friend void assertEqual (const Organ &lhs, const Organ &rhs);
 };
 
 } // end of namespace simu

@@ -159,17 +159,21 @@ int main(int argc, char *argv[]) {
   simu::Simulation s;
   if (loadSaveFile.empty()) {
     s.init(envGenome, plantGenome);
-    s.periodicSave();
+//    s.periodicSave(); /// FIXME Carefull with this things might, surprisingly,
+    /// not be all that initialized
 
   } else {
     simu::Simulation::load(loadSaveFile, s, loadConstraints);
     config::Simulation::printConfig();
   }
 
+  uint step = 0;
   while (!s.finished()) {
     if (aborted)  s.abort();
     s.step();
+    step++;
   }
+  s.atEnd();
 
   s.destroy();
   return 0;

@@ -198,6 +198,8 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
   };
 }
 
+void Environment::postLoad(void) {  _physics->postLoad(); }
+
 void Environment::load (const nlohmann::json &j, Environment &e) {
   uint i=0;
   e._genome = j[i++];
@@ -215,6 +217,17 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
 
   if (debugEnvCTRL) e.showVoxelsContents();
 }
+
+void assertEqual (const Environment &lhs, const Environment &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs._genome, rhs._genome);
+  assertEqual(lhs._dice, rhs._dice);
+  assertEqual(lhs._topology, rhs._topology);
+  assertEqual(lhs._temperature, rhs._temperature);
+  assertEqual(lhs._hygrometry, rhs._hygrometry);
+  assertEqual(*lhs._physics, *rhs._physics);
+}
+
 
 void Environment::showVoxelsContents(void) const {
   std::cerr << "\tTopology:";

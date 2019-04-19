@@ -145,8 +145,12 @@ public:
     return *_physics;
   }
 
+  void postLoad (void);
+
   static void save (nlohmann::json &j, const Environment &e);
   static void load (const nlohmann::json &j, Environment &e);
+
+  friend void assertEqual (const Environment &lhs, const Environment &rhs);
 
 private:
   float interpolate (const Voxels &voxels, float x) const;

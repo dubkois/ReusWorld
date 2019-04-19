@@ -36,6 +36,13 @@ public:
     float biomass;
     Genome genome;
     Point position;
+
+    friend void assertEqual (const Seed &lhs, const Seed &rhs) {
+      using utils::assertEqual;
+      assertEqual(lhs.biomass, rhs.biomass);
+      assertEqual(lhs.genome, rhs.genome);
+      assertEqual(lhs.position, rhs.position);
+    }
   };
   using Seeds = std::vector<Seed>;
 
@@ -72,6 +79,11 @@ private:
   struct FruitData {
     std::vector<Genome> genomes;
     Organ *fruit;
+
+    friend void assertEqual (const FruitData &lhs, const FruitData &rhs) {
+      utils::assertEqual(lhs.genomes, rhs.genomes);
+      utils::assertEqual(lhs.fruit->id(), rhs.fruit->id());
+    }
   };
   using Fruits = std::map<OID, FruitData>;
   Fruits _fruits;
@@ -221,6 +233,7 @@ public:
 
   static void save (nlohmann::json &j, const Plant &p);
   static Plant* load (const nlohmann::json &j);
+  friend void assertEqual (const Plant &lhs, const Plant &rhs);
 
   friend std::ostream& operator<< (std::ostream &os, const Plant &p);
 

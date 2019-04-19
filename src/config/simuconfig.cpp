@@ -11,7 +11,7 @@ DEFINE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
 DEFINE_SUBCONFIG(Dependencies, configDependencies)
 
 DEFINE_PARAMETER(bool, logIndividualStats, false)
-DEFINE_PARAMETER(bool, logGlobalStats, false)
+DEFINE_PARAMETER(bool, logGlobalStats, true)
 
 DEFINE_PARAMETER(int, verbosity, 1)
 

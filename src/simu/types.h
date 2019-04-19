@@ -57,6 +57,8 @@ struct Point {
   friend void from_json (const nlohmann::json &j, Point &p) {
     p.x = j[0]; p.y = j[1];
   }
+
+  friend void assertEqual (const Point &lhs, const Point &rhs);
 };
 
 struct Rect {
@@ -116,6 +118,8 @@ struct Rect {
   friend void from_json (const nlohmann::json &j, Rect &r) {
     r.ul = j[0];  r.br = j[1];
   }
+
+  friend void assertEqual (const Rect &lhs, const Rect &rhs);
 };
 
 struct Disk {
@@ -139,6 +143,8 @@ struct Disk {
   friend std::ostream& operator<< (std::ostream &os, const Disk &d) {
     return os << "{" << d.center << ", " << d.radius << "}";
   }
+
+  friend void assertEqual (const Disk &lhs, const Disk &rhs);
 };
 
 struct Position {
@@ -189,6 +195,10 @@ struct Time {
     return lhs._hour < rhs._hour;
   }
 
+  friend bool operator<= (const Time &lhs, const Time &rhs) {
+    return lhs < rhs || lhs == rhs;
+  }
+
   friend Time operator- (const Time &lhs, const Time &rhs) {
     return fromTimestamp(lhs.toTimestamp() - rhs.toTimestamp());
   }
@@ -205,6 +215,7 @@ struct Time {
 
   friend void to_json (nlohmann::json &j, const Time &t);
   friend void from_json (const nlohmann::json &j, Time &t);
+  friend void assertEqual (const Time &lhs, const Time &rhs);
 
 private:
   uint _year, _day, _hour;

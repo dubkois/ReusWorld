@@ -24,7 +24,8 @@ std::string suffix (std::string s) {
   size_t i = firstUppercase(s);
   s = s.substr(i);
   if (s == "Commit" || s == "Hash") s = "CommitHash";
-  if (s == "Build" || s == "Date")  s = "BuildDate";
+  if (s == "Date")  s = "BuildDate";
+  if (s == "Type")  s = "BuildType";
   return s;
 }
 
@@ -32,28 +33,25 @@ void removeDirty(std::string &str) {
   static constexpr auto dirty = "-dirty";
   if (str.length() < std::strlen(dirty))  return;
 
-  size_t i = str.length()-std::strlen(dirty);
+  size_t i = str.length() - std::strlen(dirty);
   if (str.substr(i) == dirty) str = str.substr(0, i);
 }
 
 template <typename S>
 void populate (S &set, const std::string &s) {
+  bool buildableOnly = (s.length() >= 5 && s.substr(0, 5) == "Build");
   for (const std::string &p: Dependencies::projects)
-    if (s != "BuildDate" || Dependencies::buildables.at(p))
+    if (!buildableOnly || Dependencies::buildables.at(p))
       set.insert(p);
 }
 
-template <typename T>
-std::string toString (const T &v) {
-  std::ostringstream oss;
-  oss << v;
-  return oss.str();
-}
-
 Dependencies::Save Dependencies::saveState (void) {
+  using C = _details::AbstractConfigFile::ConstConfigValue<std::string>;
   Save save;
-  for (const auto &p: config_iterator())
-    save[p.first] = toString(p.second);
+  for (const auto &p: config_iterator()) {
+    const C &c = dynamic_cast<const C&>(p.second);
+    save[p.first] = c();
+  }
   return save;
 }
 
@@ -63,9 +61,6 @@ void Dependencies::keysToCheck(const std::string &constraints, Keys &keys,
   std::map<std::string, std::set<std::string>> splitKeys;
 
   for (std::string c: utils::split(constraints, ',')) {
-
-//    std::cerr << "Processing '" << c << "'";
-
     c = utils::trim(c);
     if (c == "none")      continue;
     else if (c == "nodirty")  nodirty = true;
@@ -90,13 +85,6 @@ void Dependencies::keysToCheck(const std::string &constraints, Keys &keys,
     } else
       std::cerr << "Did not understand constraint '" << c << "'. Ignoring"
                 << std::endl;
-
-//    std::cerr << " >> " << c << "\n";
-//    for (const auto &pair: splitKeys) {
-//      std::cerr << "\t" << pair.first << ":\n";
-//      for (const auto &prefix: pair.second)
-//        std::cerr << "\t\t" << prefix << "\n";
-//    }
   }
 
   for (const auto &pair: splitKeys)
@@ -109,14 +97,14 @@ bool Dependencies::compareStates (const Save &previous,
 
   const Save current = saveState();
 
-  bool nodirty;
+  bool nodirty = false;
   Keys keys;
   if (constraints.empty())  constraints = "all";
   keysToCheck(constraints, keys, nodirty);
-  std::cerr << "Constraints are: '" << constraints << "'\n"
-            << "Checking keys:\n";
-  for (const auto &k: keys) std::cerr << "\t'" << k << "'\n";
-  std::cerr << std::endl;
+//  std::cerr << "Constraints are: '" << constraints << "'\n"
+//            << "Checking keys:\n";
+//  for (const auto &k: keys) std::cerr << "\t'" << k << "'\n";
+//  std::cerr << std::endl;
 
   bool ok = true;
   for (const auto &key: keys) {
@@ -138,17 +126,15 @@ bool Dependencies::compareStates (const Save &previous,
     lhsStr = lhsIT->second;
     rhsStr = rhsIT->second;
 
-    if (nodirty && suffix(key) == "CommitHash") {
-      removeDirty(lhsStr);
-      removeDirty(rhsStr);
-    }
+    if (nodirty && suffix(key) == "CommitHash")
+      removeDirty(lhsStr), removeDirty(rhsStr);
 
-    std::cerr << key << ":\t" << lhsStr << "\t" << rhsStr << std::endl;
+//    std::cerr << "\t" << key << ":\t" << lhsStr << "\t" << rhsStr << std::endl;
     if (lhsStr != rhsStr) {
       ok = false;
       std::cerr << "Mismatching values for key '" << key << "'\n"
-                << "  previous: '" << lhsStr << "'\n"
-                << "   current: '" << rhsStr << "'" << std::endl;
+                << "  previous: " << lhsStr << "\n"
+                << "   current: " << rhsStr << "" << std::endl;
     }
   }
 
@@ -168,7 +154,8 @@ std::ostream& operator<< (std::ostream &os, const Dependencies::Help&) {
      << utils::join(Dependencies::projects.begin(),
                     Dependencies::projects.end(), "\n\t  | ")
      <<
-    "\n\tF = buildDate | Build | Date"
+    "\n\tF = buildDate | Date"
+    "\n\t  | buildType | Type"
     "\n\t  | commitHash | Commit | Hash"
     "\nNotes:"
     "\n\tThe list is parsed linearly without much care for consistency"

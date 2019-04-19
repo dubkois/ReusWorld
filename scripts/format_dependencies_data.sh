@@ -23,7 +23,7 @@ for dep in $them/cxxopts $them/json $them/tools $them/apt $me/reus
 do
   proj=$(basename $dep)
   proj=${proj,}
-  for field in buildDate commitHash commitMsg commitDate
+  for field in buildDate buildType commitHash commitMsg commitDate
   do
     value=$(extractfield $field $dep)
     [ ! -z "$value" ] && echo "DEFINE_CONST_PARAMETER(std::string, $proj${field^}, \"$value\")" >> $out

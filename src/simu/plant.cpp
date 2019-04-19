@@ -76,6 +76,7 @@ void Plant::init (Environment &env, float biomass, PStats *pstats) {
 
   updateMetabolicValues();
   updateGeometry();
+  env.updateCollisionDataFinal(this);
 
   if (pstats) {
     setPStatsPointer(pstats);
@@ -996,6 +997,7 @@ void Plant::updateAltitude(Environment &env, float h) {
 
 void Plant::update (Environment &env) {
   if (isDirty(DIRTY_COLLISION)) {
+    updateGeometry();
     env.updateCollisionDataFinal(this);
     _dirty.set(DIRTY_COLLISION, false);
   }
@@ -1009,7 +1011,6 @@ uint Plant::step(Environment &env) {
   if (debug)
     std::cerr << "## Plant " << id() << ", " << age() << " days old ##"
               << std::endl;
-  uint derived = 0;
 
   // Check if there is still enough resources to grow the first rules
   if (isInSeedState()) {
@@ -1018,10 +1019,11 @@ uint Plant::step(Environment &env) {
     if (starvedOut) kill();
   }
 
+  uint derived = 0;
   if ((SConfig::DEBUG_NO_METABOLISM() || _age % SConfig::stepsPerDay() == 0)
     && !_nonTerminals.empty()) {
 
-    uint derived = deriveRules(env);
+    derived += deriveRules(env);
     _derived += bool(derived);
 
     if (!_nonTerminals.empty()) {
@@ -1252,6 +1254,36 @@ Plant* Plant::load (const nlohmann::json &j) {
   p->updateMetabolicValues();
 
   return p;
+}
+
+void assertEqual (const Plant &lhs, const Plant &rhs) {
+  using utils::assertEqual;
+
+  assertEqual(lhs._genome, rhs._genome);
+  assertEqual(lhs._pos, rhs._pos);
+  assertEqual(lhs._age, rhs._age);
+
+  Organ::OID_CMP sorter;
+
+  using P = Organ::OID_CMP;
+  using V = Plant::Organs::value_type;
+  static_assert(std::is_nothrow_invocable_r<bool, P, const V&, const V&>::value, "No");
+
+  assertEqual(lhs._organs, rhs._organs, sorter);
+  assertEqual(lhs._bases, rhs._bases, sorter);
+  assertEqual(lhs._hairs, rhs._hairs, sorter);
+  assertEqual(lhs._sinks, rhs._sinks, sorter);
+
+  assertEqual(lhs._nonTerminals, rhs._nonTerminals);
+  assertEqual(lhs._flowers, rhs._flowers);
+  assertEqual(lhs._derived, rhs._derived);
+  assertEqual(lhs._boundingRect, rhs._boundingRect);
+  assertEqual(lhs._biomasses, rhs._biomasses);
+  assertEqual(lhs._reserves, rhs._reserves);
+  assertEqual(lhs._fruits, rhs._fruits);
+  assertEqual(lhs._currentStepSeeds, rhs._currentStepSeeds);
+  assertEqual(lhs._nextOrganID, rhs._nextOrganID);
+  assertEqual(lhs._killed, rhs._killed);
 }
 
 } // end of namespace simu

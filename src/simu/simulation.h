@@ -26,6 +26,7 @@ public:
   virtual void destroy (void);
 
   virtual void step (void);
+  void atEnd (void);
 
   void abort (void) { _aborted = true; }
   bool finished (void) const {
@@ -58,9 +59,11 @@ public:
   }
   void periodicSave (void) const;
 
-  void save (std::experimental::filesystem::__cxx11::path file) const;
+  void save (stdfs::path file) const;
   static void load (const stdfs::path &file, Simulation &s,
                     const std::string &constraints);
+
+  friend void assertEqual (const Simulation &lhs, const Simulation &rhs);
 
 protected:
   struct Stats {
@@ -108,7 +111,7 @@ protected:
   virtual void updatePlantAltitude (Plant &p, float h);
 
   void updateGenStats (void);
-  void logGlobalStats (bool header);
+  void logGlobalStats (void);
 
   void debugPrintAll (void) const;
 };

@@ -35,10 +35,6 @@ struct CollisionObject {
     layer.updateInIsolation(env, plant);
   }
 
-  void computeCanopyInWorld (const const_Collisions &collisions) {
-    layer.updateInWorld(plant, collisions);
-  }
-
   static Rect boundingRectOf (const Plant *p) {
     return p->translatedBoundingRect();
   }
@@ -96,9 +92,15 @@ public:
   // Call at the end of a simulation step to register new seeds
   void processNewObjects (void);
 
+  // Call after loading a save file to ensure everything is fine
+  void postLoad (void);
+
 #ifndef NDEBUG
   void debug (void) const;
 #endif
+
+  friend void assertEqual (const TinyPhysicsEngine &lhs,
+                           const TinyPhysicsEngine &rhs);
 
 private:
   Collisions::iterator find (const Plant *p);
@@ -117,6 +119,9 @@ private:
   static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
                                     const Branch &branch,
                                     const Rect &intersection);
+
+  using Organs = Organ::const_Collection;
+  static bool narrowPhaseCollision (const Organs &lhs, const Organs &rhs);
 
   bool valid (const Pistil &p);
   bool checkAll (void);

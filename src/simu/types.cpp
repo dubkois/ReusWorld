@@ -1,3 +1,5 @@
+#include "kgd/utils/utils.h"
+
 #include "types.h"
 
 #include "../config/simuconfig.h"
@@ -49,9 +51,8 @@ const Time& Time::endOf (void) {
 }
 
 bool Time::isEndOf (void) const {
-  return *this == endOf();
+  return endOf() <= *this;
 }
-
 
 Time Time::fromTimestamp(uint step) {
   Time t;
@@ -74,6 +75,32 @@ void to_json (nlohmann::json &j, const Time &t) {
 void from_json (const nlohmann::json &j, Time &t) {
   std::istringstream iss (j.get<std::string>());
   iss >> t;
+}
+
+void assertEqual (const Time &lhs, const Time &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.hour(), rhs.hour());
+  assertEqual(lhs.day(), rhs.day());
+  assertEqual(lhs.year(), rhs.year());
+}
+
+void assertEqual (const Point &lhs, const Point &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.x, rhs.x);
+  assertEqual(lhs.y, rhs.y);
+}
+
+void assertEqual (const Rect &lhs, const Rect &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.br, rhs.br);
+  assertEqual(lhs.ul, rhs.ul);
+}
+
+
+void assertEqual (const Disk &lhs, const Disk &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.center, rhs.center);
+  assertEqual(lhs.radius, rhs.radius);
 }
 
 } // end of namespace simu

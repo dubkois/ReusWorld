@@ -253,7 +253,8 @@ set(DEPENDENCY_FILE "${CMAKE_CURRENT_BINARY_DIR}/reus.dependency")
 add_custom_target(dependencies ALL DEPENDS ${DEPENDENCY_FILE} ${DEPENDENCY_DATA})
 add_custom_command(
     OUTPUT ${DEPENDENCY_FILE}
-    COMMAND ${DEPENDENCY_GENERATOR} ${DEPENDENCY_FILE} ReusWorld
+    COMMAND ${DEPENDENCY_GENERATOR}
+        ${DEPENDENCY_FILE} ReusWorld ${CMAKE_BUILD_TYPE}
     COMMENT "Generating dependency data"
     DEPENDS always_check
 )

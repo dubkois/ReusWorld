@@ -68,6 +68,22 @@ struct PStats {
     if (!j["avgH"].is_null()) ps.avgHygrometry = j["avgH"];
     if (!j["avgL"].is_null()) ps.avgLight = j["avgL"];
   }
+
+  friend void assertEqual (const PStats &lhs, const PStats &rhs) {
+    using utils::assertEqual;
+    assertEqual(lhs.id, rhs.id);
+    assertEqual(lhs.born, rhs.born);
+    assertEqual(lhs.seed, rhs.seed);
+    assertEqual(lhs.pos, rhs.pos);
+    assertEqual(lhs.shoot, rhs.shoot);
+    assertEqual(lhs.root, rhs.root);
+    assertEqual(lhs.birth, rhs.birth);
+    assertEqual(lhs.death, rhs.death);
+    assertEqual(lhs.lifespan, rhs.lifespan);
+    assertEqual(lhs.avgTemperature, rhs.avgTemperature);
+    assertEqual(lhs.avgHygrometry, rhs.avgHygrometry);
+    assertEqual(lhs.avgLight, rhs.avgLight);
+  }
 };
 
 struct PStatsWorkingCache {

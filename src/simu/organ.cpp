@@ -268,4 +268,55 @@ Organ* Organ::load (const nlohmann::json &j, Organ *parent, Plant *plant,
   return o;
 }
 
+void assertEqual (const Organ::ParentCoordinates &lhs,
+                  const Organ::ParentCoordinates &rhs) {
+  utils::assertEqual(lhs.rotation, rhs.rotation);
+}
+
+void assertEqual (const Organ::PlantCoordinates &lhs,
+                  const Organ::PlantCoordinates &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.origin, rhs.origin);
+  assertEqual(lhs.end, rhs.end);
+  assertEqual(lhs.center, rhs.center);
+  assertEqual(lhs.rotation, rhs.rotation);
+  assertEqual(lhs.boundingRect, rhs.boundingRect);
+  assertEqual(lhs.corners, rhs.corners);
+}
+
+void assertEqual (const Organ::GlobalCoordinates &lhs,
+                  const Organ::GlobalCoordinates &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.origin, rhs.origin);
+  assertEqual(lhs.center, rhs.center);
+  assertEqual(lhs.boundingRect, rhs.boundingRect);
+  assertEqual(lhs.corners, rhs.corners);
+}
+void assertEqual (const Organ &lhs, const Organ &rhs) {
+  using utils::assertEqual;
+
+  assertEqual(lhs._id, rhs._id);
+  assertEqual(lhs._plant->id(), rhs._plant->id());
+  assertEqual(lhs._parentCoordinates, rhs._parentCoordinates);
+  assertEqual(lhs._plantCoordinates, rhs._plantCoordinates);
+  assertEqual(lhs._globalCoordinates, rhs._globalCoordinates);
+  assertEqual(lhs._width, rhs._width);
+  assertEqual(lhs._length, rhs._length);
+  assertEqual(lhs._symbol, rhs._symbol);
+  assertEqual(lhs._layer, rhs._layer);
+  assertEqual(lhs._cloned, rhs._cloned);
+  assertEqual(lhs._depth, rhs._depth);
+  assertEqual(lhs._surface, rhs._surface);
+  assertEqual(lhs._baseBiomass, rhs._baseBiomass);
+  assertEqual(lhs._accumulatedBiomass, rhs._accumulatedBiomass);
+  assertEqual(lhs._requiredBiomass, rhs._requiredBiomass);
+
+  assertEqual(bool(lhs._parent), bool(rhs._parent));
+  if (lhs._parent && rhs._parent)
+    assertEqual(lhs._parent->id(), rhs._parent->id());
+
+  Organ::OID_CMP sorter;
+  assertEqual(lhs._children, rhs._children, sorter);
+}
+
 } // end of namespace simu

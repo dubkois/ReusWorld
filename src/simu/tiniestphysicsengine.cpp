@@ -117,7 +117,9 @@ struct SortedStack {
 
     friend bool operator< (const Item &lhs, const Item &rhs) {
       if (lhs.y != rhs.y) return lhs.y < rhs.y;
-      return lhs.value < rhs.value;
+      if (lhs.value->plant()->id() != rhs.value->plant()->id())
+        return lhs.value->plant()->id() < rhs.value->plant()->id();
+      return lhs.value->id() != rhs.value->id();
     }
   };
   std::set<Item> stack;
@@ -142,6 +144,16 @@ struct SortedStack {
 
   T top (void) const {
     return stack.rbegin()->value;
+  }
+
+  bool inTop (const T &value, float y) {
+    auto it = stack.rbegin();
+    while (it != stack.rend() && it->y == y) {
+      if (it->value == value)
+        return true;
+      ++it;
+    }
+    return false;
   }
 
   bool empty (void) const {
@@ -206,10 +218,11 @@ void doLineSweep (const Plant *plant,
 
     case OUT:
       assert(!stack.empty());
-      Organ *top = stack.top();
+      bool inTop = stack.inTop(e.organ, e.top());
+//     Organ *top = stack.top();
       stack.erase(e.organ, e.top());
 
-      if (top == e.organ) {
+      if (inTop) {
         if (include(plant, current)) {
           emplaceItem(items, current, e.right());
           if (debugUpperLayer)  std::cerr << "\t\tEmplaced " << current << std::endl;
@@ -630,13 +643,15 @@ void TinyPhysicsEngine::updateFinal (const Environment &env, Plant *p) {
 namespace narrowphase {
 
 enum EventDir { X, Y };
+enum Flag { LHS, RHS };
 
 template <EventDir D>
 struct Event {
   EventType type;
   Organ const * const organ;
+  Flag flag;
 
-  Event (EventType t, const Organ *o) : type(t), organ(o) {}
+  Event (EventType t, const Organ *o, Flag f) : type(t), organ(o), flag(f) {}
 
   auto coord (void) const;
 
@@ -664,6 +679,18 @@ auto Event<Y>::coord (void) const {
   const auto &aabb = organ->globalCoordinates().boundingRect;
   return (type == IN) ? aabb.b() : aabb.t();
 }
+
+struct Item {
+  Organ const * const organ;
+  const Flag flag;
+
+
+  Item (const Event<Y> yevent) : organ(yevent.organ), flag(yevent.flag) {}
+
+  friend bool operator< (const Item &lhs, const Item &rhs) {
+    return lhs.organ < rhs.organ;
+  }
+};
 
 Point mainNormal (const Organ *o) {
   const Organ::GlobalCoordinates &coords = o->globalCoordinates();
@@ -744,10 +771,10 @@ bool collisionSAT (const Organ *lhs, const Organ *rhs) {
 
 } // end of namespace narrowphase
 
-/// \returns true if a collision occured, false otherwise
-bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
-                                              const Branch &branch,
-                                              const Rect &intersection) {
+bool
+TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
+                                         const Branch &branch,
+                                         const Rect &intersection) {
 
   using namespace narrowphase;
 
@@ -755,15 +782,13 @@ bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs
     std::cerr << "Narrowphase collision of " << intersection
               << " between\n\t" << PlantID(lhs) << ":";
 
+  Organs lhsOrgans, rhsOrgans;
+
   // Collect organs in each plant at least touching the plant-plant intersection
-  uint lhsO = 0, rhsO = 0;
-  std::set<Event<X>> xevents;
   for (const Organ *o: branch.organs) {
     if (intersects(intersection, o->globalCoordinates().boundingRect)) {
       if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
-      xevents.emplace(IN, o);
-      xevents.emplace(OUT, o);
-      lhsO++;
+      lhsOrgans.insert(o);
     }
   }
 
@@ -773,28 +798,49 @@ bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs
   for (const Organ *o: rhs->organs()) {
     if (intersects(intersection, o->globalCoordinates().boundingRect)) {
       if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
-      xevents.emplace(IN, o);
-      xevents.emplace(OUT, o);
-      rhsO++;
+      rhsOrgans.insert(o);
     }
   }
 
   if (debugNarrowphase) std::cerr << std::endl;
 
+  return narrowPhaseCollision(lhsOrgans, rhsOrgans);
+}
+
+/// \returns true if a collision occured, false otherwise
+bool
+TinyPhysicsEngine::narrowPhaseCollision (const Organs &lhs,
+                                         const Organs &rhs) {
+
+  using namespace narrowphase;
+
   // No collision if one of the plant has no organ in the intersection
+  uint lhsO = lhs.size(), rhsO = rhs.size();
   if (!(lhsO && rhsO)) {
     if (debugNarrowphase)
-      std::cerr << "\tObject " << (!lhsO ? "lhs" : "rhs") << " has no candidate"
-                << " organ(s), no collision(s) possible" << std::endl;
+      std::cerr << "\tObject " << (!lhsO ? "lhs" : "rhs") << " has no "
+                << "candidate organ(s), no collision(s) possible" << std::endl;
     return false;
   }
 
+  std::set<Event<X>> xevents;
+  for (const Organ *o: lhs) {
+    xevents.emplace(IN, o, LHS);
+    xevents.emplace(OUT, o, LHS);
+  }
+
+  for (const Organ *o: rhs) {
+    xevents.emplace(IN, o, RHS);
+    xevents.emplace(OUT, o, RHS);
+  }
+
   // Linesweep to find lhs-rhs organ collision pair
-  std::set<const Organ*> inside;
+  std::set<Item> inside;
   std::set<Event<Y>> yevents;
   for (const Event<X> &xevent: xevents) {
     std::initializer_list<Event<Y>> new_yevents {
-      Event<Y> (IN, xevent.organ), Event<Y> (OUT, xevent.organ)
+      Event<Y> (IN, xevent.organ, xevent.flag),
+      Event<Y> (OUT, xevent.organ, xevent.flag)
     };
 
     if (debugNarrowphase) std::cerr << "\t" << xevent << std::endl;
@@ -805,7 +851,7 @@ bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs
       for (auto &e: new_yevents)  yevents.erase(e);
 
       // Organ visited reduce corresponding count
-      if (xevent.organ->plant() == lhs)
+      if (xevent.flag == LHS)
             lhsO--;
       else  rhsO--;
     }
@@ -822,15 +868,14 @@ bool TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs
       if (debugNarrowphase) std::cerr << "\t\t" << yevent << std::endl;
       if (yevent.type == IN) {
         const Organ *lhs = yevent.organ;
-        for (const Organ *rhs: inside)
-          if (lhs->plant() != rhs->plant()
-              && collisionSAT(lhs, rhs))
+        for (const Item &i: inside)
+          if (yevent.flag != i.flag && collisionSAT(lhs, i.organ))
             return true;
 
-        inside.insert(yevent.organ);
+        inside.insert(Item(yevent));
 
       } else
-        inside.erase(yevent.organ);
+        inside.erase(Item(yevent));
     }
   }
 
@@ -1069,6 +1114,70 @@ TinyPhysicsEngine::Pistils_range TinyPhysicsEngine::sporesInRange(Organ *s) {
 }
 
 // =============================================================================
+
+void TinyPhysicsEngine::postLoad(void) {
+  processNewObjects();
+
+  for (CollisionObject *obj: _data) {
+    const_Collisions thisCollisions;
+    broadphaseCollision(obj, thisCollisions);
+    obj->layer.updateInWorld(obj->plant, thisCollisions);
+  }
+}
+
+// =============================================================================
+
+template <EdgeSide S>
+void assertEqual (const Edge<S> &lhs, const Edge<S> &rhs) {
+  utils::assertEqual(lhs.object->plant->id(), rhs.object->plant->id());
+  utils::assertEqual(lhs.edge, rhs.edge);
+}
+
+void assertEqual(const UpperLayer::Item &lhs, const UpperLayer::Item &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.l, rhs.l);
+  assertEqual(lhs.r, rhs.r);
+  assertEqual(lhs.y, rhs.y);
+  assertEqual(lhs.organ->id(), rhs.organ->id());
+}
+
+void assertEqual(const UpperLayer &lhs, const UpperLayer &rhs) {
+  utils::assertEqual(lhs.itemsInIsolation, rhs.itemsInIsolation);
+  utils::assertEqual(lhs.itemsInWorld, rhs.itemsInWorld);
+}
+
+void assertEqual(const Pistil &lhs, const Pistil &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.organ->id(), rhs.organ->id());
+  assertEqual(lhs.boundingDisk, rhs.boundingDisk);
+}
+
+void assertEqualShallow (const Collisions &lhs, const Collisions &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.size(), rhs.size());
+  for (auto lhsIt = lhs.begin(), rhsIt = rhs.begin();
+       lhsIt != lhs.end(); ++lhsIt, ++rhsIt)
+    assertEqual((*lhsIt)->plant->id(), (*rhsIt)->plant->id());
+}
+
+void assertEqual (const CollisionObject &lhs, const CollisionObject &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs.plant->id(), rhs.plant->id());
+  assertEqual(lhs.boundingRect, rhs.boundingRect);
+  assertEqualShallow(lhs.englobedObjects, rhs.englobedObjects);
+  assertEqualShallow(lhs.englobingObjects, rhs.englobingObjects);
+  assertEqual(lhs.leftEdge, rhs.leftEdge);
+  assertEqual(lhs.rightEdge, rhs.rightEdge);
+  assertEqual(lhs.layer, rhs.layer);
+}
+
+void assertEqual (const TinyPhysicsEngine &lhs, const TinyPhysicsEngine &rhs) {
+  using utils::assertEqual;
+  assertEqual(lhs._data, rhs._data);
+  assertEqual(lhs._leftEdges, rhs._leftEdges);
+  assertEqual(lhs._rightEdges, rhs._rightEdges);
+  assertEqual(lhs._pistils, rhs._pistils);
+}
 
 } // end of namespace physics
 } // end of namespace simu
