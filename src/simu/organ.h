@@ -143,6 +143,10 @@ public:
   bool isCloned (void) const {  return _cloned; }
   void unsetCloned (void) { _cloned = false;  }
 
+  bool isUncommitted (void) const {
+    return isCloned() || id() == OID::INVALID;
+  }
+
   void updateDepth (uint newDepth);
   void updateParentDepth (void);
   auto depth (void) const {

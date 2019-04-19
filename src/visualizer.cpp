@@ -8,7 +8,48 @@
 
 #include "config/dependencies.h"
 
+
+static constexpr bool isTrue = true;
+static constexpr bool isFalse = false;
+
+template <typename ...ARGS>
+void gobbleUnused (ARGS ...) {}
+
+template <bool v, typename T, typename ...ARGS>
+auto tOrNothing (ARGS ...args) {
+  struct [[gnu::unused]] Nothing {};
+  if constexpr (v) {
+    return T(std::forward<ARGS>(args)...);
+  } else {
+    Nothing n1;
+    Nothing n2;
+    gobbleUnused(args...);
+    return Nothing{};
+  }
+}
+
 int main(int argc, char *argv[]) {
+
+  struct Test {
+    std::string _value;
+    Test (std::string value) : _value(value) {
+      std::cout << "Build Test object with value " << _value << std::endl;
+    }
+
+    ~Test (void) {
+      std::cout << "Destroyed test object with value " << _value << std::endl;
+    }
+  };
+
+  {
+    auto a = tOrNothing<isTrue, Test>("a");
+    auto b = tOrNothing<isFalse, Test>("b");
+    auto c = tOrNothing<isTrue, Test>("c");
+    auto d = tOrNothing<isFalse, Test>("d");
+  }
+
+  exit (255);
+
   // ===========================================================================
   // == Command line arguments parsing
 

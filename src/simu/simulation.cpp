@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-//#define CUSTOM_PLANTS 1
+#define CUSTOM_PLANTS 1
 //#define DISTANCE_TEST
 #endif
 
@@ -66,7 +66,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 #define RRULE(X) RRule::fromString(X).toPair()
 
 #if CUSTOM_PLANTS == 1
-  N = 5;
+  N = 1;
 
   modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
@@ -84,25 +84,25 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   };
   genomes[0].root.recursivity = 10;
 
-  genomes[1].dethklok = 25;
-  genomes[1].shoot.rules = {
-    SRULE("S -> s[-Al][+Bl]"),
-    SRULE("A -> -sA"),
-    SRULE("B -> +sB"),
-  };
+//  genomes[1].dethklok = 25;
+//  genomes[1].shoot.rules = {
+//    SRULE("S -> s[-Al][+Bl]"),
+//    SRULE("A -> -sA"),
+//    SRULE("B -> +sB"),
+//  };
 
-  genomes[2].shoot.rules = genomes[1].shoot.rules;
-  genomes[2].shoot.recursivity = 7;
+//  genomes[2].shoot.rules = genomes[1].shoot.rules;
+//  genomes[2].shoot.recursivity = 7;
 
-  genomes[3].dethklok = 25;
-  genomes[3].shoot.rules = genomes[1].shoot.rules;
+//  genomes[3].dethklok = 25;
+//  genomes[3].shoot.rules = genomes[1].shoot.rules;
 
-  genomes[4].shoot.rules = {
-    SRULE("S -> ss+s+s+A"),
-    SRULE("A -> s[B]A"),
-    SRULE("B -> [-l][+l]")
-  };
-  genomes[4].root = genomes[0].root;
+//  genomes[4].shoot.rules = {
+//    SRULE("S -> ss+s+s+A"),
+//    SRULE("A -> s[B]A"),
+//    SRULE("B -> [-l][+l]")
+//  };
+//  genomes[4].root = genomes[0].root;
 
 
 #elif CUSTOM_PLANTS == 2

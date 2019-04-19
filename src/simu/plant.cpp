@@ -18,7 +18,7 @@ static const auto A = GConfig::ls_rotationAngle();
 
 static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
-static constexpr bool debugDerivation = false;
+static constexpr bool debugDerivation = true;
 static constexpr int debugMetabolism = false;
 static constexpr bool debugReproduction = false;
 
@@ -182,20 +182,6 @@ void printSubTree (Organ *st, uint depth) {
   for (Organ *sst: st->children())  printSubTree(sst, depth+2);
 }
 
-bool isSelfColliding (const Plant::Organs &organs, const Plant::Organs &other = Plant::Organs()) {
-  std::set<float> rotationsView;
-  for (auto o: organs)  rotationsView.insert(o->inPlantCoordinates().rotation);
-  for (auto o: other)   rotationsView.insert(o->inPlantCoordinates().rotation);
-  if (rotationsView.size() != organs.size() + other.size())
-    return true;
-  else {
-    for (auto o: organs)
-      if (isSelfColliding(o->children()))
-        return true;
-    return false;
-  }
-}
-
 uint Plant::deriveRules(Environment &env) {
   // Store current pistils location in case of an update
   std::map<OID, Point> oldPistilsPositions;
@@ -249,34 +235,32 @@ uint Plant::deriveRules(Environment &env) {
       std::cerr << std::endl;
     }
 
-    // Test for self collision
-    Organs apexSiblings;
-    if (apex->parent())
-      for (Organ *as: apex->parent()->children())
-        if (as != apex)
-          apexSiblings.insert(as);
-    bool selfColliding = isSelfColliding(stBases, apexSiblings);
-    if (selfColliding) {
-      for (Organ *st: stBases)  delOrgan(st, env);
-      for (Organ *st: apex->children()) commit(st);
+    // Create temporary collision data
+    std::cerr << "Building self:\n";
+    Branch self (_bases, [apex] (const Organ *o) {
+      bool b = o != apex && !o->isUncommitted();
+      std::cerr << "\t" << OrganID(o, true) << " in self? "
+                << b << "\n";
+      return b;
+    });
+    std::cerr << std::endl;
 
-      if (debugDerivation)
-        std::cerr << "\tCanceled due to self-collision\n"
-                  << std::endl;
-
-      continue;
-    }
-
-    // Create interplant collision data
     Branch branch (stBases);
-    bool colliding = !env.isCollisionFree(this, branch);
-    if (colliding) {
+
+    // Perform collision detection
+    bool intraCollision, interCollision;
+    intraCollision = env.isCollidingWithSelf(self, branch);
+    if (!intraCollision)
+      interCollision = env.isCollidingWithOthers(this, branch);
+
+    if (intraCollision || interCollision) {
       for (Organ *st: stBases)  delOrgan(st, env);
       for (Organ *st: apex->children()) commit(st);
 
       if (debugDerivation)
-        std::cerr << "\tCanceled due to collision with another plant\n"
-                  << std::endl;
+        std::cerr << "\tCanceled due to collision with "
+                  << (intraCollision ? "itself" : "another plant")
+                  << "\n" << std::endl;
 
       continue;
     }

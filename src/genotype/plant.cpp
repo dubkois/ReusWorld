@@ -307,7 +307,7 @@ struct Aggregator<LSystem<L>, Plant> {
         nonTerminals.insert(pair.first);
 
     os << "\n";
-    _details::IndentingOStreambuf indent(os);
+    utils::IndentingOStreambuf indent(os);
     for (grammar::NonTerminal s: nonTerminals) {
       std::map<grammar::Successor, uint> counts;
       for (const Plant &p: genomes) {

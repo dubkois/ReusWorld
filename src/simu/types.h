@@ -107,6 +107,15 @@ struct Rect {
         && lhs.t() >= rhs.b() && lhs.b() <= rhs.t();
   }
 
+  friend Rect intersection (const Rect &lhs, const Rect &rhs) {
+    Rect intersection;
+    intersection.ul.x = std::max(lhs.l(), rhs.l());
+    intersection.ul.y = std::min(lhs.t(), rhs.t());
+    intersection.br.x = std::min(lhs.r(), rhs.r());
+    intersection.br.y = std::max(lhs.b(), rhs.b());
+    return intersection;
+  }
+
   friend std::ostream& operator<< (std::ostream &os, const Rect &r) {
     return os << "{ " << r.ul << ", " << r.br << " }";
   }

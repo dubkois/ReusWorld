@@ -1,5 +1,7 @@
 #include <stack>
 
+#include "kgd/utils/indentingostream.h"
+
 #include "tiniestphysicsengine.h"
 #include "environment.h"
 
@@ -11,7 +13,7 @@ namespace physics {
 enum EventType { IN = 1, OUT = 2 };
 
 static constexpr bool debugBroadphase = false;
-static constexpr bool debugNarrowphase = false;
+static constexpr bool debugNarrowphase = true;
 static constexpr bool debugCollision = false || debugBroadphase || debugNarrowphase;
 static constexpr bool debugUpperLayer = false;
 static constexpr bool debugReproduction = false;
@@ -645,6 +647,8 @@ namespace narrowphase {
 enum EventDir { X, Y };
 enum Flag { LHS, RHS };
 
+using Organs = Organ::const_Collection;
+
 template <EventDir D>
 struct Event {
   EventType type;
@@ -717,7 +721,7 @@ float dotProduct (const Point &lhs, const Point &rhs) {
  */
 bool collisionSAT (const Organ *lhs, const Organ *rhs) {
   if (debugNarrowphase)
-    std::cerr << "\tSearching separating axis between "
+    std::cerr << "Searching separating axis between "
               << OrganID(lhs) << " (" << lhs->globalCoordinates().boundingRect
               << ") and "
               << OrganID(rhs) << " (" << rhs->globalCoordinates().boundingRect
@@ -769,56 +773,17 @@ bool collisionSAT (const Organ *lhs, const Organ *rhs) {
   return true;  // No separating axis found: there must be a collision
 }
 
-} // end of namespace narrowphase
+template <typename F>
+bool narrowPhaseCollision (const Organs &lhs, const Organs &rhs,
+                           const F &filter) {
 
-bool
-TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
-                                         const Branch &branch,
-                                         const Rect &intersection) {
-
-  using namespace narrowphase;
-
-  if (debugNarrowphase)
-    std::cerr << "Narrowphase collision of " << intersection
-              << " between\n\t" << PlantID(lhs) << ":";
-
-  Organs lhsOrgans, rhsOrgans;
-
-  // Collect organs in each plant at least touching the plant-plant intersection
-  for (const Organ *o: branch.organs) {
-    if (intersects(intersection, o->globalCoordinates().boundingRect)) {
-      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
-      lhsOrgans.insert(o);
-    }
-  }
-
-  if (debugNarrowphase)
-    std::cerr << "\n\t" << PlantID(rhs) << ":";
-
-  for (const Organ *o: rhs->organs()) {
-    if (intersects(intersection, o->globalCoordinates().boundingRect)) {
-      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
-      rhsOrgans.insert(o);
-    }
-  }
-
-  if (debugNarrowphase) std::cerr << std::endl;
-
-  return narrowPhaseCollision(lhsOrgans, rhsOrgans);
-}
-
-/// \returns true if a collision occured, false otherwise
-bool
-TinyPhysicsEngine::narrowPhaseCollision (const Organs &lhs,
-                                         const Organs &rhs) {
-
-  using namespace narrowphase;
+  utils::IndentingOStreambuf indent(std::cerr);
 
   // No collision if one of the plant has no organ in the intersection
   uint lhsO = lhs.size(), rhsO = rhs.size();
   if (!(lhsO && rhsO)) {
     if (debugNarrowphase)
-      std::cerr << "\tObject " << (!lhsO ? "lhs" : "rhs") << " has no "
+      std::cerr << "Object " << (!lhsO ? "lhs" : "rhs") << " has no "
                 << "candidate organ(s), no collision(s) possible" << std::endl;
     return false;
   }
@@ -843,7 +808,7 @@ TinyPhysicsEngine::narrowPhaseCollision (const Organs &lhs,
       Event<Y> (OUT, xevent.organ, xevent.flag)
     };
 
-    if (debugNarrowphase) std::cerr << "\t" << xevent << std::endl;
+    if (debugNarrowphase) std::cerr << xevent << std::endl;
     if (xevent.type == IN)
           yevents.insert(new_yevents);
 
@@ -859,18 +824,37 @@ TinyPhysicsEngine::narrowPhaseCollision (const Organs &lhs,
     // No collision if all the candidate organs of one plant have been visited
     if (!(lhsO && rhsO)) {
       if (debugNarrowphase)
-        std::cerr << "\tSeen all organs of " << (!lhsO ? "lhs" : "rhs") << ", no"
+        std::cerr << "Seen all organs of " << (!lhsO ? "lhs" : "rhs") << ", no"
                   << " more collision(s) possible" << std::endl;
       return false;
     }
 
     for (const Event<Y> &yevent: yevents) {
-      if (debugNarrowphase) std::cerr << "\t\t" << yevent << std::endl;
+      utils::IndentingOStreambuf indent(std::cerr);
+
+      if (debugNarrowphase) std::cerr << yevent << std::endl;
       if (yevent.type == IN) {
         const Organ *lhs = yevent.organ;
-        for (const Item &i: inside)
-          if (yevent.flag != i.flag && collisionSAT(lhs, i.organ))
+        for (const Item &i: inside) {
+          utils::IndentingOStreambuf indent(std::cerr);
+
+          if (debugNarrowphase)
+            std::cerr << OrganID(lhs) << "/" << OrganID(i.organ)
+                      << ": ";
+
+          if (yevent.flag == i.flag) {
+            if (debugNarrowphase) std::cerr << "Same sets" << std::endl;
+            continue;
+          }
+
+          if (filter(yevent.organ, i.organ)) {
+            if (debugNarrowphase) std::cerr << "Filtered out" << std::endl;
+            continue;
+          }
+
+          if(collisionSAT(lhs, i.organ))
             return true;
+        }
 
         inside.insert(Item(yevent));
 
@@ -880,6 +864,81 @@ TinyPhysicsEngine::narrowPhaseCollision (const Organs &lhs,
   }
 
   return false;
+}
+
+} // end of namespace narrowphase
+
+bool TinyPhysicsEngine::narrowPhaseCollision(const Branch &self,
+                                             const Branch &branch) {
+
+  Rect i = intersection(self.bounds, branch.bounds);
+  if (debugNarrowphase)
+    std::cerr << "Narrowphase collision of " << i << " between\n\tSelf:";
+
+  narrowphase::Organs lhsOrgans, rhsOrgans;
+
+  // Collect organs in each container at least touching the self-branch
+  // intersection
+  for (const Organ *o: self.organs) {
+    if (intersects(i, o->globalCoordinates().boundingRect)) {
+      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
+      lhsOrgans.insert(o);
+    }
+  }
+
+  if (debugNarrowphase)
+    std::cerr << "\n\tBranch:";
+
+  for (const Organ *o: branch.organs) {
+    if (intersects(i, o->globalCoordinates().boundingRect)) {
+      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
+      rhsOrgans.insert(o);
+    }
+  }
+
+  if (debugNarrowphase) std::cerr << std::endl;
+
+  return narrowphase::narrowPhaseCollision(lhsOrgans, rhsOrgans,
+    [] (const Organ *lhs, const Organ *rhs) {
+      return lhs->parent() == rhs->parent();
+  });
+}
+
+bool
+TinyPhysicsEngine::narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
+                                         const Branch &branch,
+                                         const Rect &intersection) {
+
+//  using namespace narrowphase;
+
+  if (debugNarrowphase)
+    std::cerr << "Narrowphase collision of " << intersection
+              << " between\n\t" << PlantID(lhs) << ":";
+
+  narrowphase::Organs lhsOrgans, rhsOrgans;
+
+  // Collect organs in each plant at least touching the plant-plant intersection
+  for (const Organ *o: branch.organs) {
+    if (intersects(intersection, o->globalCoordinates().boundingRect)) {
+      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
+      lhsOrgans.insert(o);
+    }
+  }
+
+  if (debugNarrowphase)
+    std::cerr << "\n\t" << PlantID(rhs) << ":";
+
+  for (const Organ *o: rhs->organs()) {
+    if (intersects(intersection, o->globalCoordinates().boundingRect)) {
+      if (debugNarrowphase) std::cerr << " " << OrganID(o, true);
+      rhsOrgans.insert(o);
+    }
+  }
+
+  if (debugNarrowphase) std::cerr << std::endl;
+
+  return narrowphase::narrowPhaseCollision(lhsOrgans, rhsOrgans,
+    [] (const Organ *, const Organ *) { return false;  });
 }
 
 
@@ -972,7 +1031,12 @@ void TinyPhysicsEngine::broadphaseCollision(const CollisionObject *object,
   objects.erase(object); // No self collision
 }
 
-bool TinyPhysicsEngine::isCollisionFree (const Plant *p, const Branch &branch) {
+bool TinyPhysicsEngine::isCollidingWithSelf(const Branch &s, const Branch &b) {
+  return narrowPhaseCollision(s, b);
+}
+
+bool TinyPhysicsEngine::isCollidingWithOthers (const Plant *p,
+                                               const Branch &branch) {
   if (debugCollision) std::cerr << "\nTesting collisions for " << p->id() << std::endl;
 
   Rect otherBounds = Rect::invalid();
@@ -995,17 +1059,13 @@ bool TinyPhysicsEngine::isCollisionFree (const Plant *p, const Branch &branch) {
     // Ignore collision with seeds
     if (that->plant->isInSeedState()) continue;
 
-    Rect intersection;
-    intersection.ul.x = std::max(that->boundingRect.l(), branch.bounds.l());
-    intersection.ul.y = std::min(that->boundingRect.t(), branch.bounds.t());
-    intersection.br.x = std::min(that->boundingRect.r(), branch.bounds.r());
-    intersection.br.y = std::max(that->boundingRect.b(), branch.bounds.b());
-    if (intersection.isValid()
-      && narrowPhaseCollision(object->plant, that->plant, branch, intersection))
-      return false;
+    Rect i = intersection(that->boundingRect, branch.bounds);
+    if (i.isValid()
+      && narrowPhaseCollision(object->plant, that->plant, branch, i))
+      return true;
   }
 
-  return true;
+  return false;
 }
 
 

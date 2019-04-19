@@ -14,7 +14,7 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
-static constexpr bool drawOrganID = false;
+static constexpr bool drawOrganID = true;
 static constexpr bool drawPlantID = false;
 static constexpr bool drawOrganContour = false;
 static constexpr bool drawOrganCorners = false;
@@ -236,7 +236,7 @@ void paint(QPainter *painter, const simu::Organ *o, bool dead,
 
     painter->restore();
 
-    if (drawOrganID && !contour) {
+    if (drawOrganID) {
       painter->save();
         QPen pen = painter->pen();
         pen.setColor(Qt::black);

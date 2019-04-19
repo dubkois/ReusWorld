@@ -12,14 +12,21 @@ struct Branch {
   Rect bounds;
   Organ::Collection organs;
 
-  Branch (Organ::Collection &bases) : bounds(Rect::invalid()) {
-    for (Organ *o: bases) insert(o);
+  template <typename F>
+  Branch (Organ::Collection &bases, const F &filter) : bounds(Rect::invalid()) {
+    for (Organ *o: bases) insert(o, filter);
   }
 
-  void insert (Organ *o) {
-    organs.insert(o);
-    bounds.uniteWith(o->globalCoordinates().boundingRect);
-    for (Organ *c: o->children()) insert(c);
+  Branch (Organ::Collection &bases)
+    : Branch(bases, [] (const Organ*) { return true; }) {}
+
+  template <typename F>
+  void insert (Organ *o, const F &filter) {
+    if (filter(o)) {
+      organs.insert(o);
+      bounds.uniteWith(o->globalCoordinates().boundingRect);
+      for (Organ *c: o->children()) insert(c, filter);
+    }
   }
 };
 
@@ -333,7 +340,7 @@ struct OrganID {
       PlantID::print(os, oid.o->plant());
       os << ":";
     }
-    os << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0] << "O";
+    os << EnumUtils<Plant::Layer>::getName(oid.o->layer())[0];
     if (oid.o->id() == Organ::OID::INVALID)
           os << '?';
     else  os << oid.o->id();
