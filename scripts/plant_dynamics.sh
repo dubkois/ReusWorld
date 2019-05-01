@@ -34,7 +34,8 @@ while getopts "h?c:f:pl:o:q" opt; do
     c)  columns=$OPTARG
         ;;
     f)  file=$OPTARG
-        files="$files $OPTARG"
+        [ ! -z "$files" ] && files="$files "
+        files="$files$OPTARG"
         ;;
     p)  persist="-"
         ;;

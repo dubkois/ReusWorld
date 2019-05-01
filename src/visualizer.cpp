@@ -15,14 +15,12 @@ static constexpr bool isFalse = false;
 template <typename ...ARGS>
 void gobbleUnused (ARGS ...) {}
 
+struct __attribute__((__unused__)) Nothing {};
 template <bool v, typename T, typename ...ARGS>
 auto tOrNothing (ARGS ...args) {
-  struct [[gnu::unused]] Nothing {};
-  if constexpr (v) {
+  if constexpr (v)
     return T(std::forward<ARGS>(args)...);
-  } else {
-    Nothing n1;
-    Nothing n2;
+  else {
     gobbleUnused(args...);
     return Nothing{};
   }
