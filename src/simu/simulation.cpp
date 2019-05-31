@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 1
+#define CUSTOM_PLANTS 2
 //#define DISTANCE_TEST
 #endif
 
@@ -66,59 +66,101 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 #define RRULE(X) RRule::fromString(X).toPair()
 
 #if CUSTOM_PLANTS == 1
-  N = 1;
+  N = 5;
 
   modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
 
-  genomes[0].shoot.rules = {
+  uint i=0;
+
+  genomes[i].shoot.rules = {
     SRULE("S -> s-s-s-A"),
     SRULE("A -> s[B]A"),
     SRULE("B -> [-l][+l]"),
   };
-  genomes[0].root.rules = {
+  genomes[i].root.rules = {
     RRULE("S -> A"),
     RRULE("A -> [+Bh][Bh][-Bh]"),
     RRULE("B -> tB"),
   };
-  genomes[0].root.recursivity = 10;
+  genomes[i].root.recursivity = 10;
+  i++;
 
-//  genomes[1].dethklok = 25;
-//  genomes[1].shoot.rules = {
-//    SRULE("S -> s[-Al][+Bl]"),
-//    SRULE("A -> -sA"),
-//    SRULE("B -> +sB"),
-//  };
+  genomes[i].dethklok = 25;
+  genomes[i].shoot.rules = {
+    SRULE("S -> s[-Al][+Bl]"),
+    SRULE("A -> -sA"),
+    SRULE("B -> +sB"),
+  };
+  i++;
 
-//  genomes[2].shoot.rules = genomes[1].shoot.rules;
-//  genomes[2].shoot.recursivity = 7;
+  genomes[i].shoot.rules = genomes[i-1].shoot.rules;
+  genomes[i].shoot.recursivity = 7;
+  i++;
 
-//  genomes[3].dethklok = 25;
-//  genomes[3].shoot.rules = genomes[1].shoot.rules;
+  genomes[i].shoot.rules = genomes[i-1].shoot.rules;
+  genomes[i].dethklok = 25;
+  i++;
 
-//  genomes[4].shoot.rules = {
-//    SRULE("S -> ss+s+s+A"),
-//    SRULE("A -> s[B]A"),
-//    SRULE("B -> [-l][+l]")
-//  };
-//  genomes[4].root = genomes[0].root;
-
+  genomes[i].shoot.rules = {
+    SRULE("S -> ss+s+s+A"),
+    SRULE("A -> s[B]A"),
+    SRULE("B -> [-l][+l]")
+  };
+  genomes[i].root = genomes[0].root;
+  i++;
 
 #elif CUSTOM_PLANTS == 2
-  N = 10;
-  dx = .075;
+  N = 1;
+  dx = .15;
 
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
 
-  genomes[0].shoot.rules = {
-    SRULE("S -> A[fl][-A]f"),
-    SRULE("A -> s")
-  };
+  uint i=0;
 
-  genomes[1].shoot.rules = {
-    SRULE("S -> s[+l][Al]f"),
-    SRULE("A -> f")
+//  // Left border
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> A[-f][+f]f"),
+//    SRULE("A -> sss")
+//  };
+
+//  // Overlap
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> A[-l][-l]"),
+//    SRULE("A -> s")
+//  };
+
+//  // Two step overlap
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> [Al][-l]"),
+//    SRULE("A -> -"),
+//  };
+
+//  // Two step without overlap
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> [Al][-Al]"),
+//    SRULE("A -> -"),
+//  };
+
+//  // Diamond overlap (single rule)
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> Af"),
+//    SRULE("A -> [-l++l][+l--l]"),
+//  };
+
+//  // Diamond overlap (two rules)
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> [-Al][+Bl]"),
+//    SRULE("A -> l++"),
+//    SRULE("B -> l--"),
+//  };
+
+  // Multi-layered flower
+  genomes[i++].shoot.rules = {
+    SRULE("S -> [-Al][+Bl]"),
+    SRULE("A -> A-[l]"),
+//    SRULE("B -> l--),
   };
 
 #elif CUSTOM_PLANTS == 3

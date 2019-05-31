@@ -78,6 +78,13 @@ struct Pistil {
   }
 };
 
+enum CollisionResult {
+  AUTO_COLLISION = 1,
+  INTRA_COLLISION = 2,
+  INTER_COLLISION = 4,
+  NO_COLLISION = 8,
+};
+
 } // end of namespace physics
 } // end of namespace simu
 

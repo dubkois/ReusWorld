@@ -12,13 +12,13 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, voxels, "", 100, 100)
 DEFINE_GENOME_FIELD_AS_SUBGENOME(EnvCTRL, envCtrl, "ctrl")
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(rngSeed, .1f),
-  MUTATION_RATE(  width, .1f),
-  MUTATION_RATE(  depth, .1f),
-  MUTATION_RATE(   minT, .1f),
-  MUTATION_RATE(   maxT, .1f),
-  MUTATION_RATE( voxels, .1f),
-  MUTATION_RATE(envCtrl, 1.f)
+  EDNA_PAIR(rngSeed, .1f),
+  EDNA_PAIR(  width, .1f),
+  EDNA_PAIR(  depth, .1f),
+  EDNA_PAIR(   minT, .1f),
+  EDNA_PAIR(   maxT, .1f),
+  EDNA_PAIR( voxels, .1f),
+  EDNA_PAIR(envCtrl, 1.f)
 })
 
 namespace config {

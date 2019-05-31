@@ -386,16 +386,16 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, growthSpeed, "", 0., 1., 1.
 DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .2, .2, 1.)
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(conversionRates, 2.f),
-  MUTATION_RATE(      resistors, 2.f),
-  MUTATION_RATE(    growthSpeed, 1.f),
-  MUTATION_RATE(     deltaWidth, 1.f)
+  EDNA_PAIR(conversionRates, 2.f),
+  EDNA_PAIR(      resistors, 2.f),
+  EDNA_PAIR(    growthSpeed, 1.f),
+  EDNA_PAIR(     deltaWidth, 1.f)
 })
 DEFINE_GENOME_DISTANCE_WEIGHTS({
-  MUTATION_RATE(conversionRates, 1.f),
-  MUTATION_RATE(      resistors, 1.f),
-  MUTATION_RATE(    growthSpeed, 1.f),
-  MUTATION_RATE(     deltaWidth, 1.f)
+  EDNA_PAIR(conversionRates, 1.f),
+  EDNA_PAIR(      resistors, 1.f),
+  EDNA_PAIR(    growthSpeed, 1.f),
+  EDNA_PAIR(     deltaWidth, 1.f)
 })
 #undef GENOME
 
@@ -482,26 +482,26 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureRange, "", 1e-3f, 10.f, 10.f, 
 
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(              cdata, 4.f),
-  MUTATION_RATE(              shoot, 8.f),
-  MUTATION_RATE(               root, 8.f),
-  MUTATION_RATE(         metabolism, 4.f),
-  MUTATION_RATE(           dethklok, 1.f),
-  MUTATION_RATE(     fruitOvershoot, .5f),
-  MUTATION_RATE(      seedsPerFruit, .5f),
-  MUTATION_RATE( temperatureOptimal, .5f),
-  MUTATION_RATE(   temperatureRange, .5f),
+  EDNA_PAIR(              cdata, 4.f),
+  EDNA_PAIR(              shoot, 8.f),
+  EDNA_PAIR(               root, 8.f),
+  EDNA_PAIR(         metabolism, 4.f),
+  EDNA_PAIR(           dethklok, 1.f),
+  EDNA_PAIR(     fruitOvershoot, .5f),
+  EDNA_PAIR(      seedsPerFruit, .5f),
+  EDNA_PAIR( temperatureOptimal, .5f),
+  EDNA_PAIR(   temperatureRange, .5f),
 })
 DEFINE_GENOME_DISTANCE_WEIGHTS({
-  DISTANCE_WEIGHT(              cdata, 0.f),
-  DISTANCE_WEIGHT(              shoot, 1.f),
-  DISTANCE_WEIGHT(               root, 1.f),
-  DISTANCE_WEIGHT(         metabolism, 1.f),
-  DISTANCE_WEIGHT(           dethklok, .5f),
-  DISTANCE_WEIGHT(     fruitOvershoot, .5f),
-  DISTANCE_WEIGHT(      seedsPerFruit, .5f),
-  DISTANCE_WEIGHT( temperatureOptimal, .5f),
-  DISTANCE_WEIGHT(   temperatureRange, .5f),
+  EDNA_PAIR(              cdata, 0.f),
+  EDNA_PAIR(              shoot, 1.f),
+  EDNA_PAIR(               root, 1.f),
+  EDNA_PAIR(         metabolism, 1.f),
+  EDNA_PAIR(           dethklok, .5f),
+  EDNA_PAIR(     fruitOvershoot, .5f),
+  EDNA_PAIR(      seedsPerFruit, .5f),
+  EDNA_PAIR( temperatureOptimal, .5f),
+  EDNA_PAIR(   temperatureRange, .5f),
 })
 
 namespace config {

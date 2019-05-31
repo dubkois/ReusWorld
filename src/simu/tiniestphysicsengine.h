@@ -80,8 +80,9 @@ public:
   bool addCollisionData (const Environment &env, Plant *p);
   void removeCollisionData (Plant *p);
 
-  bool isCollidingWithSelf(const Branch &s, const Branch &b);
-  bool isCollidingWithOthers(const Plant *p, const Branch &b);
+  CollisionResult collisionTest(const Plant *plant,
+                                const Branch &self, const Branch &branch,
+                                const Organ::Collection &newOrgans);
 
   void updateCollisions (Plant *p);
   void updateFinal (const Environment &env, Plant *p);
@@ -117,12 +118,6 @@ private:
   void broadphaseCollision (const CollisionObject *object,
                             const_Collisions &objects,
                             const Rect otherBounds = Rect::invalid());
-
-  static bool narrowPhaseCollision (const Branch &self, const Branch &branch);
-
-  static bool narrowPhaseCollision (const Plant *lhs, const Plant *rhs,
-                                    const Branch &branch,
-                                    const Rect &intersection);
 
   bool valid (const Pistil &p);
   bool checkAll (void);

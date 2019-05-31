@@ -132,8 +132,10 @@ public:
   void updateCollisionDataFinal (Plant *p); ///< At the end of the step (no rollback allowed)
   void removeCollisionData (Plant *p);
 
-  bool isCollidingWithSelf (const Branch &s, const Branch &b) const;
-  bool isCollidingWithOthers (const Plant *p, const Branch &b) const;
+  physics::CollisionResult
+  collisionTest (const Plant *plant,
+                 const Branch &self, const Branch &branch,
+                 const std::set<Organ*> &newOrgans) const;
 
   void disseminateGeneticMaterial (Organ *f);
   void updateGeneticMaterial (Organ *f, const Point &oldPos);

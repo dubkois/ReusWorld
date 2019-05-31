@@ -146,6 +146,8 @@ float Plant::age (void) const {
 }
 
 bool Plant::spontaneousDeath(void) const {
+  if (config::Simulation::DEBUG_NO_METABOLISM())  return false;
+
   if (_genome.dethklok <= age())  return true;
   if (_sinks.empty())  return true;
   for (Layer l: L_EU::iterator())
@@ -248,19 +250,30 @@ uint Plant::deriveRules(Environment &env) {
     Branch branch (stBases);
 
     // Perform collision detection
-    bool intraCollision, interCollision;
-    intraCollision = env.isCollidingWithSelf(self, branch);
-    if (!intraCollision)
-      interCollision = env.isCollidingWithOthers(this, branch);
+    using CR = physics::CollisionResult;
+    CR cres = env.collisionTest(this, self, branch, newOrgans);
 
-    if (intraCollision || interCollision) {
+    if (cres != CR::NO_COLLISION) {
+      if (debugDerivation) {
+        std::cerr << "\tCanceled due to collision of class ";
+        switch (cres) {
+        case CR::AUTO_COLLISION:
+          std::cerr << "auto. Deleting apex " << OrganID(apex); break;
+        case CR::INTRA_COLLISION: std::cerr << "intra";  break;
+        case CR::INTER_COLLISION: std::cerr << "inter";  break;
+        default:  std::cerr << "ERROR";
+        }
+        std::cerr << "\n" << std::endl;
+      }
+
       for (Organ *st: stBases)  delOrgan(st, env);
       for (Organ *st: apex->children()) commit(st);
 
-      if (debugDerivation)
-        std::cerr << "\tCanceled due to collision with "
-                  << (intraCollision ? "itself" : "another plant")
-                  << "\n" << std::endl;
+      if (cres == CR::AUTO_COLLISION) {
+        // Also delete apex
+        updateSubtree(apex, apex->parent(), apex->localRotation());
+        delOrgan(apex, env);
+      }
 
       continue;
     }

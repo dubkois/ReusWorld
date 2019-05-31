@@ -100,14 +100,14 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(float,  c1, "", 0.f, 1.f, 1.f, 1.f)
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(std::string,  _expression, "expr", exprFunctor())
 
 DEFINE_GENOME_MUTATION_RATES({
-  MUTATION_RATE(         c0, .1f),
-  MUTATION_RATE(         c1, .1f),
-  MUTATION_RATE(_expression, 0.f),
+  EDNA_PAIR(         c0, .1f),
+  EDNA_PAIR(         c1, .1f),
+  EDNA_PAIR(_expression, 0.f),
 })
 DEFINE_GENOME_DISTANCE_WEIGHTS({
-  DISTANCE_WEIGHT(_expression, .1f),
-  DISTANCE_WEIGHT(         c0, .1f),
-  DISTANCE_WEIGHT(         c1, .1f),
+  EDNA_PAIR(_expression, .1f),
+  EDNA_PAIR(         c0, .1f),
+  EDNA_PAIR(         c1, .1f),
 })
 
 #undef GENOME

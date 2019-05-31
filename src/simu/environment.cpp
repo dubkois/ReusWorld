@@ -142,12 +142,11 @@ void Environment::removeCollisionData(Plant *p) {
   _physics->removeCollisionData(p);
 }
 
-bool Environment::isCollidingWithSelf (const Branch &s, const Branch &b) const {
-  return _physics->isCollidingWithSelf(s, b);
-}
-
-bool Environment::isCollidingWithOthers (const Plant *p, const Branch &b) const {
-  return _physics->isCollidingWithOthers(p, b);
+physics::CollisionResult
+Environment::collisionTest (const Plant *plant,
+                            const Branch &self, const Branch &branch,
+                            const std::set<Organ*> &newOrgans) const {
+  return _physics->collisionTest(plant, self, branch, newOrgans);
 }
 
 void Environment::disseminateGeneticMaterial(Organ *f) {
