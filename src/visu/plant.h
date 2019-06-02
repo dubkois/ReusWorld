@@ -62,6 +62,10 @@ public:
 
   void renderTo (const QString &filename, int width) const;
 
+  static void paint (QPainter *painter, float scale, uint id,
+                     Qt::GlobalColor stroke, const QColor &fill,
+                     const simu::Point &p, float r, char s, float w, float l);
+
 signals:
   void selected (Plant *me);
 

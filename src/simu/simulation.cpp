@@ -112,9 +112,10 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   i++;
 
 #elif CUSTOM_PLANTS == 2
-  N = 1;
-  dx = .15;
+  N = 4; // 12
+  dx = .2;
 
+  modifiedPrimordialPlant.shoot.recursivity = 10;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
 
   uint i=0;
@@ -149,6 +150,12 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 //    SRULE("A -> [-l++l][+l--l]"),
 //  };
 
+//  // Diamond overlap (branch end)
+//  genomes[i++].shoot.rules = {
+//    SRULE("S -> A-l++l"),
+//    SRULE("A -> [+l--l]"),
+//  };
+
 //  // Diamond overlap (two rules)
 //  genomes[i++].shoot.rules = {
 //    SRULE("S -> [-Al][+Bl]"),
@@ -157,11 +164,62 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 //  };
 
   // Multi-layered flower
-  genomes[i++].shoot.rules = {
-    SRULE("S -> [-Al][+Bl]"),
+  genomes[i].shoot.recursivity = 5;
+  genomes[i].shoot.rules = {
+    SRULE("S -> [f][A][B]"),
     SRULE("A -> A-[l]"),
-//    SRULE("B -> l--),
+    SRULE("B -> B+[l]"),
   };
+  genomes[i].root.rules = {
+    RRULE("S -> h")
+  };
+  i++;
+
+  // A
+  genomes[i].shoot.rules = {
+    SRULE("S -> [-s----A][---f]"),
+    SRULE("A -> sB"),
+    SRULE("B -> s"),
+  };
+  genomes[i].root.rules = {
+    RRULE("S -> -t")
+  };
+  i++;
+
+//  // K
+//  genomes[i].shoot.rules = {
+//    SRULE("S -> [s][-A]"),
+//    SRULE("A -> s"),
+//  };
+//  genomes[i].root.rules = {
+//    RRULE("S -> [t][+A]"),
+//    RRULE("A -> t")
+//  };
+//  i++;
+
+  // G
+  genomes[i].shoot.rules = {
+    SRULE("S -> s---A"),
+    SRULE("A -> s"),
+  };
+  genomes[i].root.rules = {
+    RRULE("S -> t+++t+++A"),
+    RRULE("A -> t++++h")
+  };
+  i++;
+
+  // D
+  genomes[i].shoot.rules = {
+    SRULE("S -> s----A"),
+    SRULE("A -> s--B"),
+    SRULE("B -> s")
+  };
+  genomes[i].root.recursivity = 2;
+  genomes[i].root.rules = {
+    RRULE("S -> t++++A"),
+    RRULE("A -> t"),
+  };
+  i++;
 
 #elif CUSTOM_PLANTS == 3
   N = 1;
@@ -476,6 +534,8 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
 
+  _env.stepStart();
+
   Plant::Seeds seeds;
   std::set<float> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
@@ -504,6 +564,7 @@ void Simulation::step (void) {
     }
   }
 
+#ifndef CUSTOM_PLANTS
   performReproductions();
 
   for (const auto &p: _plants)
@@ -513,6 +574,7 @@ void Simulation::step (void) {
 
   if (!seeds.empty())
     _env.processNewObjects();
+#endif
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
@@ -531,7 +593,7 @@ void Simulation::step (void) {
     }
   }
 
-  _env.step();
+  _env.stepEnd();
 
   if (_env.time().isStartOfYear() && (_env.time().year() % Config::saveEvery()) == 0)
     periodicSave();

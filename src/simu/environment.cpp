@@ -37,7 +37,14 @@ void Environment::destroy (void) {
   _physics->reset();
 }
 
-void Environment::step (void) {
+void Environment::stepStart(void) {
+#ifdef DEBUG_COLLISIONS
+  for (auto &p: _physics->collisionsDebugData)
+    p.second.clear();
+#endif
+}
+
+void Environment::stepEnd (void) {
   cgpStep();
 
 #ifndef NDEBUG

@@ -4,6 +4,8 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneContextMenuEvent>
 #include <QMenu>
+#include <QMessageBox>
+#include <QFileDialog>
 
 #include "plant.h"
 #include "qtconversions.hpp"
@@ -29,16 +31,38 @@ struct Plant::PlantMenu : public QMenu {
   Plant *plantVisu;
 
   PlantMenu (void) {
-    QAction *del = addAction("delete");
+    QAction *del = addAction("Delete");
+    QAction *delConf = addAction("Confirm");
+    addSeparator();
+    QAction *photo = addAction("Photo");
 
-    connect(del, &QAction::triggered, [this] {
+    connect(del, &QAction::triggered, [this, delConf] {
+      if (delConf->isChecked() &&
+        QMessageBox::Ok != QMessageBox::question(
+          parentWidget(), "Confirm?",
+          QString("Do you want to delete plant ") + uint(plantVisu->_plant.id()) + "?",
+          QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel))
+
+          return;
+
       plantVisu->_plant.kill();
       plantVisu->update();
+    });
+
+    delConf->setCheckable(true);
+    delConf->setChecked(true);
+
+    connect(photo, &QAction::triggered, [this] {
+      QString pid = QString::number(uint(plantVisu->_plant.id()), 16);
+      QString filename = QFileDialog::getSaveFileName(
+        parentWidget(),
+        QString("Save picture of plant ") + pid,
+        "./P" + pid + ".png", "Portable Network Graphic (*.png)");
+      if (!filename.isEmpty())  plantVisu->renderTo(filename, 200);
     });
   }
 
   void popup(const QPoint &pos, Plant *visu) {
-    qDebug() << "PlantMenu::popup(" << pos << ", " << uint(visu->plant().id()) << ")";
     plantVisu = visu;
     QMenu::popup(pos);
   }
@@ -170,7 +194,6 @@ void Plant::updatePlantData(void) {
 }
 
 void Plant::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) {
-  qDebug() << "Plant::mouseDoubleClickEvent(" << e->button() << "," << e->buttons() << ")";
   if (e->button() == Qt::LeftButton) {
     setSelected(true);
     std::cerr << "Genotype for plant(" << _plant.genome().cdata.id << "): "
@@ -185,58 +208,44 @@ void Plant::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) {
 }
 
 void Plant::contextMenuEvent(QGraphicsSceneContextMenuEvent *e) {
-  qDebug() << "Plant::contextMenuEvent()";
   contextMenu()->popup(e->screenPos(), this);
 }
 
-void paint(QPainter *painter, const simu::Organ *o, bool dead,
-           Qt::GlobalColor contour = Qt::transparent, float scale = 1) {
+void Plant::paint (QPainter *painter, float scale, uint id,
+                   Qt::GlobalColor stroke, const QColor &fill,
+                   const simu::Point &p, float r, char s, float w, float l) {
 
-  static const float AS = apexSize();
+  static const float &AS = apexSize();
 
-  for (simu::Organ *c: o->children())
-    paint(painter, c, dead, contour, scale);
-
-  const auto &p = o->inPlantCoordinates();
-  QPointF p0 = toQPoint(p.origin);
-  float r = -qRadiansToDegrees(p.rotation);
   painter->save();
-    painter->translate(p0);
-    painter->rotate(r);
+    painter->translate(toQPoint(p));
+    painter->rotate(-qRadiansToDegrees(r));
 
     painter->save();
       const QPainterPath *path;
-      if (o->length() == 0) {
+      if (l == 0) {
         path = &pathForApex();
 
         painter->scale(scale * AS, scale * AS);
 
       } else {
-        path = &pathForSymbol(o->symbol());
-        painter->scale(
-          (scale - 1) * std::min(o->length(), o->width()) + o->length(),
-          (scale - 1) * std::min(o->length(), o->width()) + o->width());
+        path = &pathForSymbol(s);
+        float baseScale = (scale - 1) * std::min(l, w);
+        painter->scale(baseScale + l, baseScale + w);
       }
 
-      if (contour != Qt::transparent) {
+      if (stroke != Qt::transparent) {
         QPen pen = painter->pen();
-        pen.setColor(contour);
+        pen.setColor(stroke);
         painter->setPen(pen);
         painter->drawPath(*path);
       }
 
-      QColor c;
-      if (scale > 1)  c = contour;
-      else {
-        c = color(o);
-        if (dead)  desaturate(c);
-      }
-
-      painter->fillPath(*path, c);
+      painter->fillPath(*path, fill);
 
     painter->restore();
 
-    if (drawOrganID) {
+    if (drawOrganID && id != simu::Organ::OID::INVALID) {
       painter->save();
         QPen pen = painter->pen();
         pen.setColor(Qt::black);
@@ -244,15 +253,35 @@ void paint(QPainter *painter, const simu::Organ *o, bool dead,
         QFont font = painter->font();
         font.setPointSizeF(.5);
         painter->setFont(font);
-        painter->translate(.5 * o->length(), 0);
+        painter->translate(.5 * l, 0);
         painter->scale(.5 * AS, .5 * AS);
         painter->translate(0,-.75);
         painter->drawText(QRectF(0,0,2,2), Qt::AlignCenter,
-                          QString("_%1_").arg(uint(o->id())));
+                          QString("_%1_").arg(id));
       painter->restore();
     }
 
   painter->restore();
+}
+
+void paint(QPainter *painter, const simu::Organ *o, bool dead,
+           Qt::GlobalColor stroke = Qt::transparent, float scale = 1) {
+
+  for (simu::Organ *c: o->children())
+    paint(painter, c, dead, stroke, scale);
+
+  const auto &p = o->inPlantCoordinates();
+
+  QColor fill;
+  if (scale > 1)  fill = stroke;
+  else {
+    fill = color(o);
+    if (dead)  desaturate(fill);
+  }
+
+  Plant::paint(painter, scale, uint(o->id()),
+               stroke, fill, p.origin, p.rotation,
+               o->symbol(), o->width(), o->length());
 }
 
 void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {

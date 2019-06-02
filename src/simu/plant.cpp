@@ -18,7 +18,7 @@ static const auto A = GConfig::ls_rotationAngle();
 
 static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
-static constexpr bool debugDerivation = true;
+static constexpr int debugDerivation = 1;
 static constexpr int debugMetabolism = false;
 static constexpr bool debugReproduction = false;
 
@@ -179,9 +179,14 @@ void Plant::autopsy(void) const {
     std::cerr << std::endl;
 }
 
-void printSubTree (Organ *st, uint depth) {
-  std::cerr << std::string(depth, ' ') << OrganID(st) << "\n";
-  for (Organ *sst: st->children())  printSubTree(sst, depth+2);
+template <typename F = std::function<bool(const Organ*)>>
+void printSubTree (const Organ *st, uint depth,
+                   F doPrint = [] (const Organ*) { return true; }) {
+
+  if (doPrint(st)) {
+    std::cerr << std::string(depth, ' ') << OrganID(st) << "\n";
+    for (Organ *sst: st->children())  printSubTree(sst, depth+2, doPrint);
+  }
 }
 
 uint Plant::deriveRules(Environment &env) {
@@ -206,7 +211,7 @@ uint Plant::deriveRules(Environment &env) {
 
     // Did the apex accumulate enough resources ?
     if (apex->requiredBiomass() > 0) {
-      if (debugDerivation)
+      if (debugDerivation > 1)
         std::cerr << OrganID(apex) << " Apex is not ready (" << 100*apex->fullness()
                   << "%)" << std::endl;
       continue;
@@ -231,23 +236,26 @@ uint Plant::deriveRules(Environment &env) {
       if (apex->parent() == newApex)  stBases.insert(c_);
     }
 
-    if (debugDerivation) {
-      std::cerr << PlantID(this) << "\tCreated:\n";
-      for (Organ *st: stBases)  printSubTree(st, 13);
-      std::cerr << std::endl;
-    }
-
     // Create temporary collision data
-    std::cerr << "Building self:\n";
-    Branch self (_bases, [apex] (const Organ *o) {
-      bool b = o != apex && !o->isUncommitted();
-      std::cerr << "\t" << OrganID(o, true) << " in self? "
-                << b << "\n";
-      return b;
-    });
-    std::cerr << std::endl;
+    const auto inSelf = [apex] (const Organ *o) {
+      return (o != apex) && !o->isUncommitted();
+    };
+    Branch self (_bases, inSelf);
 
     Branch branch (stBases);
+
+    if (debugDerivation > 1) {
+      std::cerr << "Rule:\n";
+      for (Organ *st: stBases)
+        printSubTree(st, 13, [&newOrgans] (const Organ *o) {
+          return newOrgans.find(const_cast<Organ*>(o)) != newOrgans.end();
+        });
+      std::cerr << "Branch:\n";
+      for (Organ *st: stBases)  printSubTree(st, 13);
+      std::cerr << "Self:\n";
+      for (const Organ *o: _bases)  printSubTree(o, 13, inSelf);
+      std::cerr << std::endl;
+    }
 
     // Perform collision detection
     using CR = physics::CollisionResult;
@@ -259,8 +267,9 @@ uint Plant::deriveRules(Environment &env) {
         switch (cres) {
         case CR::AUTO_COLLISION:
           std::cerr << "auto. Deleting apex " << OrganID(apex); break;
-        case CR::INTRA_COLLISION: std::cerr << "intra";  break;
-        case CR::INTER_COLLISION: std::cerr << "inter";  break;
+        case CR::BRANCH_COLLISION:  std::cerr << "branch";  break;
+        case CR::INTRA_COLLISION:   std::cerr << "intra";  break;
+        case CR::INTER_COLLISION:   std::cerr << "inter";  break;
         default:  std::cerr << "ERROR";
         }
         std::cerr << "\n" << std::endl;
@@ -303,7 +312,7 @@ uint Plant::deriveRules(Environment &env) {
 
     // Divide remaining biomass into newly created sinks
     if (leftOverBiomass > 0) {
-      if (debugMetabolism || debugDerivation)
+      if (debugMetabolism || (debugDerivation > 1))
         std::cerr << PlantID(this) << " Dispatching " << leftOverBiomass
                   << " left over biomass" << std::endl;
       distributeBiomass(leftOverBiomass, newOrgans,
@@ -319,7 +328,7 @@ uint Plant::deriveRules(Environment &env) {
         if (oldPistilsPositions.find(p->id()) == oldPistilsPositions.end())
           oldPistilsPositions.emplace(p->id(), p->globalCoordinates().center);
 
-    if (debugDerivation)
+    if (debugDerivation > 1)
       std::cerr << "\t\t>>> " << toString(layer) << std::endl;
   }
 
@@ -879,7 +888,10 @@ void Plant::updateMetabolicValues(void) {
   auto oldBiomasses = _biomasses;
   _biomasses.fill(0);
 
-  static constexpr bool d = debugMetabolism || debugDerivation || debugReproduction;
+  static constexpr bool d = debugMetabolism
+      || (debugDerivation > 1)
+      || debugReproduction;
+
   if (d)  std::cerr << PlantID(this) << " Updating biomasses:\n";
 
   for (Organ *o: _organs) {

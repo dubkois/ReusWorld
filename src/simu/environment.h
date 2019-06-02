@@ -118,7 +118,8 @@ public:
     return _hygrometry;
   }
 
-  void step (void);
+  void stepStart (void);
+  void stepEnd (void);
 
   float heightAt (float x) const;
   float temperatureAt (float x) const;

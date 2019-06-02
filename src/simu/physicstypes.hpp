@@ -79,10 +79,11 @@ struct Pistil {
 };
 
 enum CollisionResult {
-  AUTO_COLLISION = 1,
-  INTRA_COLLISION = 2,
-  INTER_COLLISION = 4,
-  NO_COLLISION = 8,
+    AUTO_COLLISION = 1<<0,
+  BRANCH_COLLISION = 1<<1,
+   INTRA_COLLISION = 1<<2,
+   INTER_COLLISION = 1<<3,
+      NO_COLLISION = 1<<4,
 };
 
 } // end of namespace physics

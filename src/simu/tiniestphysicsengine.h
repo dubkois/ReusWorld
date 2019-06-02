@@ -105,6 +105,17 @@ public:
   friend void assertEqual (const TinyPhysicsEngine &lhs,
                            const TinyPhysicsEngine &rhs);
 
+#ifdef DEBUG_COLLISIONS
+  struct BranchCollisionObject {
+    CollisionResult res;
+    Point pos;
+    float rot;
+    char symb;
+    float w,l;
+  };
+  std::map<const Plant*, std::vector<BranchCollisionObject>> collisionsDebugData;
+#endif
+
 private:
   Collisions::iterator find (const Plant *p);
   Collisions::const_iterator find (const Plant *p) const;

@@ -4,6 +4,10 @@
 #include "../simu/tiniestphysicsengine.h"
 #include "../config/simuconfig.h"
 
+#ifdef DEBUG_COLLISIONS
+#include "plant.h"
+#endif
+
 #include "qtconversions.hpp"
 
 #include <QDebug>
@@ -220,6 +224,14 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
 
     painter->restore();
   }
+
+#ifdef DEBUG_COLLISIONS
+  for (const auto &p: _object.collisionData().collisionsDebugData)
+    for (const auto &bco: p.second)
+      Plant::paint(painter, 1, simu::Organ::OID::INVALID,
+                   Qt::red, QColor::fromRgbF(1, 0, 0, .25),
+                   bco.pos, bco.rot, bco.symb, bco.w, bco.l);
+#endif
 
   painter->restore();
 
