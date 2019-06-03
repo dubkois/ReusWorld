@@ -118,23 +118,25 @@ target_link_libraries(simulator ${apt_LIBRARIES})
 option(AUTO_CALIBRATION_TOOL "Whether or not to build the (slighlty) automatic calibration tool" OFF)
 message("Building automatic calibration tool: " ${AUTO_CALIBRATION_TOOL})
 if (AUTO_CALIBRATION_TOOL)
-  add_executable(
-    auto-calibrator
-    $<TARGET_OBJECTS:SIMU_OBJS>
-    "src/misc/autocalibrator.cpp"
-  )
+  add_executable(auto-calibrator
+                 $<TARGET_OBJECTS:SIMU_OBJS>
+                 "src/misc/autocalibrator.cpp")
   target_link_libraries(auto-calibrator ${apt_LIBRARIES})
 endif()
 
 option(ANALYZER_TOOL "Whether or not to build the analyzer tool" OFF)
 message("Building analyzer tool: " ${ANALYZER_TOOL})
 if (ANALYZER_TOOL)
-    add_executable(
-        analyzer
-        $<TARGET_OBJECTS:SIMU_OBJS>
-        "src/misc/analyzer.cpp"
-        )
-    target_link_libraries(analyzer ${apt_LIBRARIES})
+  add_executable(analyzer $<TARGET_OBJECTS:SIMU_OBJS> "src/misc/analyzer.cpp")
+  target_link_libraries(analyzer ${apt_LIBRARIES})
+endif()
+
+option(SAVE_EQUAL_ASSERTER "Whether or not to build the tool for save equality assertion" OFF)
+if (SAVE_EQUAL_ASSERTER)
+  add_executable(save-equal-assert
+                 $<TARGET_OBJECTS:SIMU_OBJS>
+                 "src/misc/saveequalasserter.cpp")
+  target_link_libraries(save-equal-assert ${apt_LIBRARIES})
 endif()
 
 if (NOT CLUSTER_BUILD)

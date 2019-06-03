@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 2
+//#define CUSTOM_PLANTS 1
 //#define DISTANCE_TEST
 #endif
 
@@ -112,7 +112,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
   i++;
 
 #elif CUSTOM_PLANTS == 2
-  N = 4; // 12
+  N = 6; // 12
   dx = .2;
 
   modifiedPrimordialPlant.shoot.recursivity = 10;
@@ -126,65 +126,65 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 //    SRULE("A -> sss")
 //  };
 
-//  // Overlap
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> A[-l][-l]"),
-//    SRULE("A -> s")
-//  };
-
-//  // Two step overlap
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> [Al][-l]"),
-//    SRULE("A -> -"),
-//  };
-
-//  // Two step without overlap
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> [Al][-Al]"),
-//    SRULE("A -> -"),
-//  };
-
-//  // Diamond overlap (single rule)
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> Af"),
-//    SRULE("A -> [-l++l][+l--l]"),
-//  };
-
-//  // Diamond overlap (branch end)
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> A-l++l"),
-//    SRULE("A -> [+l--l]"),
-//  };
-
-//  // Diamond overlap (two rules)
-//  genomes[i++].shoot.rules = {
-//    SRULE("S -> [-Al][+Bl]"),
-//    SRULE("A -> l++"),
-//    SRULE("B -> l--"),
-//  };
-
-  // Multi-layered flower
-  genomes[i].shoot.recursivity = 5;
-  genomes[i].shoot.rules = {
-    SRULE("S -> [f][A][B]"),
-    SRULE("A -> A-[l]"),
-    SRULE("B -> B+[l]"),
+  // Overlap
+  genomes[i++].shoot.rules = {
+    SRULE("S -> A[-l][-l]"),
+    SRULE("A -> s")
   };
-  genomes[i].root.rules = {
-    RRULE("S -> h")
-  };
-  i++;
 
-  // A
-  genomes[i].shoot.rules = {
-    SRULE("S -> [-s----A][---f]"),
-    SRULE("A -> sB"),
-    SRULE("B -> s"),
+  // Two step overlap
+  genomes[i++].shoot.rules = {
+    SRULE("S -> [Al][-l]"),
+    SRULE("A -> -"),
   };
-  genomes[i].root.rules = {
-    RRULE("S -> -t")
+
+  // Two step without overlap
+  genomes[i++].shoot.rules = {
+    SRULE("S -> [Al][-Al]"),
+    SRULE("A -> -"),
   };
-  i++;
+
+  // Diamond overlap (single rule)
+  genomes[i++].shoot.rules = {
+    SRULE("S -> Af"),
+    SRULE("A -> [-l++l][+l--l]"),
+  };
+
+  // Diamond overlap (branch end)
+  genomes[i++].shoot.rules = {
+    SRULE("S -> A-l++l"),
+    SRULE("A -> [+l--l]"),
+  };
+
+  // Diamond overlap (two rules)
+  genomes[i++].shoot.rules = {
+    SRULE("S -> [-Al][+Bl]"),
+    SRULE("A -> l++"),
+    SRULE("B -> l--"),
+  };
+
+//  // Multi-layered flower
+//  genomes[i].shoot.recursivity = 5;
+//  genomes[i].shoot.rules = {
+//    SRULE("S -> [f][A][B]"),
+//    SRULE("A -> A-[l]"),
+//    SRULE("B -> B+[l]"),
+//  };
+//  genomes[i].root.rules = {
+//    RRULE("S -> h")
+//  };
+//  i++;
+
+//  // A
+//  genomes[i].shoot.rules = {
+//    SRULE("S -> [-s----A][---f]"),
+//    SRULE("A -> sB"),
+//    SRULE("B -> s"),
+//  };
+//  genomes[i].root.rules = {
+//    RRULE("S -> -t")
+//  };
+//  i++;
 
 //  // K
 //  genomes[i].shoot.rules = {
@@ -197,29 +197,29 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 //  };
 //  i++;
 
-  // G
-  genomes[i].shoot.rules = {
-    SRULE("S -> s---A"),
-    SRULE("A -> s"),
-  };
-  genomes[i].root.rules = {
-    RRULE("S -> t+++t+++A"),
-    RRULE("A -> t++++h")
-  };
-  i++;
+//  // G
+//  genomes[i].shoot.rules = {
+//    SRULE("S -> s---A"),
+//    SRULE("A -> s"),
+//  };
+//  genomes[i].root.rules = {
+//    RRULE("S -> t+++t+++A"),
+//    RRULE("A -> t++++h")
+//  };
+//  i++;
 
-  // D
-  genomes[i].shoot.rules = {
-    SRULE("S -> s----A"),
-    SRULE("A -> s--B"),
-    SRULE("B -> s")
-  };
-  genomes[i].root.recursivity = 2;
-  genomes[i].root.rules = {
-    RRULE("S -> t++++A"),
-    RRULE("A -> t"),
-  };
-  i++;
+//  // D
+//  genomes[i].shoot.rules = {
+//    SRULE("S -> s----A"),
+//    SRULE("A -> s--B"),
+//    SRULE("B -> s")
+//  };
+//  genomes[i].root.recursivity = 2;
+//  genomes[i].root.rules = {
+//    RRULE("S -> t++++A"),
+//    RRULE("A -> t"),
+//  };
+//  i++;
 
 #elif CUSTOM_PLANTS == 3
   N = 1;
@@ -655,7 +655,7 @@ void Simulation::logGlobalStats(void) {
 
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
-  if (header)  mode |= std::fstream::trunc;
+  if (header) mode |= std::fstream::trunc;
   else        mode |= std::fstream::app;
   ofs.open("global.dat", mode);
 
@@ -830,6 +830,10 @@ void Simulation::debugPrintAll(void) const {
       << std::endl;
 }
 
+#ifndef NDEBUG
+bool preventGlobalStatsOverride = false;
+#endif
+
 void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
 
@@ -873,6 +877,7 @@ void Simulation::save (stdfs::path file) const {
 #ifndef NDEBUG
   std::cerr << "Reloading for round-trip test" << std::endl;
   Simulation that;
+  preventGlobalStatsOverride = true;
   load(file, that, "");
   assertEqual(*this, that);
 #endif
@@ -958,9 +963,16 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
     std::cerr << "Deserializing took "
               << duration(startTime) << " ms" << std::endl;
 
+#ifndef NDEBUG
+  if (Config::logGlobalStats() && !preventGlobalStatsOverride) {
+    s.logGlobalStats();
+    preventGlobalStatsOverride = false;
+  }
+#else
   if (Config::logGlobalStats()) s.logGlobalStats();
+#endif
 
-  std::cout << "Loaded " << file << "          " << std::endl;;
+  std::cout << "Loaded " << file << "          " << std::endl;
 }
 
 void assertEqual(const Simulation &lhs, const Simulation &rhs) {
