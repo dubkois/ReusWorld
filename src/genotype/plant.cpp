@@ -423,7 +423,7 @@ DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
 static const auto tsize = [] (float wr = 1, float lr = 1) {
   return Config::TerminalSize{ .01f * wr, .1f * lr };
 };
-DEFINE_MAP_PARAMETER(Config::TerminalsSizes, ls_terminalsSizes, {
+DEFINE_CONTAINER_PARAMETER(Config::TerminalsSizes, ls_terminalsSizes, {
   { 's', tsize() },
   { 'l', tsize() },
   { 'f', tsize(1, .5) },
@@ -444,15 +444,15 @@ const Config::TerminalSize& Config::sizeOf (char symbol) {
 
 
 DEFINE_PARAMETER(Config::Bui, ls_recursivityBounds, 1u, 2u, 2u, 5u)
-DEFINE_MAP_PARAMETER(Config::MutationRates, ls_mutationRates, {
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_mutationRates, {
   { "recursivity", 1.f }, { "rules", maxRuleCount() }
 })
-DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates, {
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates, {
   { "addRule", 2.f },
   { "delRule", 1.f },
   { "mutRule", 7.f },
 })
-DEFINE_MAP_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
   { "dupSymb", 1.f },
   { "mutSymb", 4.f },
   { "swpSymb", 3.f },

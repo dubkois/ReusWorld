@@ -88,8 +88,8 @@ set(SIMU_SRC
 PREPEND(SIMU_SRC "src/simu" ${SIMU_SRC})
 
 set(CGP_SRC
-    "cgpwrapper.h"
-    "cgpwrapper.cpp"
+    "minicgp.h"
+    "minicgp.cpp"
 )
 PREPEND(CGP_SRC "src/cgp" ${CGP_SRC})
 
@@ -137,6 +137,14 @@ if (SAVE_EQUAL_ASSERTER)
                  $<TARGET_OBJECTS:SIMU_OBJS>
                  "src/misc/saveequalasserter.cpp")
   target_link_libraries(save-equal-assert ${apt_LIBRARIES})
+endif()
+
+option(BUILD_TESTS "Whether or not to build test tools" OFF)
+if (BUILD_TESTS)
+  add_executable(test-cgp
+                 $<TARGET_OBJECTS:SIMU_OBJS>
+                 "src/cgp/minicgp_test.cpp")
+  target_link_libraries(test-cgp ${apt_LIBRARIES})
 endif()
 
 if (NOT CLUSTER_BUILD)
