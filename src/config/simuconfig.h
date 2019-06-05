@@ -12,7 +12,7 @@ struct CONFIG_FILE(Simulation) {
 
   DECLARE_SUBCONFIG(genotype::Plant::config_t, configGenotypePlant)
   DECLARE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
-  DECLARE_SUBCONFIG(CGP, configGenotypeCGP)
+//  DECLARE_SUBCONFIG(CGP, configGenotypeCGP)
   DECLARE_SUBCONFIG(Dependencies, configDependencies)
 
   DECLARE_PARAMETER(bool, logIndividualStats)

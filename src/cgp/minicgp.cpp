@@ -1,42 +1,39 @@
 #include "minicgp.h"
 
-/*constexpr*/ cgp::FuncID FID (const std::string_view &s) {
-  if (std::tuple_size<cgp::FuncID>::value < s.size())
-    utils::doThrow<std::invalid_argument>("Function name '", s, "' is too long");
-
-  cgp::FuncID fid {};
-  uint i = 0;
-  for (; i<fid.size() - s.size(); i++) fid[i] = '_';
-  for (; i<fid.size(); i++) fid[i] = s[i-fid.size()+s.size()];
-
-  std::cerr << s << " >> ";
-  for (auto c : fid)  std::cerr << c;
-  std::cerr << " >> "
-            << std::string(fid.begin(), fid.end())
-            << std::endl;
-
-  return fid;
+namespace cgp::functions {
+std::ostream& operator<< (std::ostream &os, const ID &id) {
+  for (auto c: id)  os << c;
+  return os;
 }
+
+std::istream& operator>> (std::istream &is, ID &id) {
+  std::string str;
+  is >> str;
+  id = FID(str);
+  return is;
+}
+
+} // end of namespace cgp::functions
 
 template <>
 struct PrettyWriter<cgp::FuncID> {
   void operator() (std::ostream &os, const cgp::FuncID &fid) {
-    os << std::string(fid.begin(), fid.end());
+    using cgp::functions::operator<<;
+    os << fid;
   }
 };
 
 template <>
 struct PrettyReader<cgp::FuncID> {
   bool operator() (std::istream &is, cgp::FuncID &fid) {
-    std::string str;
-    is >> str;
-    fid = FID(str);
-    return bool(is);
+    using cgp::functions::operator>>;
+    return bool(is >> fid);
   }
 };
 
 namespace config {
 #define CFILE CGP
+using cgp::functions::FID;
 
 DEFINE_CONTAINER_PARAMETER(CGP::FunctionSet, functionSet, {
   // 0-ary
@@ -50,7 +47,7 @@ DEFINE_CONTAINER_PARAMETER(CGP::FunctionSet, functionSet, {
   FID("del"),  FID("div"),
 
   // ternary
-  FID("gss"),
+  FID("hgss"),
 
   // n-ary
   FID("add"),  FID("mult")

@@ -2,7 +2,7 @@
 #define ECOSYSTEM_H
 
 #include "plant.h"
-#include "../cgp/minicgp.h"
+//#include "../cgp/minicgp.h"
 #include "envcgp.h"
 
 namespace genotype {
