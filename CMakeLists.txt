@@ -208,6 +208,18 @@ if (NOT CLUSTER_BUILD)
     )
     set_property(TARGET pviewer PROPERTY AUTOMOC ON)
     target_link_libraries(pviewer ${QT_LIBS} ${apt_LIBRARIES})
+
+
+################################################################################
+## Targets (Test)
+################################################################################
+    if (BUILD_TESTS)
+      add_executable(test-cgp-blindwatchmaker
+                     $<TARGET_OBJECTS:SIMU_OBJS>
+                     "src/cgp/minicgp_blindwatchmaker.cpp")
+      set_property(TARGET test-cgp-blindwatchmaker PROPERTY AUTOMOC ON)
+      target_link_libraries(test-cgp-blindwatchmaker ${QT_LIBS} ${apt_LIBRARIES})
+    endif()
 endif()
 
 

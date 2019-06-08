@@ -7,6 +7,21 @@
 #include "kgd/settings/configfile.h"
 #include "kgd/utils/functions.h"
 
+namespace utils {
+
+template <typename T, typename F, size_t... Is>
+static auto make_array (F f, std::index_sequence<Is...>)
+  -> std::array<T, sizeof...(Is)> {
+  return {{f(std::integral_constant<std::size_t, Is>{})...}};
+}
+
+template <typename T, size_t COUNT, typename F>
+static auto make_array (F f) {
+  return make_array<T>(f, std::make_index_sequence<COUNT>{});
+}
+
+} // end of namespace utils
+
 namespace cgp {
 namespace functions {
 using ID = std::array<unsigned char, 4>;
@@ -26,6 +41,9 @@ constexpr ID FID (const std::string_view &s) {
 std::ostream& operator<< (std::ostream &os, const ID &id);
 std::istream& operator>> (std::istream &os, ID &id);
 
+template <size_t A>
+using Inputs = std::array<double, A>;
+
 } // end of namespace functions
 
 using FuncID = functions::ID;
@@ -42,71 +60,83 @@ struct CONFIG_FILE(CGP) {
 
 namespace cgp {
 
-using NodeID = uint;
-
-enum NodeType { IN, INTERNAL, OUT };
-
-template <uint S>
-using FuncInputs_t = std::array<double, S>;
-
-template <uint S>
-using UpstreamNodes_t = std::array<NodeID, S>;
-
-template <uint A>
-struct Node_t {
-  using UpstreamNodes = UpstreamNodes_t<A>;
-  using FInputs = FuncInputs_t<A>;
-  using F = std::function<double(const FInputs &)>;
-  
-  UpstreamNodes connections;
-
-  FuncID fid;
-  F function;
-  
-  Node_t (void) : Node_t({}, functions::FID("!!!!"), nullptr) {}
-  Node_t (const UpstreamNodes &c, FuncID id, const F f)
-    : connections(c), fid(id), function(f) {}
-
-
-  friend void assertEqual (const Node_t &lhs, const Node_t &rhs) {
-    using utils::assertEqual;
-    assertEqual(lhs.connections, rhs.connections);
-    assertEqual(lhs.fid, rhs.fid);
-  }
-};
-
 template <typename IEnum, uint N, typename OEnum, uint A = 2>
-struct CGP {
+class CGP {
+  enum NodeType { IN = 1<<1, INTERNAL = 1<<2, OUT = 1<<3 };
+
   using IUtils = EnumUtils<IEnum>;
   static constexpr uint I = IUtils::size();
 
   using OUtils = EnumUtils<OEnum>;
   static constexpr uint O = OUtils::size();
 
-  using Node = Node_t<A>;
+  enum Connection {  BEGIN = 0, END = I+N-1  };
+  static bool isInput (Connection c) { return c < I; }
+  static bool isNode (Connection c) { return I <= c; }
+
+  using InputID = uint;
+  using NodeID = uint;
+  using OutputID = uint;
+
+  static bool isValid (NodeID nid) { return nid < N; }
+  static NodeID toNodeID (Connection c) { return c - I; }
+
+  static Connection fromNodeID (NodeID nid) { return Connection(nid + I); }
+
+  using Connections = std::array<Connection, A>;
+  using Function = std::function<double(const functions::Inputs<A> &)>;
+
+  struct Node {
+    Connections connections;
+
+    FuncID fid;
+    Function function;
+
+    Node (void) : Node({}, functions::FID("!!!!"), nullptr) {}
+    Node (const Connections &c, FuncID id, const Function f)
+      : connections(c), fid(id), function(f) {}
+
+    friend bool operator!= (const Node &lhs, const Node &rhs) {
+      return lhs.connections != rhs.connections
+          || lhs.fid != rhs.fid;
+    }
+
+    friend void assertEqual (const Node &lhs, const Node &rhs) {
+      using utils::assertEqual;
+      assertEqual(lhs.connections, rhs.connections);
+      assertEqual(lhs.fid, rhs.fid);
+    }
+  };
+
   using Nodes = std::array<Node, N>;
   Nodes nodes;
 
-  using UpstreamNodes = std::array<NodeID, O>;
-  UpstreamNodes outputConnections;
+  std::array<Connection, O> outputConnections;
 
   std::vector<double> persistentData;
   std::map<NodeID, uint> usedNodes; /// Maps into node id into data
 
-  using Function = typename Node::F;
   using FunctionsMap = std::map<FuncID, Function>;
-  static FunctionsMap functionsMap; // Stateless functions
+  static const FunctionsMap functionsMap; // Stateless functions
   FunctionsMap localFunctionsMap;   // Context-dependent (e.g. rand)
   
-  static std::map<FuncID, uint> arities;
+  static const std::map<FuncID, uint> arities;
+
+  struct LatexFormatter {
+    using Formatter = std::function<void(std::ostream&)>;
+    Formatter before, separator, after;
+  };
+  static const std::map<FuncID, LatexFormatter> latexFormatters;
+  static const LatexFormatter defaultLatexFormatter;
 
   rng::FastDice ldice;
 
+public:
   using Inputs = std::array<double, I>;
   using Outputs = std::array<double, O>;
   
   void clear (void) {
-    std::fill(data.begin(), data.end(), 0);
+    std::fill(persistentData.begin(), persistentData.end(), 0);
   }
 
   void prepare (void) {
@@ -114,42 +144,106 @@ struct CGP {
     uint d = 0;
     
     std::array<bool, N> toEvaluate {false};
+
+    for (uint i=0; i<O; i++) {
+      Connection c = outputConnections[i];
+      if (isNode(c))  toEvaluate[toNodeID(c)] = true;
+    }
     
-    for (uint i=0; i<O; i++)
-      toEvaluate[outputConnections[i]] = true;
-    
-    for (int i=N-1; i>=0; i--) {
-      if (toEvaluate[i]) {
-        Node &n = nodes[i];
-        for (NodeID c: n.connections) toEvaluate[c] = true;
-        usedNodes[i] = I+d++;
+    for (NodeID nid=N-1; isValid(nid); nid--) {
+      if (!toEvaluate[nid]) continue;
+
+      Node &node = nodes[nid];
+      uint a = arity(node);
+      for (uint j=0; j<a; j++) {
+        Connection c = node.connections[j];
+        if (isNode(c))  toEvaluate[toNodeID(c)] = true;
       }
+
+      usedNodes[nid] = I+d;
+      d++;
     }
 
     persistentData.resize(I+usedNodes.size(), 0);
   }
   
-  void evaluate (const Inputs &inputs, const Outputs &outputs) {
-    std::copy(inputs.begin(), inputs.end(), data.begin());
+  void evaluate (const Inputs &inputs, Outputs &outputs) {
+    std::copy(inputs.begin(), inputs.end(), persistentData.begin());
 
-    std::array<double, A> connections;
-    for (uint i=0; i<nodes.size(); i++) {
-      const Node &n = nodes[i];
+    std::array<double, A> localInputs;
+    for (const auto &p: usedNodes) {
+      uint i = p.second;
+      const Node &n = nodes[p.first];
       
-      for (int j=0; j<A; j++) connections[j] = data[n.connection[j]];
-      data[i] = n.function(connections);
+      uint a = arity(n);
+      for (uint j=0; j<a; j++)
+        localInputs[j] = data(n.connections[j]);
+      persistentData[i] = n.function(localInputs);
     }
     
-    for (int i=0; i<O; i++)
-      outputs[i] = data[outputConnections[i]];
+    for (uint o=0; o<O; o++)  outputs[o] = data(I+N+o);
+
+    for (double d: persistentData)  assert(!isnan(d));
   }
 
   CGP clone (void) const {
     return CGP(*this);
   }
 
-  void mutate (rng::AbstractDice &dice) {
+  /// Uses parameter-less procedure 'single' from "Reducing Wasted Evaluations
+  /// in Cartesian Genetic Programming"
+  /// https://doi.org/10.1007/978-3-642-37207-0_6
+  uint mutate (rng::AbstractDice &dice) {
+    static constexpr auto GENES_PER_NODE = A+1;
+    static constexpr auto NODE_GENES = N*GENES_PER_NODE;
+    static constexpr auto TOTAL_GENES = NODE_GENES + O;
 
+    uint n = 0;
+    bool activeMutated = false;
+    while (!activeMutated) {
+      // Must be uniform over the whole genome
+      auto gene = dice(0u, TOTAL_GENES-1);
+      if (gene < NODE_GENES) {
+        NodeID nid = gene / GENES_PER_NODE; // Get index of node
+        Node &n = nodes[nid], old = n;
+        auto field = gene % GENES_PER_NODE; // Get index in node
+
+//        std::cerr << "Mutated node " << nid << "'s ";
+
+        if (field == 0) { // Generate new function
+          n.fid = *dice(config::CGP::functionSet());
+          n.function = functionfromID(n.fid);
+
+//          using functions::operator<<;
+//          std::cerr << "function from " << old.fid << " to " << n.fid;
+
+        } else {  // Change connection
+          n.connections[field-1] = Connection(dice(0u, I+nid-1));
+//          std::cerr << field-1 << "th connection from "
+//                    << old.connections[field-1] << " to "
+//                    << n.connections[field-1];
+        }
+
+        if (usedNodes.find(fromNodeID(nid)) != usedNodes.end() && n != old)
+          activeMutated = true;
+
+      } else {
+        auto o = gene - NODE_GENES;
+        auto old = outputConnections[o];
+        outputConnections[o] = Connection(dice(0u, I+N-1));
+        activeMutated = (outputConnections[o] != old);
+//        std::cerr << "Mutated output " << o << " from " << old << " to "
+//                  << outputConnections[o];
+      }
+
+//      std::cerr << std::endl;
+
+      n++;
+    }
+
+    prepare();
+
+    return n;
   }
 
   friend std::ostream& operator<< (std::ostream &os, const CGP &cgp) {
@@ -157,7 +251,8 @@ struct CGP {
     const auto pad = [] { return std::setw(4); };
 
     os << "CGP {\n\t" << std::setfill(' ');
-    for (IEnum i: IUtils::iterator()) os << pad() << IUtils::getName(i) << " ";
+    for (IEnum i: IUtils::iterator()) os << pad() << IUtils::getName(i, false)
+                                         << " ";
     os << "\n\t" << std::setfill('0');
     for (uint i=0; i<I; i++)  os << pad() << i << " ";
     os << "\n\n\tFunc In...\n";
@@ -170,7 +265,8 @@ struct CGP {
       os << "\n";
     }
     os << "\n\t" << std::setfill(' ');
-    for (OEnum o: OUtils::iterator()) os << pad() << OUtils::getName(o) << " ";
+    for (OEnum o: OUtils::iterator()) os << pad() << OUtils::getName(o, false)
+                                         << " ";
     os << "\n\t" << std::setfill('0');
     for (NodeID nid: cgp.outputConnections)
       os << pad() << nid << " ";
@@ -180,42 +276,21 @@ struct CGP {
     return os;
   }
 
-  /// FIXME Far from working
   std::string toTex (void) const {
     std::ostringstream oss;
     oss << "\\begin{align*}\n";
 
     for (uint o=0; o<O; o++) {
       std::set<NodeID> inputs;
-      oss << OUtils::getName(o);
+      oss << OUtils::getName(o, false);
 
       std::ostringstream oss2;
-      std::list<NodeID> pending { outputConnections[o] };
-      while (!pending.empty()) {
-        NodeID nid = pending.front();
-        const Node &node = nodes[nid-I];
-        pending.pop_front();
-
-        using functions::operator<<;
-        oss2 << node.fid;
-
-        std::cerr << "Processing " << nid << " (" << node.fid << ") " << std::endl;
-
-        int a = std::min(A, arities.at(node.fid));
-        if (a > 0) {
-          oss2 << "(";
-          for (int i=a-1; i>=0; i--) {
-            std::cerr << "\tNeed to see " << node.connections[i] << std::endl;
-            pending.push_front(node.connections[i]);
-            if (i < a)  oss2 << ", ";
-          }
-        }
-      }
+      toTexRec(oss2, outputConnections[o], inputs);
 
       if (!inputs.empty()) {
-        oss << "(" << *inputs.begin();
+        oss << "(" << IUtils::getName(*inputs.begin(), false);
         for (auto it = std::next(inputs.begin()); it != inputs.end(); ++it)
-          oss << ", " << *it;
+          oss << ", " << IUtils::getName(*it, false);
         oss << ") ";
       }
 
@@ -252,10 +327,10 @@ struct CGP {
 
     ofs << "digraph {\n";
 
-    bool d = !(options & DotOptions::SHOW_DATA);
+    bool d = (options & DotOptions::SHOW_DATA);
 
     for (auto i: IUtils::iteratorUValues())
-      printDotNodeOrIO(ofs, i, IUtils::getName(i), data<IN>(i, d));
+      printDotNodeOrIO(ofs, i, IUtils::getName(i, false), d);
 
     ofs << "\t{rank=source";
     for (uint i=0; i<I; i++)  ofs << " " << i;
@@ -265,10 +340,9 @@ struct CGP {
       for (uint n=0; n<N; n++) {
         uint i = I+n;
         const Node &node = nodes[n];
-        printDotNode(ofs, i, node.fid, data<INTERNAL>(i, d));
+        printDotNode(ofs, i, node.fid, d);
         uint a = A;
-        if (!(options & DotOptions::NO_ARITY))
-          a = std::min(a, arities.at(node.fid));
+        if (!(options & DotOptions::NO_ARITY))  a = arity(node);
         for (uint j=0; j<a; j++)
           ofs << "\t" << node.connections[j] << " -> " << i << ";\n";
       }
@@ -276,40 +350,39 @@ struct CGP {
         ofs << "\t" << outputConnections[o] << " -> " << I+N+o << ";\n";
 
     } else { // only print used nodes
-      std::set<NodeID> seen, pending;
+      std::set<Connection> seen, pending;
       for (uint o=0; o<outputConnections.size(); o++) {
-        NodeID nid = outputConnections[o];
-        pending.insert(nid);
-        ofs << "\t" << nid << " -> " << o+N+I << ";\n";
+        Connection c = outputConnections[o];
+        pending.insert(c);
+        ofs << "\t" << c << " -> " << o+N+I << ";\n";
       }
       while (!pending.empty()) {
-        NodeID nid = *pending.begin();
+        Connection c = *pending.begin();
         pending.erase(pending.begin());
-        if (seen.find(nid) != seen.end())
-          continue;
 
-        seen.insert(nid);
-        if (I <= nid) {
-          uint i = nid-I;
-          const Node &n = nodes[i];
-          printDotNode(ofs, nid, n.fid, data<INTERNAL>(nid, d));
-          uint a = A;
-          if (!(options & DotOptions::NO_ARITY))
-            a = std::min(a, arities.at(n.fid));
-          for (uint j=0; j<a; j++) {
-            NodeID c = n.connections[j];
-            pending.insert(c);
-            ofs << "\t" << c << " -> " << nid << "\n";
-          }
+        if (seen.find(c) != seen.end()) continue;
+        seen.insert(c);
+
+        if (isInput(c)) continue;
+
+        NodeID nid = toNodeID(c);
+        const Node &n = nodes[nid];
+        printDotNode(ofs, c, n.fid, d);
+        uint a = A;
+        if (!(options & DotOptions::NO_ARITY))  a = arity(n);
+        for (uint j=0; j<a; j++) {
+          Connection c_ = n.connections[j];
+          pending.insert(c_);
+          ofs << "\t" << c_ << " -> " << c << "\n";
         }
       }
     }
     ofs << "\n";
 
-    ofs << "\t0 -> " << I+N << " [style=invis];\n\n";
+    ofs << "\t0 -> " << I+N << " [style=invis, constraint=false];\n\n";
 
     for (auto o: OUtils::iteratorUValues())
-      printDotNodeOrIO(ofs, I+N+o, OUtils::getName(o), data<OUT>(o, d));
+      printDotNodeOrIO(ofs, I+N+o, OUtils::getName(o, false), d);
 
     ofs << "\t{rank=sink";
     for (uint o=0; o<O; o++)  ofs << " " << I+N+o;
@@ -336,7 +409,7 @@ struct CGP {
     FuncID fid = functions::FID("zero");
     cgp.nodes[0].fid = fid;
     cgp.nodes[0].function = functionsMap.at(fid);
-    for (NodeID &o: cgp.outputConnections)  o = I;
+    for (Connection &o: cgp.outputConnections)  o = Connection(I);
     cgp.prepare();
     return cgp;
   }
@@ -358,46 +431,26 @@ private:
     using functions::FID;
     localFunctionsMap[FID("rand")] = [this] (auto) { return ldice(-1., 1.); };
 
+    using utils::make_array;
     nodes = make_array<Node, N>([this, &dice] (auto i) {
-      typename Node::UpstreamNodes connections =
-        make_array<NodeID, A>([&dice, i] (auto) {
-          return dice(0u, uint(I+i-1));
+      Connections connections =
+        make_array<Connection, A>([&dice, i] (auto) {
+          return Connection(dice(0u, uint(I+i-1)));
         });
 
       FuncID fid = *dice(config::CGP::functionSet());
       Function function = functionfromID(fid);
 
       return Node(connections, fid, function);
-
     });
 
-    outputConnections = make_array<NodeID, O>([&dice] (auto) {
-      return dice(0u, I+N-1);
+    outputConnections = make_array<Connection, O>([&dice] (auto) {
+      return Connection(dice(0u, I+N-1));
     });
   }
 
-  template <NodeType T> double data (uint i, bool nanOnly) const {
-    if (nanOnly)  return NAN;
-    else  return data<T>(i);
-  }
-
-  template <NodeType T> auto data (uint i) const {
-    return data_helper(i, std::integral_constant<NodeType, T>());
-  }
-
-  auto data_helper (uint i, std::integral_constant<NodeType, IN>) const {
-    return persistentData[i];
-  }
-
-  double data_helper (uint i, std::integral_constant<NodeType, INTERNAL>) const {
-    auto it = usedNodes.find(i);
-    if (it != usedNodes.end())
-      return persistentData[it->second];
-    return NAN;
-  }
-
-  auto data_helper (uint i, std::integral_constant<NodeType, OUT>) const {
-    return data<INTERNAL>(outputConnections[i]);
+  uint arity (const Node &n) const {
+    return std::min(A, arities.at(n.fid));
   }
 
   Function functionfromID (const FuncID &fid) const {
@@ -411,36 +464,64 @@ private:
     return nullptr;
   }
 
-  static void printDotNodeOrIO (std::ostream &os, NodeID id,
-                                const std::string &data, double value = NAN) {
+  static std::string toString (const FuncID &fid) {
+    std::string fidStr (fid.begin(), fid.end());
+    fidStr.erase(std::remove(fidStr.begin(), fidStr.end(), '_'), fidStr.end());
+    return fidStr;
+  }
+
+  void toTexRec (std::ostream &os, NodeID i,
+                 std::set<NodeID> &usedInputs) const {
+
+    using functions::operator<<;
+    if (i < I) {
+      os << IUtils::getName(i, false);
+      usedInputs.insert(i);
+
+    } else {
+      const Node &node = nodes[i-I];
+
+      LatexFormatter fmt = defaultLatexFormatter;
+      auto it = latexFormatters.find(node.fid);
+      if (it != latexFormatters.end())  fmt = it->second;
+      else
+        os << toString(node.fid);
+
+      uint a = arity(node);
+      fmt.before(os);
+      for (uint i=0; i<a; i++) {
+        if (i > 0)  fmt.separator(os);
+        toTexRec(os, node.connections[i], usedInputs);
+      }
+      fmt.after(os);
+    }
+  }
+
+  /// 0 <= id < I+N+O
+  void printDotNodeOrIO (std::ostream &os, uint id,
+                         const std::string &func, bool withData) const {
     os << "\t" << id << " [shape=none, label=<"
         << "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\""
                  " VALIGN=\"MIDDLE\">"
          << "<TR><TD><FONT POINT-SIZE=\"8\"><I>\\N</I></FONT></TD>"
-            "<TD><B>" << data << "</B></TD></TR>";
-    if (!std::isnan(value))
+            "<TD><B>" << func << "</B></TD></TR>";
+    if (withData)
       os << "<TR><TD COLSPAN=\"2\">"
-             "<FONT POINT-SIZE=\"10\">" << value << "</FONT>"
+             "<FONT POINT-SIZE=\"10\">" << data(id) << "</FONT>"
             "</TD></TR>";
     os << "</TABLE>>];\n";
   }
 
-  static void printDotNode (std::ostream &os, int id, const FuncID &fid,
-                            double value) {
-    std::string fidStr (fid.begin(), fid.end());
-    fidStr.erase(std::remove(fidStr.begin(), fidStr.end(), '_'), fidStr.end());
-    printDotNodeOrIO(os, id, fidStr, value);
+  /// I <= id < I+N
+  void printDotNode (std::ostream &os, uint id, const FuncID &fid,
+                     bool withData) const {
+    printDotNodeOrIO(os, id, toString(fid), withData);
   }
 
-  template <typename T, typename F, size_t... Is>
-  static auto make_array (F f, std::index_sequence<Is...>)
-    -> std::array<T, sizeof...(Is)> {
-    return {{f(std::integral_constant<std::size_t, Is>{})...}};
-  }
-
-  template <typename T, size_t COUNT, typename F>
-  static auto make_array (F f) {
-    return make_array<T>(f, std::make_index_sequence<COUNT>{});
+  double data (uint i) const {
+    if (i < I)  return persistentData[i];
+    if (i < I+N)  return persistentData[usedNodes.at(i-I)];
+    return data(outputConnections[i-I-N]);
   }
 };
 
@@ -449,96 +530,98 @@ namespace functions {
 
 namespace oary {
 template <uint S>
-double one (const FuncInputs_t<S> &) {  return 1;     }
+double one (const Inputs<S> &) {  return 1;     }
 
 template <uint S>
-double zero (const FuncInputs_t<S> &) { return 0;     }
+double zero (const Inputs<S> &) { return 0;     }
 
 template <uint S>
-double pi (const FuncInputs_t<S> &) {   return M_PI;  }
+double pi (const Inputs<S> &) {   return M_PI;  }
 } // end of namespace oary
 
 namespace unary {
 template <uint S>
-double id (const FuncInputs_t<S> &inputs) {
+double id (const Inputs<S> &inputs) {
   return inputs[0];
 }
 
 template <uint S>
-double abs (const FuncInputs_t<S> &inputs) {
+double abs (const Inputs<S> &inputs) {
   return std::fabs(inputs[0]);
 }
 
 template <uint S>
-double sq (const FuncInputs_t<S> &inputs) {
+double sq (const Inputs<S> &inputs) {
   return inputs[0] * inputs[0];
 }
 
 template <uint S>
-double sqrt (const FuncInputs_t<S> &inputs) {
+double sqrt (const Inputs<S> &inputs) {
+  if (inputs[0] < 0)  return 0;
   return std::sqrt(inputs[0]);
 }
 
 template <uint S>
-double exp (const FuncInputs_t<S> &inputs) {
+double exp (const Inputs<S> &inputs) {
   return std::exp(inputs[0]);
 }
 
 template <uint S>
-double sin (const FuncInputs_t<S> &inputs) {
+double sin (const Inputs<S> &inputs) {
   return std::sin(inputs[0]);
 }
 
 template <uint S>
-double cos (const FuncInputs_t<S> &inputs) {
+double cos (const Inputs<S> &inputs) {
   return std::cos(inputs[0]);
 }
 
 template <uint S>
-double tan (const FuncInputs_t<S> &inputs) {
+double tan (const Inputs<S> &inputs) {
   return std::tan(inputs[0]);
 }
 
 template <uint S>
-double tanh (const FuncInputs_t<S> &inputs) {
+double tanh (const Inputs<S> &inputs) {
   return std::tanh(inputs[0]);
 }
 
 template <uint S>
-double step (const FuncInputs_t<S> &inputs) {
+double step (const Inputs<S> &inputs) {
   return utils::sgn(inputs[0]);
 }
 } // end of namespace unary
 
 namespace binary {
 template <uint S>
-double del (const FuncInputs_t<S> &inputs) {
+double del (const Inputs<S> &inputs) {
   return inputs[0] - inputs[1];
 }
 
 template <uint S>
-double div (const FuncInputs_t<S> &inputs) {
+double div (const Inputs<S> &inputs) {
   if (inputs[1] != 0)
     return inputs[0] / inputs[1];
   return 0;
 }
 
 template <uint S>
-double hgss (const FuncInputs_t<S> &inputs) {
+double hgss (const Inputs<S> &inputs) {
+  if (inputs[1] == 0) return inputs[0] == 0 ? 1 : 0;
   return utils::gauss(inputs[0], 0., inputs[1]);
 }
 } // end of namespace binary
 
 namespace nary {
 template <uint S>
-double add (const FuncInputs_t<S> &inputs) {
+double add (const Inputs<S> &inputs) {
   double sum = 0;
   for (auto i: inputs)  sum += i;
   return sum;
 }
 
 template <uint S>
-double mult (const FuncInputs_t<S> &inputs) {
+double mult (const Inputs<S> &inputs) {
   double prod = 0;
   for (auto i: inputs)  prod *= i;
   return prod;
@@ -549,7 +632,8 @@ double mult (const FuncInputs_t<S> &inputs) {
 
 
 template <typename IE, uint N, typename OE, uint A>
-std::map<FuncID, typename Node_t<A>::F> CGP<IE,N,OE,A>::functionsMap {
+const std::map<FuncID, typename CGP<IE,N,OE,A>::Function>
+CGP<IE,N,OE,A>::functionsMap {
 #define FUNC(X) std::make_pair(functions::FID(#X), &functions::ARITY::X<A>)
 #define ARITY oary
 //  FUNC(rand)
@@ -573,7 +657,7 @@ std::map<FuncID, typename Node_t<A>::F> CGP<IE,N,OE,A>::functionsMap {
 
 
 template <typename IE, uint N, typename OE, uint A>
-std::map<FuncID, uint> CGP<IE,N,OE,A>::arities {
+const std::map<FuncID, uint> CGP<IE,N,OE,A>::arities {
 #define AR(X) std::make_pair(functions::FID(#X), ARITY)
 #define ARITY 0
   AR(rand), AR(one),  AR(zero), AR(pi),
@@ -589,6 +673,44 @@ std::map<FuncID, uint> CGP<IE,N,OE,A>::arities {
   AR(add),  AR(mult)
 #undef ARITY
 #undef AR
+};
+
+template <typename IE, uint N, typename OE, uint A>
+const typename CGP<IE,N,OE,A>::LatexFormatter
+CGP<IE,N,OE,A>::defaultLatexFormatter {
+  [] (std::ostream &os) { os << "("; },
+  [] (std::ostream &os) { os << ", "; },
+  [] (std::ostream &os) { os << ")"; }
+};
+
+template <typename IE, uint N, typename OE, uint A>
+const std::map<FuncID, typename CGP<IE,N,OE,A>::LatexFormatter>
+CGP<IE,N,OE,A>::latexFormatters {
+#define FMT(NAME, BEFORE, SEPARATOR, AFTER) \
+  { functions::FID(#NAME), \
+    typename CGP<IE,N,OE,A>::LatexFormatter { BEFORE, SEPARATOR, AFTER } \
+  }
+#define PRINT(X) [] (std::ostream &os) { os << X; }
+#define NOOP [] (std::ostream &) {}
+  FMT(rand,    PRINT("rand"),         NOOP, NOOP),
+  FMT( one,       PRINT("1"),         NOOP, NOOP),
+  FMT(zero,       PRINT("0"),         NOOP, NOOP),
+  FMT(  pi,    PRINT("\\pi"),         NOOP, NOOP),
+
+  FMT(  id,             NOOP,         NOOP, NOOP),
+  FMT( abs,       PRINT("|"),         NOOP, PRINT("|")),
+  FMT(  sq,       PRINT("("),         NOOP, PRINT(")^2")),
+  FMT(sqrt, PRINT("\\sqrt{"),         NOOP, PRINT("}")),
+  FMT( exp,     PRINT("e^{"),         NOOP, PRINT("}")),
+
+  FMT( del,       PRINT("("), PRINT(" - "), PRINT(")")),
+  FMT( div, PRINT("\\frac{"),  PRINT("}{"), PRINT("}")),
+
+  FMT( add,       PRINT("("), PRINT(" + "), PRINT(")")),
+  FMT(mult,       PRINT("("), PRINT(" * "), PRINT(")")),
+#undef NOOP
+#undef PRINT
+#undef FMT
 };
 
 } // end of namespace cgp
