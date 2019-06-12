@@ -18,7 +18,7 @@ Environment::~Environment(void) {}
 
 void Environment::init (const Genome &g) {
   _genome = g;
-  _genome.envCtrl.init();
+  _genome.controller.prepare();
 
   _topology.resize(_genome.voxels+1, 0.f);
   _temperature.resize(_genome.voxels+1, .5 * (_genome.maxT + _genome.minT));
@@ -55,37 +55,38 @@ void Environment::stepEnd (void) {
 }
 
 void Environment::cgpStep (void) {
-  using CTRL = genotype::EnvCTRL;
-  using I = CTRL::I;
-  using O = CTRL::O;
-  auto &inputs = _genome.envCtrl.inputs();
-  const auto &outputs = _genome.envCtrl.outputs();
+  using CGP = Genome::CGP;
+
+  using I = genotype::env_controller::Inputs;
+  using Inputs = CGP::Inputs;
+  Inputs inputs;
+
+  using O = genotype::env_controller::Outputs;
+  using Outputs = CGP::Outputs;
+  Outputs outputs;
 
   _updatedTopology = _time.isStartOfYear()
       && (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
 
-  inputs[I::DAY] = _time.timeOfYear();
-  inputs[I::YEAR] = _time.timeOfWorld();
+  inputs[I::D] = _time.timeOfYear();
+  inputs[I::Y] = _time.timeOfWorld();
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
     float &H = _hygrometry[SHALLOW][i];
 
-    inputs[I::COORDINATE] = float(i) / _genome.voxels;
-    inputs[I::ALTITUDE] = A / _genome.depth;
-    inputs[I::TEMPERATURE] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
-    inputs[I::HYGROMETRY] = H / config::Simulation::baselineShallowWater() - 1;
+    inputs[I::X] = float(i) / _genome.voxels;
+    inputs[I::T] = A / _genome.depth;
+    inputs[I::H] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
+    inputs[I::W] = H / config::Simulation::baselineShallowWater() - 1;
 
-    if (debugEnvCTRL > 1)
-      std::cerr << _genome.envCtrl.evaluate();
-    else
-      _genome.envCtrl.evaluate();
+    _genome.controller.evaluate(inputs, outputs);
 
     if (_updatedTopology)
-      A = outputs[O::ALTITUDE_] * _genome.depth;
+      A = outputs[O::T_] * _genome.depth;
 
-    T = .5 * (outputs[O::TEMPERATURE_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
-    H = (1 + outputs[O::HYGROMETRY_]) * config::Simulation::baselineShallowWater();
+    T = .5 * (outputs[O::H_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
+    H = (1 + outputs[O::W_]) * config::Simulation::baselineShallowWater();
   }
 
   if (debugEnvCTRL) showVoxelsContents();
@@ -199,7 +200,7 @@ void load (const nlohmann::json &j, rng::FastDice &d) {
 void Environment::save (nlohmann::json &j, const Environment &e) {
   nlohmann::json jd, jc;
   simu::save(jd, e._dice);
-  genotype::EnvCTRL::save(jc, e._genome.envCtrl);
+  Genome::CGP::save(jc, e._genome.controller);
   j = {
     e._genome, jd,
     e._topology, e._temperature, e._hygrometry,
@@ -223,7 +224,7 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   e._time = e._start;
   i++;
 
-  genotype::EnvCTRL::load(j[i++], e._genome.envCtrl);
+  Genome::CGP::load(j[i++], e._genome.controller);
 
   if (debugEnvCTRL) e.showVoxelsContents();
 }

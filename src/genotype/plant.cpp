@@ -282,7 +282,7 @@ auto lsystemFunctor (void) {
 
 template <LSystemType L>
 struct Extractor<LSystem<L>> {
-  std::string operator() (const LSystem<L> ls, const std::string &field) {
+  std::string operator() (const LSystem<L> &ls, const std::string &field) {
     if (field.size() != 1 || !LSystem<L>::Rule::isValidNonTerminal(field[0]))
       utils::doThrow<std::invalid_argument>(
         "'", field, "' is not a valid non terminal");

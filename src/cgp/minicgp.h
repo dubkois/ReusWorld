@@ -96,9 +96,13 @@ class CGP {
     Node (const Connections &c, FuncID id, const Function f)
       : connections(c), fid(id), function(f) {}
 
+    friend bool operator== (const Node &lhs, const Node &rhs) {
+      return lhs.connections == rhs.connections
+          && lhs.fid == rhs.fid;
+    }
+
     friend bool operator!= (const Node &lhs, const Node &rhs) {
-      return lhs.connections != rhs.connections
-          || lhs.fid != rhs.fid;
+      return !(lhs == rhs);
     }
 
     friend void assertEqual (const Node &lhs, const Node &rhs) {
@@ -134,7 +138,16 @@ class CGP {
 public:
   using Inputs = std::array<double, I>;
   using Outputs = std::array<double, O>;
-  
+
+  CGP (void) {
+    for (Node &n: nodes) {
+      n.fid = functions::FID("UINT");
+      n.function = nullptr;
+      for (Connection &c: n.connections)  c = Connection(0);
+    }
+    for (Connection &o: outputConnections)  o = Connection(0);
+  }
+
   void clear (void) {
     std::fill(persistentData.begin(), persistentData.end(), 0);
   }
@@ -181,7 +194,8 @@ public:
       persistentData[i] = n.function(localInputs);
     }
     
-    for (uint o=0; o<O; o++)  outputs[o] = data(I+N+o);
+    for (uint o=0; o<O; o++)
+      outputs[o] = utils::clip(-1., data(I+N+o), 1.);
 
     for (double d: persistentData)  assert(!isnan(d));
   }
@@ -414,6 +428,14 @@ public:
     return cgp;
   }
 
+  friend bool operator== (const CGP &lhs, const CGP &rhs) {
+    return lhs.nodes == rhs.nodes
+        && lhs.outputConnections == rhs.outputConnections
+        && lhs.persistentData == rhs.persistentData
+        && lhs.usedNodes == rhs.usedNodes
+        && lhs.ldice == rhs.ldice;
+  }
+
   friend void assertEqual (const CGP &lhs, const CGP &rhs) {
     using utils::assertEqual;
     assertEqual(lhs.nodes, rhs.nodes);
@@ -424,9 +446,48 @@ public:
     assertEqual(lhs.ldice, rhs.ldice);
   }
 
-private:
-  CGP (void) = delete;
+  friend void to_json (nlohmann::json &j, const CGP &cgp) {
+    j["a"] = { I, N, O, A };
+    j["d"] = cgp.ldice.getSeed();
+    j["n"] = cgp.nodes;
+    j["o"] = cgp.outputConnections;
+  }
 
+  friend void to_json (nlohmann::json &j, const Node &n) {
+    j = { n.fid, n.connections };
+  }
+
+  friend void from_json (const nlohmann::json &j, CGP &cgp) {
+    if (j["a"][0] != I)
+      utils::doThrow<std::invalid_argument>("Wrong number of inputs");
+    if (j["a"][1] != N)
+      utils::doThrow<std::invalid_argument>("Wrong number of internal nodes");
+    if (j["a"][2] != O)
+      utils::doThrow<std::invalid_argument>("Wrong number of outputs");
+    if (j["a"][3] != A)
+      utils::doThrow<std::invalid_argument>("Wrong arity");
+
+    cgp.ldice.reset(j["d"]);
+    cgp.nodes = j["n"];
+    cgp.outputConnections = j["o"];
+
+    cgp.prepare();
+  }
+
+  friend void from_json (const nlohmann::json &j, Node &n) {
+    n.fid = j[0];
+    n.connections = j[1];
+  }
+
+  static void save (nlohmann::json &j, const CGP &cgp) {
+    j = cgp;
+  }
+
+  static void load (const nlohmann::json &j, CGP &cgp) {
+    cgp = j;
+  }
+
+private:
   CGP (rng::AbstractDice &dice) {
     using functions::FID;
     localFunctionsMap[FID("rand")] = [this] (auto) { return ldice(-1., 1.); };

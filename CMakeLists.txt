@@ -64,8 +64,6 @@ set(GNTP_SRC
     "plant.cpp"
     "environment.h"
     "environment.cpp"
-    "envcgp.h"
-    "envcgp.cpp"
 )
 PREPEND(GNTP_SRC "src/genotype" ${GNTP_SRC})
 
