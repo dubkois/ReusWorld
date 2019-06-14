@@ -34,7 +34,7 @@ class Plant {
 public:
   using Genome = genotype::Plant;
   using Sex = genotype::BOCData::Sex;
-  using ID = genotype::BOCData::GID;
+  using ID = phylogeny::GID;
 
   using Layer = Organ::Layer;
   using Element = genotype::Element;
@@ -56,6 +56,8 @@ public:
   using Organs = Organ::Collection;
 
   using decimal = genotype::Metabolism::decimal;
+
+  using PData = phylogeny::InsertionResult<PStats>;
 
 private:
   Genome _genome;
@@ -113,7 +115,7 @@ public:
   Plant(const Genome &g, const Point &pos);
   ~Plant (void);
 
-  void init (Environment &env, float biomass, PStats *pstats);
+  void init (Environment &env, float biomass, const PData &pdata);
   void destroy (void);
 
   void replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
@@ -128,7 +130,15 @@ public:
   void update (Environment &env);
 
   auto id (void) const {
-    return _genome.cdata.id;
+    return _genome.id();
+  }
+
+  const phylogeny::Genealogy& genealogy (void) const {
+    return _genome.genealogy();
+  }
+
+  auto species (void) const {
+    return _genome.species();
   }
 
   auto sex (void) const {

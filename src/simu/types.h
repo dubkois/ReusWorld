@@ -170,20 +170,13 @@ struct Time {
 
   float timeOfDay (void) const;
   float timeOfYear (void) const;
-  float timeOfWorld (void) const;
 
-  void set (float y, float d, float h) {
+  void set (uint y, uint d, uint h) {
     _year = y;  _day = d; _hour = h;
   }
 
   Time& next (void);
   std::string pretty (void) const;
-
-  static const Time &startOf(void);
-  static const Time &endOf(void);
-
-  bool isStartOf (void) const;
-  bool isEndOf (void) const;
 
   bool isStartOfYear (void) const {
     return _day == 0 && _hour == 0;
@@ -210,6 +203,10 @@ struct Time {
 
   friend Time operator- (const Time &lhs, const Time &rhs) {
     return fromTimestamp(lhs.toTimestamp() - rhs.toTimestamp());
+  }
+
+  friend Time operator+ (const Time &lhs, uint years) {
+    return Time(lhs._year+years, lhs._day, lhs._hour);
   }
 
   friend std::ostream& operator<< (std::ostream &os, const Time &t) {

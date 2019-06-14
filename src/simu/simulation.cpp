@@ -38,7 +38,7 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 #endif
 
 
-Simulation::Simulation (void) : _stats(), _aborted(false) {}
+Simulation::Simulation (void) : _stats(), _aborted(false), _dataFolder(".") {}
 
 bool Simulation::init (const EGenome &env, const PGenome &plant) {
   _start = Stats::clock::now();
@@ -50,7 +50,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 #endif
 
   _ptree.addGenome(plant);
-  genotype::BOCData::setFirstID(plant.cdata.id);
+  _gidManager.setNext(plant.id());
 
   uint N = Config::initSeeds();
   float dx = .5; // m
@@ -250,13 +250,12 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 #ifdef CUSTOM_PLANTS
     auto pg = genomes[i%genomes.size()];
 #else
-    auto pg = plant.clone();
+    auto pg = plant.clone(_gidManager);
 #endif
 
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
 
-    _ptree.addGenome(pg);
     addPlant(pg, x0 + i * dx, initBiomass);
   }
 
@@ -305,8 +304,8 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
   // Is there room left in the environment?
   if (!insertionAborted) {
     if (_env.addCollisionData(plant)) {
-      PStats *pstats = _ptree.getUserData(plant->id());
-      plant->init(_env, biomass, pstats);
+      auto pd = _ptree.addGenome(plant->genome());
+      plant->init(_env, biomass, pd);
 
       if (debugPlantManagement)
         std::cerr << PlantID(plant) << " Added at " << plant->pos() << " with "
@@ -388,9 +387,10 @@ void Simulation::performReproductions(void) {
 
       if (fecundated) {
         if (debugReproduction)  std::cerr << "\t\tOffsprings:";
-        for (const auto &g: litter) {
-          _ptree.addGenome(g);
-          if (debugReproduction)  std::cerr << " " << g.cdata.id;
+        for (auto &g: litter) {
+          g.genealogy().updateAfterCrossing(mother->genealogy(),
+                                            father->genealogy(), _gidManager);
+          if (debugReproduction)  std::cerr << " " << g.id();
         }
         if (debugReproduction)  std::cerr << std::endl;
 
@@ -513,8 +513,8 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
                 << samplings << " - 1) * " << dist << std::endl;
 
     if (debug)
-      std::cerr << "Planted seed " << seed.genome.cdata.id << " at " << x
-                << " (extracted from plant " << seed.genome.cdata.parent(genotype::BOCData::MOTHER)
+      std::cerr << "Planted seed " << seed.genome.id() << " at " << x
+                << " (extracted from plant " << seed.genome.gdata.mother.gid
                 << " at position " << seed.position.x << ")" << std::endl;
 
     addPlant(seed.genome, x, seed.biomass);
@@ -551,19 +551,6 @@ void Simulation::step (void) {
   for (float x: corpses)
     delPlant(x, seeds);
 
-  // Perfom soft trimming
-  _stats.trimmed = 0;
-  const uint softLimit = Config::maxPlantDensity() * _env.width();
-  if (_env.dice()(Config::trimmingProba()) && _plants.size() > softLimit) {
-    std::cerr << "Clearing out " << _plants.size() - softLimit << " out of "
-              << _plants.size() << " totals" << std::endl;
-    while (_plants.size() > softLimit) {
-      auto it = _env.dice()(_plants);
-      delPlant(it->second->pos().x, seeds);
-      _stats.trimmed++;
-    }
-  }
-
 #ifndef CUSTOM_PLANTS
   performReproductions();
 
@@ -578,11 +565,11 @@ void Simulation::step (void) {
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
-    return pair.second->genome().cdata.id;
+    return pair.second->species();
   });
 
   updateGenStats();
-  if (Config::logGlobalStats()) logGlobalStats();
+  if (!_statsFile.empty()) logGlobalStats();
 
   if (_env.hasTopologyChanged()) {
     for (const auto &it: _plants) {
@@ -595,23 +582,24 @@ void Simulation::step (void) {
 
   _env.stepEnd();
 
-  if (_env.time().isStartOfYear() && (_env.time().year() % Config::saveEvery()) == 0)
-    periodicSave();
+  if (_env.time().isStartOfYear()
+    && (_env.time().year() % Config::saveEvery()) == 0)
+    save(periodicSaveName());
 }
 
 void Simulation::atEnd(void) {
   // Update once more so that data goes from y0d0h0 to yLd0h0 with L = stopAtYear()
   if (_env.startTime() < _env.time()) {
     _stats.start = Stats::clock::now();
-    if (Config::logGlobalStats()) logGlobalStats();
+    if (!_statsFile.empty()) logGlobalStats();
   }
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
               [] (const Plants::value_type &pair) {
-    return pair.second->genome().cdata.id;
+    return pair.second->species();
   });
 
-  _ptree.saveTo("phylogeny.ptree.json");
+  _ptree.saveTo(_ptreeFile);
 
   if (Config::verbosity() > 0) {
     std::cout << "Simulation ";
@@ -635,10 +623,28 @@ void Simulation::updatePlantAltitude(Plant &p, float h) {
   p.updateAltitude(_env, h);
 }
 
+void Simulation::setDataFolder (const stdfs::path &path) {
+  _dataFolder = path;
+  _statsFile = path / "global.dat";
+  _ptreeFile = path / "phylogeny.ptree.json";
+  if (!stdfs::is_empty(_dataFolder)) {
+    std::cerr << "WARNING: data folder '" << _dataFolder << "' is not empty."
+                 " What do you want to do ([a]bort, [p]urge, [i]gnore)?"
+              << std::flush;
+    auto r = std::cin.get();
+    switch (r) {
+    case 'p': stdfs::remove_all(_dataFolder); break;
+    case 'i': break;
+    case 'a': _aborted = true;  break;
+    }
+  }
+  if (!stdfs::exists(_dataFolder))  stdfs::create_directories(_dataFolder);
+}
+
 void Simulation::updateGenStats (void) {
   for (const auto &p: _plants) {
     const Plant &plant = *p.second;
-    auto gen = plant.genome().cdata.generation;
+    auto gen = plant.genome().gdata.generation;
     _stats.minGeneration = std::min(_stats.minGeneration, gen);
     _stats.maxGeneration = std::max(_stats.maxGeneration, gen);
   }
@@ -646,23 +652,17 @@ void Simulation::updateGenStats (void) {
 
 void Simulation::logGlobalStats(void) {
   bool header = (_env.startTime() == _env.time());
-  stdfs::path path = "global.dat";
-  if (header && stdfs::exists(path)) {
-    stdfs::path backup = path;
-    backup += "~";
-    stdfs::copy(path, backup, stdfs::copy_options::update_existing);
-  }
 
   std::ofstream ofs;
   std::ios_base::openmode mode = std::fstream::out;
   if (header) mode |= std::fstream::trunc;
   else        mode |= std::fstream::app;
-  ofs.open("global.dat", mode);
+  ofs.open(_statsFile, mode);
 
   if (header)
     ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
            " Derivations Organs Flowers Fruits Matings"
-           " Reproductions dSeeds Births Deaths Trimmed AvgDist AvgCompat"
+           " Reproductions dSeeds Births Deaths AvgDist AvgCompat"
            " Species MinX MaxX\n";
 
   using decimal = Plant::decimal;
@@ -701,7 +701,7 @@ void Simulation::logGlobalStats(void) {
 
       << " " << _stats.matings << " " << _stats.reproductions
       << " " << _stats.newSeeds << " " << _stats.newPlants
-      << " " << _stats.deadPlants << " " << _stats.trimmed
+      << " " << _stats.deadPlants << " "
 
       << " " << _stats.sumDistances / float(_stats.matings)
       << " " << _stats.sumCompatibilities / float(_stats.matings)
@@ -712,23 +712,6 @@ void Simulation::logGlobalStats(void) {
       << std::endl;
 
 //  debugPrintAll();
-}
-
-void Simulation::periodicSave (void) const {
-  if (!stdfs::exists("autosaves"))  stdfs::create_directory("autosaves");
-  if (_env.startTime() == _env.time()) {
-    if (!stdfs::is_empty("autosaves")) {
-      std::cerr << "WARNING: autosaves folder is not empty. Purge anyway ?"
-                << std::flush;
-      if(std::cin.get() == 'y') {
-        stdfs::remove_all("autosaves");
-        stdfs::create_directory("autosaves");
-      }
-      std::cerr << std::endl;
-    }
-  }
-
-  save(periodicSaveName());
 }
 
 // Low level writing of a bytes array
@@ -845,7 +828,7 @@ void Simulation::save (stdfs::path file) const {
     Plant::save(jp_, *p.second);
     jp.push_back(jp_);
   }
-  PTree::toJson(jt, _ptree, true);
+  PTree::toJson(jt, _ptree);
 
   json j = { jc, je, jp, jt };
 
@@ -932,7 +915,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
       "See above for more details... (aborting)");
 
   Environment::load(j[1], s._env);
-  PTree::fromJson(j[3], s._ptree, true);
+  PTree::fromJson(j[3], s._ptree);
   Plant::ID lastID = Plant::ID(0);
   for (const auto &jp: j[2]) {
     Plant *p = Plant::load(jp);
@@ -941,7 +924,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
     if (lastID < p->id()) lastID = p->id();
     for (const auto &fd: p->fruits())
       for (const genotype::Plant &g: fd.second.genomes)
-        if (lastID < g.cdata.id) lastID = g.cdata.id;
+        if (lastID < g.id()) lastID = g.id();
 
     s._plants.insert({p->pos().x, Plant_ptr(p)});
 
@@ -956,7 +939,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
         s._env.disseminateGeneticMaterial(o);
   }
 
-  genotype::BOCData::setFirstID(lastID);
+  s._gidManager.setNext(lastID);
   s._env.postLoad();  /// FIXME Should not be required
 
   if (debugSerialization)
@@ -964,10 +947,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
               << duration(startTime) << " ms" << std::endl;
 
 #ifndef NDEBUG
-  if (Config::logGlobalStats() && !preventGlobalStatsOverride) {
-    s.logGlobalStats();
-    preventGlobalStatsOverride = false;
-  }
+  if (!s._statsFile.empty())  s.logGlobalStats();
 #else
   if (Config::logGlobalStats()) s.logGlobalStats();
 #endif

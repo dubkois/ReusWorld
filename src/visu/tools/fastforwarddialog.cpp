@@ -67,7 +67,7 @@ FastForwardDialog::FastForwardDialog (QWidget *parent, Simulation &s)
 
   spinner->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
   spinner->setMinimum(time.toTimestamp());
-  spinner->setMaximum(simu::Time::endOf().toTimestamp());
+  spinner->setMaximum(s.environment().endTime().toTimestamp());
 
   connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
   connect(ok, &QPushButton::clicked, this, &FastForwardDialog::process);

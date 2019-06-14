@@ -3,7 +3,6 @@
 
 #include "graphicsimulation.h"
 
-#include "../config/visuconfig.h"
 #include "controller.h"
 
 namespace visu {
@@ -20,7 +19,7 @@ bool GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
   bool added = Simulation::addPlant(p, x, biomass);
   if (added)
     _controller->view()->addPlantItem(*_plants.at(x),
-                                      _ptree.getSpeciesID(p.cdata.id));
+                                      p.species());
   return added;
 }
 
@@ -46,18 +45,12 @@ bool GraphicSimulation::init(const EGenome &env, const PGenome &plant) {
 }
 
 void GraphicSimulation::graphicalStep (uint speed) {
-  if (_env.time().isStartOf() && config::Visualization::withScreenshots())
-    doScreenshot();
-
   for (uint i=0; i<speed; i++) {
     step();
     QCoreApplication::processEvents();  // A bit ugly but what the hell
   }
 
   _controller->view()->update();
-
-  if (config::Visualization::withScreenshots())
-    doScreenshot();
 
   if (finished()) emit completed();
 }
@@ -75,21 +68,25 @@ void GraphicSimulation::saveAs(void) const {
 
 void GraphicSimulation::savePhylogeny (void) const {
   QString file = QFileDialog::getSaveFileName(_controller->view(), "Save PTree as");
-  if (!file.isEmpty())  _ptree.saveTo(file.toStdString(), false);
+  if (!file.isEmpty())  _ptree.saveTo(file.toStdString());
 }
 
-void GraphicSimulation::doScreenshot(void) const {
+void GraphicSimulation::doScreenshot(const QSize &size, stdfs::path path) const {
   static const std::string screenshotFolder = "screenshots/";
-  static const QSize screenshotSize = config::Visualization::screenshotResolution();
 
-  if (_env.time().isStartOf()) stdfs::remove_all(screenshotFolder);
+  if (_env.time() == _env.startTime()) stdfs::remove_all(screenshotFolder);
   stdfs::create_directory(screenshotFolder);
 
-  QPixmap p = _controller->view()->screenshot(screenshotSize);
+  QPixmap p = _controller->view()->screenshot(size);
 
-  std::ostringstream oss;
-  oss << screenshotFolder << "sc_" << _env.time().pretty() << ".png";
-  p.save(QString::fromStdString(oss.str()));
+  if (path.empty()) {
+    path = screenshotFolder;
+    path += "sc_";
+    path += _env.time().pretty();
+    path += ".png";
+  }
+
+  p.save(QString::fromStdString(path.string()));
 }
 
 void GraphicSimulation::load (const std::string &file, GraphicSimulation &s,
@@ -98,7 +95,7 @@ void GraphicSimulation::load (const std::string &file, GraphicSimulation &s,
   s._controller->view()->updateEnvironment();
   for (const auto &p: s._plants)
     s._controller->view()->addPlantItem(*p.second,
-                                        s._ptree.getSpeciesID(p.second->id()));
+                                        p.second->species());
 
   s._pviewer.build();
 

@@ -52,7 +52,7 @@ Plant::~Plant (void) {
     oss << PlantID(this) << " destroyed with unprocessed seeds:";
     for (auto &fd: _fruits)
       for (auto &g: fd.second.genomes)
-        oss << " " << g.cdata.id;
+        oss << " " << g.id();
     autopsy();
     utils::doThrow<std::logic_error>(oss.str());
   }
@@ -61,7 +61,7 @@ Plant::~Plant (void) {
   if (_pstats)  _pstats->plant = nullptr;
 }
 
-void Plant::init (Environment &env, float biomass, PStats *pstats) {
+void Plant::init (Environment &env, float biomass, const PData &pdata) {
   auto A = genotype::grammar::toSuccessor(GConfig::ls_axiom());
   for (Layer l: {Layer::SHOOT, Layer::ROOT})
     addOrgan(turtleParse(nullptr, A, initialAngle(l), l), env);
@@ -78,8 +78,10 @@ void Plant::init (Environment &env, float biomass, PStats *pstats) {
   updateGeometry();
   env.updateCollisionDataFinal(this);
 
-  if (pstats) {
-    setPStatsPointer(pstats);
+  _genome.genealogy().setSID(pdata.sid);
+
+  if (pdata.udata) {
+    setPStatsPointer(pdata.udata);
     _pstats->born = true;
     _pstats->seed = isInSeedState();
     _pstats->pos = _pos;
@@ -856,31 +858,6 @@ void Plant::metabolicStep(Environment &env) {
                   << ": " << _reserves[l][e] << " ("
                   << 100 * concentration(l, e) << " %)";
     std::cerr << "\n" << std::endl;
-  }
-
-  if (SConfig::logIndividualStats()) {
-    std::ostringstream oss;
-    oss << "p" << id() << ".dat";
-
-    std::ofstream ofs;
-    std::ios_base::openmode mode = std::fstream::out;
-    if (_age > 0) mode |= std::fstream::app;
-    else          mode |= std::fstream::trunc;
-    ofs.open(oss.str(), mode);
-
-    if (_age == 0)
-      ofs << R"("Organs" "Apexes" "M_{sh}" "M_{rt}" "M_{shW}" "M_{shG}" )"
-             R"("M_{rtW}" "M_{rtG}" "U_W" "T_W" "U_G" "T_G" "W_{sh}" "W_{rt}" )"
-             R"("G_{sh}" "G_{rt}")" << "\n";
-    ofs << _organs.size() << " " << _nonTerminals.size() << " "
-        << _biomasses[Layer::SHOOT] << " " << _biomasses[Layer::ROOT] << " "
-        << _reserves[Layer::SHOOT][Element::WATER] << " "
-        << _reserves[Layer::SHOOT][Element::GLUCOSE] << " "
-        << _reserves[Layer::ROOT][Element::WATER] << " "
-        << _reserves[Layer::ROOT][Element::GLUCOSE] << " "
-        << U_w << " " << T_w << " " << U_g << " " << T_g << " "
-        << W[Layer::SHOOT] << " " << W[Layer::ROOT] << " "
-        << X[Layer::SHOOT] << " " << X[Layer::ROOT] << std::endl;
   }
 }
 

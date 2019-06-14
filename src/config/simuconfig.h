@@ -12,18 +12,11 @@ struct CONFIG_FILE(Simulation) {
 
   DECLARE_SUBCONFIG(genotype::Plant::config_t, configGenotypePlant)
   DECLARE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
-//  DECLARE_SUBCONFIG(CGP, configGenotypeCGP)
   DECLARE_SUBCONFIG(Dependencies, configDependencies)
-
-  DECLARE_PARAMETER(bool, logIndividualStats)
-  DECLARE_PARAMETER(bool, logGlobalStats)
 
   DECLARE_PARAMETER(int, verbosity)
 
   DECLARE_PARAMETER(uint, initSeeds)
-  DECLARE_PARAMETER(uint, stopAtYear)
-  DECLARE_PARAMETER(uint, stopAtMinGen)
-  DECLARE_PARAMETER(uint, stopAtMaxGen)
   DECLARE_PARAMETER(uint, saveEvery)
 
   DECLARE_PARAMETER(uint, stepsPerDay)
@@ -31,8 +24,6 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(bool, taurusWorld)
 
   DECLARE_PARAMETER(bool, killSeedsEarly)
-  DECLARE_PARAMETER(float, trimmingProba)
-  DECLARE_PARAMETER(float, maxPlantDensity) // Per meter
 
   DECLARE_PARAMETER(float, assimilationRate)
   DECLARE_PARAMETER(float, baselineShallowWater)

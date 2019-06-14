@@ -7,6 +7,8 @@ namespace simu {
 
 static constexpr int debugEnvCTRL = 0;
 
+static constexpr auto DURATION_FORMAT = "Format is [+|=]<years>";
+
 using UL_EU = EnumUtils<UndergroundLayers>;
 
 // =============================================================================
@@ -30,7 +32,7 @@ void Environment::init (const Genome &g) {
   _dice.reset(_genome.rngSeed);
   _updatedTopology = false;
 
-  _start = _time = Time();
+  _startTime = _currTime = _endTime = Time();
 }
 
 void Environment::destroy (void) {
@@ -51,7 +53,17 @@ void Environment::stepEnd (void) {
   _physics->debug();
 #endif
 
-  _time.next();
+  _currTime.next();
+}
+
+void Environment::setDuration(DurationSetType type, uint years) {
+  switch (type) {
+  case APPEND:  _endTime = _startTime + years;  break;
+  case SET:     _endTime.set(years, 0, 0);      break;
+  default:
+    utils::doThrow<std::invalid_argument>(
+      "Invalid duration specifier '", type, "'.");
+  }
 }
 
 void Environment::cgpStep (void) {
@@ -65,11 +77,14 @@ void Environment::cgpStep (void) {
   using Outputs = CGP::Outputs;
   Outputs outputs;
 
-  _updatedTopology = _time.isStartOfYear()
-      && (_time.year() % config::Simulation::updateTopologyEvery()) == 0;
+  _updatedTopology = _currTime.isStartOfYear()
+      && (_currTime.year() % config::Simulation::updateTopologyEvery()) == 0;
 
-  inputs[I::D] = _time.timeOfYear();
-  inputs[I::Y] = _time.timeOfWorld();
+  inputs[I::D] = _currTime.timeOfYear();
+
+  const auto S = _startTime.toTimestamp(), E = _endTime.toTimestamp();
+  inputs[I::Y] = 1. - (E - _currTime.toTimestamp()) / (E - S);
+
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
@@ -204,7 +219,7 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
   j = {
     e._genome, jd,
     e._topology, e._temperature, e._hygrometry,
-    { e._time.year(), e._time.day(), e._time.hour() },
+    e._startTime, e._currTime, e._endTime,
     jc
   };
 }
@@ -218,11 +233,9 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   e._topology = j[i++].get<Voxels>();
   e._temperature = j[i++].get<Voxels>();
   e._hygrometry = j[i++];
-
-  float y = j[i][0], d = j[i][1], h = j[i][2];
-  e._start.set(y, d, h);
-  e._time = e._start;
-  i++;
+  e._startTime = j[i++];
+  e._currTime = j[i++];
+  e._endTime = j[i++];
 
   Genome::CGP::load(j[i++], e._genome.controller);
 

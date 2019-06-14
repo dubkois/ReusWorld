@@ -6,31 +6,6 @@
 
 #include "config/dependencies.h"
 
-/*!
- * NOTE Table of todos
- *  FIXME PTree noise resilience: Still not shiny
- *  NOTE Binary save : not deterministic (not sure)
- *  TODO Reduce light (clearly not well calibrated)
- *  TODO Find ways to increase morphological complexity
- *   TODO Test if random group promotes vertical competition
- *  TODO Evolutionary algo (timeline picking)
- */
-
-std::atomic<bool> aborted = false;
-void sigint_manager (int) {
-  std::cerr << "Gracefully exiting simulation "
-               "(please wait for end of current step)" << std::endl;
-  aborted = true;
-}
-
-bool isValidSeed(const std::string& s) {
-  return !s.empty()
-    && std::all_of(s.begin(),
-                    s.end(),
-                    [](char c) { return std::isdigit(c); }
-    );
-}
-
 int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing

@@ -196,7 +196,7 @@ void Plant::updatePlantData(void) {
 void Plant::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *e) {
   if (e->button() == Qt::LeftButton) {
     setSelected(true);
-    std::cerr << "Genotype for plant(" << _plant.genome().cdata.id << "): "
+    std::cerr << "Genotype for plant(" << _plant.id() << "): "
               << _plant.genome()
               << "LSystem state: " << _plant
               << std::endl;

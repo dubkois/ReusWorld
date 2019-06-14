@@ -454,7 +454,7 @@ public:
   }
 
   friend void to_json (nlohmann::json &j, const Node &n) {
-    j = { n.fid, n.connections };
+    j = { toString(n.fid), n.connections };
   }
 
   friend void from_json (const nlohmann::json &j, CGP &cgp) {
@@ -468,15 +468,18 @@ public:
       utils::doThrow<std::invalid_argument>("Wrong arity");
 
     cgp.ldice.reset(j["d"]);
-    cgp.nodes = j["n"];
+    cgp.registerLocalFunctions();
+
+    for (uint i=0; i<N; i++) {
+      auto jn = j["n"][i];
+      auto &n = cgp.nodes[i];
+      n.fid = functions::FID(jn[0]);
+      n.function = cgp.functionfromID(n.fid);
+      n.connections = jn[1];
+    }
     cgp.outputConnections = j["o"];
 
     cgp.prepare();
-  }
-
-  friend void from_json (const nlohmann::json &j, Node &n) {
-    n.fid = j[0];
-    n.connections = j[1];
   }
 
   static void save (nlohmann::json &j, const CGP &cgp) {
@@ -489,8 +492,7 @@ public:
 
 private:
   CGP (rng::AbstractDice &dice) {
-    using functions::FID;
-    localFunctionsMap[FID("rand")] = [this] (auto) { return ldice(-1., 1.); };
+    registerLocalFunctions();
 
     using utils::make_array;
     nodes = make_array<Node, N>([this, &dice] (auto i) {
@@ -512,6 +514,11 @@ private:
 
   uint arity (const Node &n) const {
     return std::min(A, arities.at(n.fid));
+  }
+
+  void registerLocalFunctions (void) {
+    using functions::FID;
+    localFunctionsMap[FID("rand")] = [this] (auto) { return ldice(-1., 1.); };
   }
 
   Function functionfromID (const FuncID &fid) const {

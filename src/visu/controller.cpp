@@ -272,7 +272,7 @@ void Controller::updateDisplays(void) {
     qss << plants.size();
     uint minGen = std::numeric_limits<uint>::max(), maxGen = 0;
     for (const auto &p: plants) {
-      uint g = p.second->genome().cdata.generation;
+      uint g = p.second->genealogy().generation;
       if (g < minGen) minGen = g;
       if (maxGen < g) maxGen = g;
     }

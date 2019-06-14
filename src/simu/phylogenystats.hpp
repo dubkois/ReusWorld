@@ -9,7 +9,7 @@ struct Plant;
 struct PStats {
   static constexpr auto NaN = std::nanf("");
 
-  using GID = genotype::BOCData::GID;
+  using GID = phylogeny::GID;
   GID id;
   bool born;
   bool seed;
@@ -27,7 +27,7 @@ struct PStats {
 
   Plant *plant;
 
-  PStats (void) : PStats(genotype::BOCData::INVALID_GID) {}
+  PStats (void) : PStats(phylogeny::GID::INVALID) {}
 
   PStats (GID id) : id(id), born(false), seed(true),
     pos{NaN, NaN}, shoot(""), root(""),
@@ -53,7 +53,7 @@ struct PStats {
   }
 
   friend void from_json (const nlohmann::json &j, PStats &ps) {
-    ps = PStats(genotype::BOCData::INVALID_GID);
+    ps = PStats(phylogeny::GID::INVALID);
     ps.id = j["_id"];
     ps.born = j["_isBorn"];
     ps.seed = j["_isSeed"];

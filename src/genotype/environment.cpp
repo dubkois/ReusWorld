@@ -15,20 +15,20 @@ auto cgpFunctor = [] {
   GENOME_FIELD_FUNCTOR(CGP, controller) functor;
   functor.random = [] (auto &dice) { return CGP::null(dice); };
   functor.mutate = [] (auto &cgp, auto &dice) { cgp.mutate(dice); };
-//  functor.cross = [] (auto&, auto&, auto&) { assert(false); };
-//  functor.distance = [] (auto&, auto&) { assert(false); };
-//  functor.check = [] (auto&) { assert(false); };
+  functor.check = [] (auto&) { return true; };
+  functor.cross = [] (auto&, auto&, auto&) { assert(false); return CGP(); };
+  functor.distance = [] (auto&, auto&) { assert(false); return NAN; };
   return functor;
 };
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(CGP, controller, "cgp", cgpFunctor())
 
 DEFINE_GENOME_MUTATION_RATES({
-  EDNA_PAIR(   rngSeed, .1f),
-  EDNA_PAIR(     width, .1f),
-  EDNA_PAIR(     depth, .1f),
-  EDNA_PAIR(      minT, .1f),
-  EDNA_PAIR(      maxT, .1f),
-  EDNA_PAIR(    voxels, .1f),
+  EDNA_PAIR(   rngSeed, 0),
+  EDNA_PAIR(     width, 0),
+  EDNA_PAIR(     depth, 0),
+  EDNA_PAIR(      minT, 0),
+  EDNA_PAIR(      maxT, 0),
+  EDNA_PAIR(    voxels, 0),
   EDNA_PAIR(controller, 1.f)
 })
 

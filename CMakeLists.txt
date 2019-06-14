@@ -109,9 +109,14 @@ add_library(SIMU_OBJS OBJECT ${GNTP_SRC} ${SIMU_SRC} ${CGP_SRC} ${S_MISC_SRC})
 add_executable(
   simulator
   $<TARGET_OBJECTS:SIMU_OBJS>
-  "src/simulator.cpp"
-)
+  "src/simulator.cpp")
 target_link_libraries(simulator ${apt_LIBRARIES})
+
+add_executable(
+  timelines
+  $<TARGET_OBJECTS:SIMU_OBJS>
+  "src/timelines.cpp")
+target_link_libraries(timelines ${apt_LIBRARIES})
 
 option(AUTO_CALIBRATION_TOOL "Whether or not to build the (slighlty) automatic calibration tool" OFF)
 message("Building automatic calibration tool: " ${AUTO_CALIBRATION_TOOL})
@@ -168,13 +173,7 @@ if (NOT CLUSTER_BUILD)
     )
     PREPEND(VISU_SRC "src/visu" ${VISU_SRC})
 
-    set(V_MISC_SRC
-        "config/visuconfig.h"
-        "config/visuconfig.cpp"
-    )
-    PREPEND(V_MISC_SRC "src" ${V_MISC_SRC})
-
-    add_library(VISU_OBJS OBJECT ${VISU_SRC} ${V_MISC_SRC})
+    add_library(VISU_OBJS OBJECT ${VISU_SRC})
     target_include_directories(VISU_OBJS PRIVATE $<TARGET_PROPERTY:Qt5::Widgets,INTERFACE_INCLUDE_DIRECTORIES>)
     target_compile_definitions(VISU_OBJS PRIVATE $<TARGET_PROPERTY:Qt5::Widgets,INTERFACE_COMPILE_DEFINITIONS>)
     set_property(TARGET VISU_OBJS PROPERTY POSITION_INDEPENDENT_CODE ON)

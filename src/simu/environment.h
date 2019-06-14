@@ -34,12 +34,16 @@ class Environment {
 
   bool _updatedTopology;
 
-  Time _start;
-  Time _time;
+  Time _startTime, _currTime, _endTime;
 
   std::unique_ptr<physics::TinyPhysicsEngine> _physics;
 
 public:
+  enum DurationSetType : char {
+    APPEND = '+', // Stop time is start + 'duration'
+    SET = '=' // Stop time is exactly duration years
+  };
+
   Environment(void);
   ~Environment(void);
 
@@ -95,11 +99,15 @@ public:
   }
 
   const auto& startTime (void) const {
-    return _start;
+    return _startTime;
   }
 
   const auto& time (void) const {
-    return _time;
+    return _currTime;
+  }
+
+  const auto& endTime (void) const {
+    return _endTime;
   }
 
   auto voxelCount (void) const {
@@ -125,6 +133,8 @@ public:
   float temperatureAt (float x) const;
   float waterAt (const Point &p) const;
   float lightAt (float x) const;
+
+  void setDuration (DurationSetType type, uint duration);
 
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 

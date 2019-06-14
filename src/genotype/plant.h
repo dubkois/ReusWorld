@@ -82,6 +82,7 @@ class Plant : public EDNA<Plant> {
 
 public:
   BOCData cdata;
+  phylogeny::Genealogy gdata; ///< FIXME Not stored or compared or nothing...
 
   LSystem<SHOOT> shoot;
   LSystem<ROOT> root;
@@ -95,9 +96,15 @@ public:
   float temperatureOptimal;
   float temperatureRange;
 
-  Plant clone (void) const {
+  auto id (void) const {  return gdata.self.gid;  }
+  auto species (void) const { return gdata.self.sid;  }
+
+  phylogeny::Genealogy& genealogy (void) { return gdata; }
+  const phylogeny::Genealogy& genealogy (void) const {  return gdata; }
+
+  Plant clone (phylogeny::GIDManager &m) const {
     Plant other = *this;
-    other.cdata.updateCloneLineage();
+    other.gdata.updateAfterCloning(m);
     return other;
   }
 

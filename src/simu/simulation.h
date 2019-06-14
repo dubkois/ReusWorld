@@ -30,10 +30,17 @@ public:
 
   void abort (void) { _aborted = true; }
   bool finished (void) const {
-    return _aborted || _plants.empty()
-        || _env.time().isEndOf()
-        || _stats.minGeneration > config::Simulation::stopAtMinGen()
-        || _stats.maxGeneration > config::Simulation::stopAtMaxGen();
+    return _aborted || _plants.empty() || _env.endTime() <= _env.time();
+  }
+
+  void setDuration (Environment::DurationSetType t, uint years) {
+    _env.setDuration(t, years);
+  }
+
+  void setDataFolder (const stdfs::path &path);
+
+  const stdfs::path dataFolder (void) const {
+    return _dataFolder;
   }
 
   const Environment& environment (void) const {
@@ -52,12 +59,11 @@ public:
     return _ptree;
   }
 
-  std::string periodicSaveName (void) const {
+  stdfs::path periodicSaveName (void) const {
     std::ostringstream oss;
-    oss << "autosaves/y" << _env.time().year() << ".save";
-    return oss.str();
+    oss << "y" << _env.time().year() << ".save";
+    return _dataFolder / oss.str();
   }
-  void periodicSave (void) const;
 
   void save (stdfs::path file) const;
   static void load (const stdfs::path &file, Simulation &s,
@@ -83,7 +89,6 @@ protected:
     uint newSeeds = 0;
     uint newPlants = 0;
     uint deadPlants = 0;
-    uint trimmed = 0;
 
     uint minGeneration = std::numeric_limits<decltype(minGeneration)>::max();
     uint maxGeneration = 0;
@@ -91,6 +96,8 @@ protected:
   } _stats;
 
   Environment _env;
+
+  phylogeny::GIDManager _gidManager;
 
   using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;
@@ -101,6 +108,8 @@ protected:
 
   Stats::clock::time_point _start;
   bool _aborted;
+
+  stdfs::path _dataFolder, _statsFile, _ptreeFile;
 
   virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x, Plant::Seeds &seeds);

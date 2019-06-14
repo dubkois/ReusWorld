@@ -45,7 +45,7 @@ private:
 
   void updatePlantAltitude(simu::Plant &p, float h) override;
 
-  void doScreenshot (void) const;
+  void doScreenshot (const QSize &size, stdfs::path path = "") const;
 
 signals:
   void initialized (bool ok);

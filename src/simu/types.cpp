@@ -6,7 +6,6 @@
 
 namespace simu {
 
-const auto& Y (void) {  return config::Simulation::stopAtYear();  }
 const auto& D (void) {  return config::Simulation::daysPerYear(); }
 const auto& H (void) {  return config::Simulation::stepsPerDay(); }
 
@@ -14,7 +13,6 @@ Time::Time (void) : Time(0,0,0) {}
 
 float Time::timeOfDay (void) const {  return float(_hour) / H(); }
 float Time::timeOfYear (void) const {  return float(_day) / D(); }
-float Time::timeOfWorld (void) const {  return float(_year) / Y(); }
 
 Time& Time::next (void) {
   _hour++;
@@ -24,34 +22,15 @@ Time& Time::next (void) {
 }
 
 std::string Time::pretty (void) const {
-  static const int Y_digits = std::ceil(log10(Y()));
   static const int D_digits = std::ceil(log10(D()));
   static const int H_digits = std::ceil(log10(H()));
 
   std::ostringstream oss;
   oss << std::setfill('0')
-      << "y" << std::setw(Y_digits) << _year
+      << "y" << _year
       << "d" << std::setw(D_digits) << _day
       << "h" << std::setw(H_digits) << _hour;
   return oss.str();
-}
-
-const Time& Time::startOf (void) {
-  static const Time FIRST = Time();
-  return FIRST;
-}
-
-bool Time::isStartOf (void) const {
-  return *this == startOf();
-}
-
-const Time& Time::endOf (void) {
-  static const Time END { Y(), 0, 0 };
-  return END;
-}
-
-bool Time::isEndOf (void) const {
-  return endOf() <= *this;
 }
 
 Time Time::fromTimestamp(uint step) {
