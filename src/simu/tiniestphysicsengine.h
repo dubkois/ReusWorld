@@ -35,6 +35,11 @@ struct CollisionObject {
     layer.updateInIsolation(env, plant);
   }
 
+  static CollisionObject* clone (const CollisionObject *that,
+                                 const Plant *clonedPlant,
+                                 const std::map<const Organ*,
+                                                Organ*> &olookup);
+
   static Rect boundingRectOf (const Plant *p) {
     return p->translatedBoundingRect();
   }
@@ -42,11 +47,12 @@ struct CollisionObject {
   friend std::ostream& operator<< (std::ostream &os, const CollisionObject &o) {
     return os << "{" << o.plant->id() << ": " << o.boundingRect << "}";
   }
+
+private:
+  CollisionObject (const Plant *p) : plant(p) {}
 };
 
 class TinyPhysicsEngine {
-  const Environment &environment;
-
   Collisions _data;
 
   template <EdgeSide S>
@@ -67,8 +73,6 @@ class TinyPhysicsEngine {
   using Pistils_range = std::pair<Pistils::iterator, Pistils::iterator>;
 
 public:
-  TinyPhysicsEngine (const Environment &env) : environment(env) {}
-
   void init (void) {}
   void reset (void);
 
@@ -101,6 +105,11 @@ public:
 #ifndef NDEBUG
   void debug (void) const;
 #endif
+
+  void clone (const TinyPhysicsEngine &e,
+              const std::map<const Plant*, Plant*> &plookup,
+              const std::map<const Plant*,
+                             std::map<const Organ *, Organ*>> &olookups);
 
   friend void assertEqual (const TinyPhysicsEngine &lhs,
                            const TinyPhysicsEngine &rhs);

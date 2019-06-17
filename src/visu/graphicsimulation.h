@@ -24,7 +24,7 @@ public:
 
   void setController (Controller *_controller);
 
-  bool init (const EGenome &env, const PGenome &plant) override;
+  bool init (const EGenome &env, PGenome plant) override;
 
   void graphicalStep (uint speed);
 

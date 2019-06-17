@@ -241,12 +241,19 @@ public:
         _pstatsWC.reset(nullptr);
     }
   }
+  bool hasPStatsPointer (void) const {
+    return _pstats != nullptr;
+  }
 
   const auto& bases (void) const {
     return _bases;
   }
 
   std::string toString (Layer type) const;
+
+  static Plant* clone (const Plant &p,
+                       std::map<const Plant*,
+                                std::map<const Organ*, Organ*>> &olookups);
 
   static void save (nlohmann::json &j, const Plant &p);
   static Plant* load (const nlohmann::json &j);
@@ -271,6 +278,10 @@ private:
   uint deriveRules(Environment &env);
 
   void assignToViews (Organ *o);
+
+  void updateDepths (void) {
+    for (Organ *o: _bases) o->updateDepth();
+  }
 
   void metabolicStep (Environment &env);
   void updateMetabolicValues (void);

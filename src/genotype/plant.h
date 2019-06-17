@@ -151,6 +151,24 @@ public:
     return ".plant.json";
   }
 
+  void to_jsonExtension (json &j) const override {
+    j["gen"] = gdata;
+  }
+
+  void from_jsonExtension (json &j) override {
+    auto it = j.find("gen");
+    gdata = *it;
+    j.erase(it);
+  }
+
+  void to_streamExtension (std::ostream &os) const override {
+    os << gdata << "\n";
+  }
+
+  void equalExtension (const Plant &that, bool &ok) {
+    ok &= (this->gdata == that.gdata);
+  }
+
 //  Plant();
 };
 

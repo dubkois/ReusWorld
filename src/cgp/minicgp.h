@@ -7,6 +7,11 @@
 #include "kgd/settings/configfile.h"
 #include "kgd/utils/functions.h"
 
+namespace simu {
+void save (nlohmann::json &j, const rng::FastDice &d);
+void load (const nlohmann::json &j, rng::FastDice &d);
+} // end of namespace simu
+
 namespace utils {
 
 template <typename T, typename F, size_t... Is>
@@ -117,8 +122,11 @@ class CGP {
 
   std::array<Connection, O> outputConnections;
 
-  std::vector<double> persistentData;
-  std::map<NodeID, uint> usedNodes; /// Maps into node id into data
+  using Data = std::vector<double>;
+  Data persistentData;
+
+  using UsedNodes = std::map<NodeID, uint>;
+  UsedNodes usedNodes; /// Maps into node id into data
 
   using FunctionsMap = std::map<FuncID, Function>;
   static const FunctionsMap functionsMap; // Stateless functions
@@ -458,20 +466,13 @@ public:
   }
 
   friend void from_json (const nlohmann::json &j, CGP &cgp) {
-    if (j["a"][0] != I)
-      utils::doThrow<std::invalid_argument>("Wrong number of inputs");
-    if (j["a"][1] != N)
-      utils::doThrow<std::invalid_argument>("Wrong number of internal nodes");
-    if (j["a"][2] != O)
-      utils::doThrow<std::invalid_argument>("Wrong number of outputs");
-    if (j["a"][3] != A)
-      utils::doThrow<std::invalid_argument>("Wrong arity");
+    checkTemplateArguments(j["a"]);
 
     cgp.ldice.reset(j["d"]);
     cgp.registerLocalFunctions();
 
     for (uint i=0; i<N; i++) {
-      auto jn = j["n"][i];
+      const auto &jn = j["n"][i];
       auto &n = cgp.nodes[i];
       n.fid = functions::FID(jn[0]);
       n.function = cgp.functionfromID(n.fid);
@@ -483,11 +484,35 @@ public:
   }
 
   static void save (nlohmann::json &j, const CGP &cgp) {
-    j = cgp;
+    uint i=0;
+    j[i++] = { I, N, O, A };
+    simu::save(j[i++], cgp.ldice);
+    j[i++] = cgp.nodes;
+    j[i++] = cgp.outputConnections;
+    j[i++] = cgp.persistentData;
+    j[i++] = cgp.usedNodes;
   }
 
   static void load (const nlohmann::json &j, CGP &cgp) {
-    cgp = j;
+    uint i=0;
+    checkTemplateArguments(j[i++]);
+
+    simu::load(j[i++], cgp.ldice);
+
+    auto jnodes = j[i++];
+    for (uint i=0; i<N; i++) {
+      const auto &jn = jnodes[i];
+      auto &n = cgp.nodes[i];
+      n.fid = functions::FID(jn[0]);
+      n.function = cgp.functionfromID(n.fid);
+      n.connections = jn[1];
+    }
+
+    cgp.outputConnections = j[i++];
+    cgp.persistentData = j[i++].get<Data>();
+    cgp.usedNodes = j[i++].get<UsedNodes>();
+
+    cgp.registerLocalFunctions();
   }
 
 private:
@@ -514,6 +539,17 @@ private:
 
   uint arity (const Node &n) const {
     return std::min(A, arities.at(n.fid));
+  }
+
+  static void checkTemplateArguments (const nlohmann::json &j) {
+    if (j[0] != I)
+      utils::doThrow<std::invalid_argument>("Wrong number of inputs");
+    if (j[1] != N)
+      utils::doThrow<std::invalid_argument>("Wrong number of internal nodes");
+    if (j[2] != O)
+      utils::doThrow<std::invalid_argument>("Wrong number of outputs");
+    if (j[3] != A)
+      utils::doThrow<std::invalid_argument>("Wrong arity");
   }
 
   void registerLocalFunctions (void) {

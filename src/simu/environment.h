@@ -135,6 +135,9 @@ public:
   float lightAt (float x) const;
 
   void setDuration (DurationSetType type, uint duration);
+  void mutateController (rng::AbstractDice &dice) {
+    _genome.controller.mutate(dice);
+  }
 
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
 
@@ -160,6 +163,11 @@ public:
   }
 
   void postLoad (void);
+
+  void clone (const Environment &e,
+              const std::map<const Plant*, Plant*> &plookup,
+              const std::map<const Plant*,
+                             std::map<const Organ*,Organ*>> &olookups);
 
   static void save (nlohmann::json &j, const Environment &e);
   static void load (const nlohmann::json &j, Environment &e);

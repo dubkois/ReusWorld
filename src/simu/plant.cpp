@@ -18,7 +18,7 @@ static const auto A = GConfig::ls_rotationAngle();
 
 static constexpr bool debugInit = false;
 static constexpr bool debugOrganManagement = false;
-static constexpr int debugDerivation = 1;
+static constexpr int debugDerivation = 0;
 static constexpr int debugMetabolism = false;
 static constexpr bool debugReproduction = false;
 
@@ -351,6 +351,9 @@ uint Plant::deriveRules(Environment &env) {
           env.updateGeneticMaterial(f, f->globalCoordinates().center);
     }
   }
+
+  // Update all depths (wasteful but accurate)
+  updateDepths();
 
   if (derivations > 0) {
     _dirty.set(DIRTY_METABOLISM);
@@ -945,6 +948,7 @@ void Plant::processFruits(Environment &env) {
 
   if (needUpdate) {
     updateGeometry();
+    updateDepths();
     _dirty.set(DIRTY_COLLISION, true);
     _dirty.set(DIRTY_METABOLISM, true);
   }
@@ -1048,7 +1052,10 @@ uint Plant::step(Environment &env) {
   bool deleted = false;
   auto bases = _bases;
   for (Organ *o: bases)  deleted |= destroyDeadSubtree(o, env);
-  if (deleted)  updateMetabolicValues();
+  if (deleted) {
+    updateDepths();
+    updateMetabolicValues();
+  }
 
   // Update remaining flowers (check if some space was freed)
   for (auto &pair: oldPistilsPositions)
@@ -1075,8 +1082,6 @@ uint Plant::step(Environment &env) {
 void Plant::updatePStats(Environment &env) {
   auto &ps = *_pstats;
   auto &wc = *_pstatsWC;
-
-  assert(ps.plant->id() == id());
 
   float b = biomass();
   if (wc.largestBiomass <= b) {
@@ -1183,6 +1188,48 @@ std::ostream& operator<< (std::ostream &os, const Plant &p) {
             << "\tcontrol: " << control(p._genome.root, A, p._derived) << "\n}";
 }
 
+Plant* Plant::clone (const Plant &that_p,
+                     std::map<const Plant *,
+                              std::map<const Organ*, Organ*>> &olookups) {
+  Plant *this_p = new Plant(that_p._genome, that_p._pos);
+
+  this_p->_age = that_p._age;
+
+  auto &olookup = olookups[&that_p];
+  for (const Organ *that_o: that_p._organs) {
+    Organ *this_o = Organ::clone(that_o, this_p);
+    this_p->_organs.insert(this_o);
+    this_p->assignToViews(this_o);
+    olookup[that_o] = this_o;
+  }
+
+  // Update with cloned parent organ (if any)
+  for (Organ *this_o: this_p->_organs)
+    this_o->updatePointers(olookup);
+
+  this_p->_derived = that_p._derived;
+
+  this_p->_boundingRect = that_p._boundingRect;
+
+  this_p->_biomasses = that_p._biomasses;
+  this_p->_reserves = that_p._reserves;
+
+  for (const auto &p: that_p._fruits) {
+    FruitData fd = p.second;
+    fd.fruit = olookup.at(fd.fruit);
+    this_p->_fruits[p.first] = fd;
+  }
+
+  assert(that_p._currentStepSeeds.empty());
+
+  this_p->_nextOrganID = that_p._nextOrganID;
+
+  assert(!that_p._killed);
+  assert(that_p._dirty.none());
+
+  return this_p;
+}
+
 void Plant::save (nlohmann::json &j, const Plant &p) {
   assert(p._currentStepSeeds.empty());
   assert(p._dirty.none());
@@ -1238,6 +1285,8 @@ Plant* Plant::load (const nlohmann::json &j) {
 
   p->updateGeometry();
   p->updateMetabolicValues();
+
+  p->updateDepths();
 
   return p;
 }

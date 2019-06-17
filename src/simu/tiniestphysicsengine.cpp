@@ -318,8 +318,20 @@ void UpperLayer::updateInWorld(const Plant *p, const const_Collisions &collision
 
 // =============================================================================
 
+template <typename T, typename C>
+void freeContainer (std::set<T, C> &container) {
+  while (!container.empty()) {
+    auto b = container.begin();
+    delete *b;
+    container.erase(b);
+  }
+}
+
 void TinyPhysicsEngine::reset(void) {
-  _data.clear();
+  freeContainer(_data);
+  freeContainer(_leftEdges);
+  freeContainer(_rightEdges);
+  _pistils.clear();
 }
 
 namespace broadphase {
@@ -1366,6 +1378,72 @@ void TinyPhysicsEngine::postLoad(void) {
     broadphaseCollision(obj, thisCollisions);
     obj->layer.updateInWorld(obj->plant, thisCollisions);
   }
+}
+
+/// FIXME Not sure (at all) that this works. Or is safe. Or anything
+CollisionObject* CollisionObject::clone(const CollisionObject *that_obj,
+                                        const Plant *clonedPlant,
+                                        const std::map<const Organ*,
+                                                       Organ*> &olookup) {
+
+  CollisionObject *this_obj = new CollisionObject(clonedPlant);
+  this_obj->boundingRect = that_obj->boundingRect;
+
+  this_obj->englobedObjects = that_obj->englobedObjects;
+  this_obj->englobingObjects = that_obj->englobingObjects;
+
+  this_obj->leftEdge = std::make_unique<Edge<LEFT>>(this_obj);
+  this_obj->leftEdge->edge = that_obj->leftEdge->edge;
+
+  this_obj->rightEdge = std::make_unique<Edge<RIGHT>>(this_obj);
+  this_obj->rightEdge->edge = that_obj->rightEdge->edge;
+
+  for (const UpperLayer::Item &that_i: that_obj->layer.itemsInIsolation) {
+    UpperLayer::Item this_i = that_i;
+    this_i.organ = olookup.at(that_i.organ);
+    this_obj->layer.itemsInIsolation.push_back(this_i);
+  }
+
+  for (const UpperLayer::Item &that_i: that_obj->layer.itemsInWorld) {
+    UpperLayer::Item this_i = that_i;
+    this_i.organ = olookup.at(that_i.organ);
+    this_obj->layer.itemsInWorld.push_back(this_i);
+  }
+
+  return this_obj;
+}
+
+/// FIXME Not sure (at all) that this works. Or is safe. Or anything
+void TinyPhysicsEngine::clone (const TinyPhysicsEngine &e,
+                               const std::map<const Plant*, Plant*> &plookup,
+                               const std::map<const Plant *,
+                                              std::map<const Organ*,
+                                                       Organ*>> &olookups) {
+  reset();
+
+  std::map<const CollisionObject*, CollisionObject*> colookup;
+  for (const CollisionObject *that_obj: e._data) {
+    CollisionObject *this_obj =
+      CollisionObject::clone(that_obj, plookup.at(that_obj->plant),
+                             olookups.at(that_obj->plant));
+    _data.insert(this_obj);
+    colookup[that_obj] = this_obj;
+  }
+
+  for (CollisionObject *co: _data) {
+    Collisions updatedEnglobed, updatedEnglobing;
+    for (CollisionObject *englobed: co->englobedObjects)
+      updatedEnglobed.insert(colookup.at(englobed));
+    for (CollisionObject *englobing: co->englobingObjects)
+      updatedEnglobing.insert(colookup.at(englobing));
+    co->englobedObjects = updatedEnglobed;
+    co->englobingObjects = updatedEnglobing;
+    _leftEdges.insert(co->leftEdge.get());
+    _rightEdges.insert(co->rightEdge.get());
+  }
+
+  for (const Pistil &p: e._pistils)
+    _pistils.emplace(olookups.at(p.organ->plant()).at(p.organ), p.boundingDisk);
 }
 
 // =============================================================================

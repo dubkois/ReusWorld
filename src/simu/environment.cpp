@@ -14,7 +14,7 @@ using UL_EU = EnumUtils<UndergroundLayers>;
 // =============================================================================
 
 Environment::Environment(void)
-  : _physics(std::make_unique<physics::TinyPhysicsEngine>(*this)) {}
+  : _physics(std::make_unique<physics::TinyPhysicsEngine>()) {}
 
 Environment::~Environment(void) {}
 
@@ -57,9 +57,10 @@ void Environment::stepEnd (void) {
 }
 
 void Environment::setDuration(DurationSetType type, uint years) {
+  _startTime = _currTime;
   switch (type) {
-  case APPEND:  _endTime = _startTime + years;  break;
-  case SET:     _endTime.set(years, 0, 0);      break;
+  case APPEND:  _endTime = _currTime + years; break;
+  case SET:     _endTime.set(years, 0, 0);    break;
   default:
     utils::doThrow<std::invalid_argument>(
       "Invalid duration specifier '", type, "'.");
@@ -201,15 +202,25 @@ void Environment::processNewObjects(void) {
 // =============================================================================
 // == Binary serialization
 
-void save (nlohmann::json &j, const rng::FastDice &d) {
-  std::ostringstream oss;
-  serialize(oss, d);
-  j = oss.str();
-}
+void Environment::clone (const Environment &e,
+                         const std::map<const Plant *, Plant *> &plookup,
+                         const std::map<const Plant*,
+                                        std::map<const Organ*,
+                                                 Organ*>> &olookups) {
+  _genome = e._genome;
+  _dice = e._dice;
 
-void load (const nlohmann::json &j, rng::FastDice &d) {
-  std::istringstream iss (j.get<std::string>());
-  deserialize(iss, d);
+  _topology = e._topology;
+  _temperature = e._temperature;
+  _hygrometry = e._hygrometry;
+
+  _updatedTopology = false;
+
+  _startTime = e._startTime;
+  _currTime = e._currTime;
+  _endTime = e._endTime;
+
+  _physics->clone(*e._physics, plookup, olookups);
 }
 
 void Environment::save (nlohmann::json &j, const Environment &e) {

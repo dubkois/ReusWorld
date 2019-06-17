@@ -1,5 +1,20 @@
 #include "minicgp.h"
 
+namespace simu {
+
+void save (nlohmann::json &j, const rng::FastDice &d) {
+  std::ostringstream oss;
+  serialize(oss, d);
+  j = oss.str();
+}
+
+void load (const nlohmann::json &j, rng::FastDice &d) {
+  std::istringstream iss (j.get<std::string>());
+  deserialize(iss, d);
+}
+
+} // end of namespace simu
+
 namespace cgp::functions {
 std::ostream& operator<< (std::ostream &os, const ID &id) {
   for (auto c: id)  os << c;

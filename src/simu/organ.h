@@ -77,6 +77,8 @@ private:
   float _surface;
   float _baseBiomass, _accumulatedBiomass, _requiredBiomass;
 
+  Organ (Plant *const p) : _plant(p) {}
+
 public:
   Organ (Plant *plant, float w, float l, float r, char c, Layer t,
          Organ *parent);
@@ -147,11 +149,9 @@ public:
     return isCloned() || id() == OID::INVALID;
   }
 
-  void updateDepth (uint newDepth);
-  void updateParentDepth (void);
-  auto depth (void) const {
-    return _depth;
-  }
+  void updateDepth (void);
+  void setDepth (uint newDepth) { _depth = newDepth;  }
+  auto depth (void) const { return _depth;  }
 
   bool isDead (void) const {
     return biomass() < 0;
@@ -175,6 +175,9 @@ public:
   }
 
   friend std::ostream& operator<< (std::ostream &os, const Organ &o);
+
+  static Organ* clone (const Organ *o, Plant * const p);
+  void updatePointers (const std::map<const Organ*, Organ*> &olookup);
 
   static void save (nlohmann::json &j, const Organ &o);
   static Organ* load (const nlohmann::json &j, Organ *parent, Plant *plant,

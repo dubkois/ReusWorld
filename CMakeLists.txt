@@ -23,7 +23,7 @@ if (${CMAKE_INSTALL_PREFIX} MATCHES "^$ENV{HOME}")
     string(APPEND CMAKE_INSTALL_PREFIX "/${BUILD_TYPE}")
     set(CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX})
 endif()
-message(STATUS "Install path is ${CMAKE_INSTALL_PREFIX}/")
+message(STATUS "> Install path is ${CMAKE_INSTALL_PREFIX}/")
 
 
 ################################################################################
@@ -112,14 +112,26 @@ add_executable(
   "src/simulator.cpp")
 target_link_libraries(simulator ${apt_LIBRARIES})
 
-add_executable(
-  timelines
-  $<TARGET_OBJECTS:SIMU_OBJS>
-  "src/timelines.cpp")
-target_link_libraries(timelines ${apt_LIBRARIES})
+################################################################################
+## Target (timelines explorer)
+################################################################################
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    message(STATUS "> OpenMP Found.")
+    message(STATUS "  > OpenMP flags are " ${OpenMP_CXX_LIBRARIES})
+  add_executable(
+    timelines
+    $<TARGET_OBJECTS:SIMU_OBJS>
+    "src/timelines.cpp")
+  target_link_libraries(timelines ${apt_LIBRARIES} OpenMP::OpenMP_CXX)
+endif()
+
+################################################################################
+## Targets (other)
+################################################################################
 
 option(AUTO_CALIBRATION_TOOL "Whether or not to build the (slighlty) automatic calibration tool" OFF)
-message("Building automatic calibration tool: " ${AUTO_CALIBRATION_TOOL})
+message("> Building automatic calibration tool: " ${AUTO_CALIBRATION_TOOL})
 if (AUTO_CALIBRATION_TOOL)
   add_executable(auto-calibrator
                  $<TARGET_OBJECTS:SIMU_OBJS>
@@ -128,7 +140,7 @@ if (AUTO_CALIBRATION_TOOL)
 endif()
 
 option(ANALYZER_TOOL "Whether or not to build the analyzer tool" OFF)
-message("Building analyzer tool: " ${ANALYZER_TOOL})
+message("> Building analyzer tool: " ${ANALYZER_TOOL})
 if (ANALYZER_TOOL)
   add_executable(analyzer $<TARGET_OBJECTS:SIMU_OBJS> "src/misc/analyzer.cpp")
   target_link_libraries(analyzer ${apt_LIBRARIES})
@@ -227,25 +239,14 @@ endif()
 
 message(STATUS "")
 
-set(ENV_CTRL "Manual" CACHE STRING "What controls the environmental dynamics")
-set_property(CACHE ENV_CTRL PROPERTY STRINGS Manual CGP)
-message(STATUS "Environment is controlled by " ${ENV_CTRL})
-if (${ENV_CTRL} STREQUAL "Manual")
-    add_definitions(-DENV_MANUAL)
-elseif (${ENV_CTRL} STREQUAL "CGP")
-    add_definitions(-DENV_CGP)
-else ()
-    message(ERROR "Unknown controller type '${ENV_CTRL}' for environment")
-endif()
-
 option(CLUSTER_BUILD "Whether or not building on a cluster (i-e no gui and local linkage)" ON)
-message(STATUS "Cluster building mode is " ${CLUSTER_BUILD})
+message(STATUS "> Cluster building mode is " ${CLUSTER_BUILD})
 if(CLUSTER_BUILD)
     add_definitions(-DCLUSTER_BUILD)
 endif()
 
 option(WITH_DEBUG_INFO "Sets whether to maximize debug data collection" OFF)
-message(STATUS "With debug info " ${WITH_DEBUG_INFO})
+message(STATUS "> With debug info " ${WITH_DEBUG_INFO})
 if(WITH_DEBUG_INFO)
     add_definitions(-DWITH_DEBUG_INFO)
 
@@ -258,19 +259,20 @@ if(WITH_DEBUG_INFO)
     endif()
 endif()
 
-option(UPDATE_DEPENDENCIES "Whether or not to keep dependency data up-to-date (implies extra compilation time)" ON)
-message(STATUS "Auto updating dependencies " ${UPDATE_DEPENDENCIES})
+option(UPDATE_DEPENDENCIES "Whether or not to keep dependency data up-to-date
+                            (implies extra compilation time)" ON)
+message(STATUS "> Auto updating dependencies " ${UPDATE_DEPENDENCIES})
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     option(DEBUG_COLLISIONS "Add CPU/RAM cost to view collision tests" OFF)
-    message("Debugging collisions: " ${DEBUG_COLLISIONS})
+    message("> Debugging collisions: " ${DEBUG_COLLISIONS})
     if (DEBUG_COLLISIONS)
         add_definitions(-DDEBUG_COLLISIONS)
     endif()
 endif()
 
-message(STATUS "Build type is " ${CMAKE_BUILD_TYPE})
-message(STATUS "Compile flags are " ${CMAKE_CXX_FLAGS})
+message(STATUS "> Build type is " ${CMAKE_BUILD_TYPE})
+message(STATUS "> Compile flags are " ${CMAKE_CXX_FLAGS})
 message(STATUS "")
 
 

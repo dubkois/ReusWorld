@@ -25,6 +25,9 @@ int main(int argc, char *argv[]) {
   int speed = 0;
   bool autoQuit = false;
 
+  std::string duration = "=100";
+  std::string outputFolder = "";
+
   cxxopts::Options options("ReusWorld",
                            "2D simulation of plants in a changing environment");
   options.add_options()
@@ -34,6 +37,10 @@ int main(int argc, char *argv[]) {
      cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
+    ("d,duration", "Simulation duration. ",
+     cxxopts::value(duration))
+    ("f,data-folder", "Folder under which to store the computational outputs",
+     cxxopts::value(outputFolder))
     ("e,environment", "Environment's genome", cxxopts::value(envGenomeFile))
     ("p,plant", "Plant genome to start from", cxxopts::value(plantGenomeFile))
     ("l,load", "Load a previously saved simulation",
@@ -95,6 +102,7 @@ int main(int argc, char *argv[]) {
   setlocale(LC_NUMERIC,"C");
 
   visu::GraphicSimulation s;
+  if (!outputFolder.empty()) s.setDataFolder(outputFolder);
 
   QMainWindow *w = new QMainWindow;
   gui::MainView *v = new gui::MainView(s.environment(), w);
@@ -112,6 +120,19 @@ int main(int argc, char *argv[]) {
 
   } else
     visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints);
+
+  if (!duration.empty()) {
+    if (duration.size() < 2)
+      utils::doThrow<std::invalid_argument>(
+        "Invalid duration '", duration, "'. [+|=]<years>");
+
+    uint dvalue = 0;
+    if (!(std::istringstream (duration.substr(1)) >> dvalue))
+      utils::doThrow<std::invalid_argument>(
+        "Failed to parse '", duration.substr(1), "' as a duration (uint)");
+
+    s.setDuration(simu::Environment::DurationSetType(duration[0]), dvalue);
+  }
 
   if (morphologiesSaveFolder.empty()) { // Regular simulation
     w->setAttribute(Qt::WA_QuitOnClose);

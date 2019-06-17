@@ -60,12 +60,12 @@ int main(int argc, char *argv[]) {
      cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
-    ("e,environment", "Environment's genome or a random seed",
-     cxxopts::value(envGenomeArg))
     ("d,duration", "Simulation duration. ",
      cxxopts::value(duration))
     ("f,data-folder", "Folder under which to store the computational outputs",
      cxxopts::value(outputFolder))
+    ("e,environment", "Environment's genome or a random seed",
+     cxxopts::value(envGenomeArg))
     ("p,plant", "Plant genome to start from or a random seed",
      cxxopts::value(plantGenomeArg))
     ("s,env-seed", "Overrides enviroment's seed with provided value",
@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
         "Invalid duration '", duration, "'. [+|=]<years>");
 
     uint dvalue = 0;
-    if (!std::istringstream (duration.substr(1)) >> dvalue)
+    if (!(std::istringstream (duration.substr(1)) >> dvalue))
       utils::doThrow<std::invalid_argument>(
         "Failed to parse '", duration.substr(1), "' as a duration (uint)");
 

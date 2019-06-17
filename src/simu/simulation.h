@@ -18,11 +18,13 @@ protected:
 public:
   Simulation (void);
 
+  Simulation (Simulation &&) {}
+
   virtual ~Simulation (void) {
     destroy();
   }
 
-  virtual bool init (const EGenome &env, const PGenome &plant);
+  virtual bool init (const EGenome &env, PGenome plant);
   virtual void destroy (void);
 
   virtual void step (void);
@@ -57,6 +59,16 @@ public:
 
   const auto& phylogeny (void) const {
     return _ptree;
+  }
+
+  void mutateEnvController (rng::AbstractDice &dice) {
+    _env.mutateController(dice);
+  }
+
+  void clone (const Simulation &s);
+
+  auto wallTimeDuration (void) const {
+    return Stats::duration(_start);
   }
 
   stdfs::path periodicSaveName (void) const {

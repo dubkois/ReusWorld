@@ -1,10 +1,83 @@
 #include <csignal>
 
-#include "simu/simulation.h"
+#include <omp.h>
 
 #include "kgd/external/cxxopts.hpp"
 
+#include "simu/simulation.h"
 #include "config/dependencies.h"
+
+//#define TEST 0
+#ifdef TEST
+#warning Test mode activated for timelines executable
+#endif
+
+bool isValidSeed(const std::string& s) {
+  return !s.empty()
+    && std::all_of(s.begin(),
+                   s.end(),
+                   [](char c) { return std::isdigit(c); }
+    );
+}
+
+using Plant = simu::Plant;
+using Simulation = simu::Simulation;
+using Fitnesses = std::map<std::string, double>;
+using PopFitnesses = std::vector<Fitnesses>;
+void computeFitnesses(Simulation &s, Fitnesses &fitnesses) {
+  fitnesses["Time"] = -s.wallTimeDuration();
+
+  float plants = s.plants().size(), organs = 0;
+  for (const auto &p: s.plants()) organs += p.second->organs().size();
+  fitnesses["Cplx"] = (plants > 0) ? organs / plants : 0;
+
+  float compat = 0;
+  float ccount = 0;
+  for (const auto &lhs_p: s.plants()) {
+    const Plant &lhs = *lhs_p.second;
+    if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+
+    for (const auto &rhs_p: s.plants()) {
+      const Plant &rhs = *rhs_p.second;
+      if (rhs.sex() != Plant::Sex::MALE)  continue;
+      if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+
+      compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
+      ccount ++;
+    }
+  }
+  fitnesses["Cmpt"] = compat / ccount;
+}
+
+/// Implements strong pareto domination:
+///  a dominates b iff forall i, a_i >= b_i and exists i / a_i > b_i
+bool paretoDominates (const Fitnesses &lhs, const Fitnesses &rhs) {
+  bool better = false;
+  for (auto itLhs = lhs.begin(), itRhs = rhs.begin();
+       itLhs != lhs.end();
+       ++itLhs, ++itRhs) {
+    auto vLhs = itLhs->second, vRhs = itRhs->second;
+    if (vLhs < vRhs)  return false;
+    better |= (vRhs < vLhs);
+  }
+  return better;
+}
+
+/// Code taken from gaga/gaga.hpp @ https://github.com/jdisset/gaga.git
+void paretoFront (const PopFitnesses &fitnesses, std::vector<uint> &front) {
+  for (uint i=0; i<fitnesses.size(); i++) {
+    bool dominated = false;
+    for (uint j=0; j<front.size() && !dominated; j++)
+      dominated = (paretoDominates(fitnesses[front[j]], fitnesses[i]));
+
+    if (!dominated)
+      for (uint j=i+1; j<fitnesses.size() && !dominated; j++)
+        dominated = paretoDominates(fitnesses[j], fitnesses[i]);
+
+    if (!dominated)
+      front.push_back(i);
+  }
+}
 
 int main(int argc, char *argv[]) {
   // ===========================================================================
@@ -19,15 +92,14 @@ int main(int argc, char *argv[]) {
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
 
-  std::string loadSaveFile, loadConstraints = "all";
+  decltype(genotype::Environment::rngSeed) envOverrideSeed, gaseed;
 
-  decltype(genotype::Environment::rngSeed) envOverrideSeed;
+  stdfs::path subfolder = "tmp/test_timelines/";
+  uint epochs = 100, epochDuration = 1, branching = 3;
 
-  std::string duration = "=100";
-  std::string outputFolder = "";
-
-  cxxopts::Options options("ReusWorld (headless)",
-                           "2D simulation of plants in a changing environment (no gui output)");
+  cxxopts::Options options("ReusWorld (timelines explorer)",
+                           "Continuous 1 + lambda of a 2D simulation of plants"
+                           " in a changing environment");
   options.add_options()
     ("h,help", "Display help")
     ("a,auto-config", "Load configuration data from default location")
@@ -35,20 +107,22 @@ int main(int argc, char *argv[]) {
      cxxopts::value(configFile))
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
+    ("f,folder", "Folder under which to store the results",
+     cxxopts::value(subfolder))
     ("e,environment", "Environment's genome or a random seed",
      cxxopts::value(envGenomeArg))
-    ("d,duration", "Simulation duration. ",
-     cxxopts::value(duration))
-    ("f,data-folder", "Folder under which to store the computational outputs",
-     cxxopts::value(outputFolder))
     ("p,plant", "Plant genome to start from or a random seed",
      cxxopts::value(plantGenomeArg))
-    ("s,env-seed", "Overrides enviroment's seed with provided value",
+    ("env-seed", "Overrides enviroment's seed with provided value",
      cxxopts::value(envOverrideSeed))
-    ("l,load", "Load a previously saved simulation",
-     cxxopts::value(loadSaveFile))
-    ("load-constraints", "Constraints to apply on dependencies check",
-     cxxopts::value(loadConstraints))
+    ("ga-seed", "RNG seed for the genetic algorithm",
+     cxxopts::value(gaseed))
+    ("epochs", "Number of epochs",
+     cxxopts::value(epochs))
+    ("epoch-duration", "Number of years per epoch",
+     cxxopts::value(epochDuration))
+    ("alternatives-per-epoch", "Number of explored alternatives per epoch",
+     cxxopts::value(branching))
     ;
 
   auto result = options.parse(argc, argv);
@@ -60,114 +134,208 @@ int main(int argc, char *argv[]) {
               << "\nEither both 'plant' and 'environment' options are used or "
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
-              << "\n\n" << config::Dependencies::Help{}
               << std::endl;
     return 0;
   }
 
-  bool missingArgument = (!result.count("environment") || !result.count("plant"))
-      && !result.count("load");
-
+  bool missingArgument = !result.count("environment") || !result.count("plant");
   if (missingArgument) {
     if (result.count("environment"))
       utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
 
-    else if (result.count("plant"))
+    if (result.count("plant"))
       utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
-
-    else
-      utils::doThrow<std::invalid_argument>(
-        "No starting state provided. Either provide both an environment and plant genomes"
-        " or load a previous simulation");
   }
 
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  if (loadSaveFile.empty()) {
-    config::Simulation::setupConfig(configFile, verbosity);
-    if (configFile.empty()) config::Simulation::printConfig("");
+  config::Simulation::setupConfig(configFile, verbosity);
+  if (configFile.empty()) config::Simulation::printConfig("");
 
-    if (!isValidSeed(envGenomeArg)) {
-      std::cout << "Reading environment genome from input file '"
-                << envGenomeArg << "'" << std::endl;
-      envGenome = genotype::Environment::fromFile(envGenomeArg);
+  auto alternativeDataFolder = [&subfolder] (uint epoch, uint alternative) {
+    std::ostringstream oss;
+    oss << "results/e" << epoch << "_a" << alternative;
+    return subfolder / oss.str();
+  };
 
-    } else {
-      rng::FastDice dice (std::stoi(envGenomeArg));
-      std::cout << "Generating environment genome from rng seed "
-                << dice.getSeed() << std::endl;
-      envGenome = genotype::Environment::random(dice);
-    }
-    if (result.count("env-seed")) envGenome.rngSeed = envOverrideSeed;
-    envGenome.toFile("last", 2);
+  auto championDataFolder = [&subfolder] (uint epoch) {
+    std::ostringstream oss;
+    oss << "results/e" << epoch;
+    return subfolder / oss.str();
+  };
 
-    if (!isValidSeed(plantGenomeArg)) {
-      std::cout << "Reading plant genome from input file '"
-                << plantGenomeArg << "'" << std::endl;
-      plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+  if (!isValidSeed(envGenomeArg)) {
+    std::cout << "Reading environment genome from input file '"
+              << envGenomeArg << "'" << std::endl;
+    envGenome = genotype::Environment::fromFile(envGenomeArg);
 
-    } else {
-      rng::FastDice dice (std::stoi(plantGenomeArg));
-      std::cout << "Generating plant genome from rng seed "
-                << dice.getSeed() << std::endl;
-      plantGenome = genotype::Plant::random(dice);
-    }
+  } else {
+    rng::FastDice dice (std::stoi(envGenomeArg));
+    std::cout << "Generating environment genome from rng seed "
+              << dice.getSeed() << std::endl;
+    envGenome = genotype::Environment::random(dice);
+  }
+  if (result.count("env-seed")) envGenome.rngSeed = envOverrideSeed;
+  envGenome.toFile("last", 2);
 
-    plantGenome.toFile("last", 2);
+  if (!isValidSeed(plantGenomeArg)) {
+    std::cout << "Reading plant genome from input file '"
+              << plantGenomeArg << "'" << std::endl;
+    plantGenome = genotype::Plant::fromFile(plantGenomeArg);
 
-    std::cout << "Environment:\n" << envGenome
-              << "\nPlant:\n" << plantGenome
-              << std::endl;
+  } else {
+    rng::FastDice dice (std::stoi(plantGenomeArg));
+    std::cout << "Generating plant genome from rng seed "
+              << dice.getSeed() << std::endl;
+    plantGenome = genotype::Plant::random(dice);
   }
 
-  // ===========================================================================
-  // == SIGINT management
+  plantGenome.toFile("last", 2);
 
-  struct sigaction act = {};
-  act.sa_handler = &sigint_manager;
-  if (0 != sigaction(SIGINT, &act, nullptr))
-    utils::doThrow<std::logic_error>("Failed to trap SIGINT");
-  if (0 != sigaction(SIGTERM, &act, nullptr))
-    utils::doThrow<std::logic_error>("Failed to trap SIGTERM");
+  std::cout << "Environment:\n" << envGenome
+            << "\nPlant:\n" << plantGenome
+            << std::endl;
+
+//  // ===========================================================================
+//  // == SIGINT management
+
+//  struct sigaction act = {};
+//  act.sa_handler = &sigint_manager;
+//  if (0 != sigaction(SIGINT, &act, nullptr))
+//    utils::doThrow<std::logic_error>("Failed to trap SIGINT");
+//  if (0 != sigaction(SIGTERM, &act, nullptr))
+//    utils::doThrow<std::logic_error>("Failed to trap SIGTERM");
+
+  // ===========================================================================
+  // == Test area
+
+#if !defined(NDEBUG) && TEST == 1
+  // Test cloning
+
+  uint D = 2;
+  Simulation clonedSimu;
+  {
+    Simulation baseSimu;
+    baseSimu.init(envGenome, plantGenome);
+    baseSimu.setDuration(simu::Environment::DurationSetType::SET, D);
+    baseSimu.setDataFolder("tmp/test/simulation_cloning/base/");
+    while (!baseSimu.finished())  baseSimu.step();
+    baseSimu.atEnd();
+
+    clonedSimu.clone(baseSimu);
+  }
+
+  clonedSimu.setDuration(simu::Environment::DurationSetType::APPEND, D);
+  clonedSimu.setDataFolder("tmp/test/simulation_cloning/clone/");
+  while (!clonedSimu.finished())  clonedSimu.step();
+  clonedSimu.atEnd();
+
+  return 255;
+
+#elif !defined(NDEBUG) && TEST == 2
+  // Test pareto
+
+  std::ofstream ofsPop ("pareto_test_population.dat");
+
+  rng::FastDice dice (0);
+  PopFitnesses pfitnesses (1000);
+
+  ofsPop << "A B\n";
+  for (Fitnesses &f: pfitnesses) {
+    for (std::string k: {"A", "B"}) {
+      double v = dice(0., 1.);
+      f[k] = v;
+      ofsPop << v << " ";
+    }
+    ofsPop << "\n";
+  }
+
+  std::ofstream ofsPar ("pareto_test_front.dat");
+  std::vector<uint> front;
+  paretoFront(pfitnesses, front);
+
+  ofsPar << "A B\n";
+  for (uint i: front) {
+    const auto &f = pfitnesses[i];
+    for (std::string k: {"A", "B"})
+      ofsPar << f.at(k) << " ";
+    ofsPar << "\n";
+  }
+
+#else
 
   // ===========================================================================
   // == Core setup
 
-  simu::Simulation s;
-  if (!outputFolder.empty()) s.setDataFolder(outputFolder);
+  using Simulation = simu::Simulation;
+  static constexpr auto DT = simu::Environment::DurationSetType::APPEND;
+  uint epoch = 0;
 
-  if (loadSaveFile.empty()) {
-    s.init(envGenome, plantGenome);
-//    s.periodicSave(); /// FIXME Carefull with this things might, surprisingly,
-    /// not be all that initialized
+  rng::FastDice dice (gaseed);
 
-  } else {
-    simu::Simulation::load(loadSaveFile, s, loadConstraints);
-    config::Simulation::printConfig();
-  }
+  std::vector<Simulation> alternatives;
+  for (uint a=0; a<branching; a++)  alternatives.emplace_back();
 
-  if (!duration.empty()) {
-    if (duration.size() < 2)
-      utils::doThrow<std::invalid_argument>(
-        "Invalid duration '", duration, "'. [+|=]<years>");
+  PopFitnesses pfitnesses;
+  pfitnesses.resize(branching);
 
-    uint dvalue = 0;
-    if (!std::istringstream (duration.substr(1)) >> dvalue)
-      utils::doThrow<std::invalid_argument>(
-        "Failed to parse '", duration.substr(1), "' as a duration (uint)");
+  Simulation *reality = &alternatives.front();
+  uint winner = 0;
 
-    s.setDuration(simu::Environment::DurationSetType(duration[0]), dvalue);
-  }
+  reality->init(envGenome, plantGenome);
+  reality->setDataFolder(championDataFolder(epoch));
+  reality->setDuration(DT, epochDuration);
 
-  uint step = 0;
-  while (!s.finished()) {
-    if (aborted)  s.abort();
-    s.step();
-    step++;
-  }
-  s.atEnd();
+  while (!reality->finished()) reality->step();
 
-  s.destroy();
+  epoch++;
+  do {
+    std::cout << "# Epoch " << epoch << " at " << utils::CurrentTime{} << " #"
+              << std::endl;
+
+    // Populate next epoch from current best alternative
+    if (winner != 0)  alternatives[0].clone(*reality);
+    for (uint a=1; a<branching; a++) {
+      if (winner != a)  alternatives[a].clone(*reality);
+      alternatives[a].mutateEnvController(dice);
+    }
+
+    // Prepare data folder and set durations
+    for (uint a = 0; a < branching; a++) {
+      alternatives[a].setDuration(DT, epochDuration);
+      alternatives[a].setDataFolder(alternativeDataFolder(epoch, a));
+    }
+
+    // Execute alternative simulations in parallel
+    #pragma omp parallel for
+    for (uint a=0; a<branching; a++) {
+      Simulation &s = alternatives[a];
+
+      while (!s.finished()) s.step();
+
+      computeFitnesses(s, pfitnesses[a]);
+    }
+
+    // Find 'best' alternative
+    std::vector<uint> pFront;
+    paretoFront(pfitnesses, pFront);
+    winner = *dice(pFront);
+    reality = &alternatives[winner];
+
+    // Store result accordingly
+    stdfs::rename(reality->dataFolder(), championDataFolder(epoch));
+
+    std::cout << "# " << pFront.size() << " alternatives in pareto front\n#\n";
+    for (uint i: pFront) {
+      const auto &f = pfitnesses[i];
+      for ()
+    }
+
+    epoch++;
+  } while (epoch < epochs);
+
   return 0;
+
+#endif
 }

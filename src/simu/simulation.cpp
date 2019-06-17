@@ -40,7 +40,7 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 
 Simulation::Simulation (void) : _stats(), _aborted(false), _dataFolder(".") {}
 
-bool Simulation::init (const EGenome &env, const PGenome &plant) {
+bool Simulation::init (const EGenome &env, PGenome plant) {
   _start = Stats::clock::now();
 
 #ifdef INSTRUMENTALISE
@@ -49,8 +49,9 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
     _env.init(env);
 #endif
 
-  _ptree.addGenome(plant);
   _gidManager.setNext(plant.id());
+  plant.gdata.setAsPrimordial(_gidManager);
+  _ptree.addGenome(plant);
 
   uint N = Config::initSeeds();
   float dx = .5; // m
@@ -62,6 +63,8 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 
   PGenome modifiedPrimordialPlant = plant;
 
+  config::Simulation::DEBUG_NO_METABOLISM.ref() = true;
+
 #define SRULE(X) SRule::fromString(X).toPair()
 #define RRULE(X) RRule::fromString(X).toPair()
 
@@ -70,7 +73,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
 
   modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
 
   uint i=0;
 
@@ -251,6 +254,7 @@ bool Simulation::init (const EGenome &env, const PGenome &plant) {
     auto pg = genomes[i%genomes.size()];
 #else
     auto pg = plant.clone(_gidManager);
+    pg.gdata.updateAfterCloning(_gidManager);
 #endif
 
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
@@ -269,8 +273,6 @@ void Simulation::destroy (void) {
   while (!_plants.empty())
     delPlant(_plants.begin()->first, discardedSeeds);
   _env.destroy();
-
-  for (Plant::Seed &s: discardedSeeds)  _ptree.delGenome(s.genome);
 }
 
 bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
@@ -318,8 +320,6 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
       _plants.erase(pit);
     }
   }
-
-  if (insertionAborted) _ptree.delGenome(g);
 
   return !insertionAborted;
 }
@@ -418,10 +418,7 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
   for (const Plant::Seed &seed: seeds) {
-    if (seed.biomass <= 0) {
-      _ptree.delGenome(seed.genome);
-      continue;
-    }
+    if (seed.biomass <= 0)  continue;
 
     float startH = _env.heightAt(seed.position.x), maxH = startH, h = startH;
     float avgDx = 1 + 5 * std::max(0.f, seed.position.y - h);
@@ -615,7 +612,7 @@ void Simulation::atEnd(void) {
     std::cout << " " << time.hour() << " hour";
     if (time.hour() > 1)  std::cout << "s";
     std::cout << " = " << time.toTimestamp() << " steps, wall time = "
-              << Stats::duration(_start) << " ms)" << std::endl;
+              << wallTimeDuration() << " ms)" << std::endl;
   }
 }
 
@@ -627,7 +624,7 @@ void Simulation::setDataFolder (const stdfs::path &path) {
   _dataFolder = path;
   _statsFile = path / "global.dat";
   _ptreeFile = path / "phylogeny.ptree.json";
-  if (!stdfs::is_empty(_dataFolder)) {
+  if (stdfs::exists(_dataFolder) && !stdfs::is_empty(_dataFolder)) {
     std::cerr << "WARNING: data folder '" << _dataFolder << "' is not empty."
                  " What do you want to do ([a]bort, [p]urge, [i]gnore)?"
               << std::flush;
@@ -813,9 +810,37 @@ void Simulation::debugPrintAll(void) const {
       << std::endl;
 }
 
-#ifndef NDEBUG
-bool preventGlobalStatsOverride = false;
-#endif
+void Simulation::clone(const Simulation &s) {
+  destroy();
+
+  _stats = s._stats;
+
+  _gidManager = s._gidManager;
+
+  std::map<const Plant*, Plant*> plookup;
+  std::map<const Plant*, std::map<const Organ*, Organ*>> olookups;
+  std::vector<Plant*> rsetPlants;
+  for (const auto &p: s._plants) {
+     Plant *clone = Plant::clone(*p.second, olookups);
+     _plants[clone->pos().x] = std::unique_ptr<Plant>(clone);
+     plookup[p.second.get()] = clone;
+     if (p.second->hasPStatsPointer())  rsetPlants.push_back(clone);
+  }
+
+  _env.clone(s._env, plookup, olookups);
+
+  _ptree = s._ptree;
+  for (Plant *p: rsetPlants) {
+    p->setPStatsPointer(_ptree.getUserData(p->genealogy().self));
+  }
+
+  _start = Stats::clock::now();
+  _aborted = false;
+
+  _dataFolder = s._dataFolder;
+  _statsFile = s._statsFile;
+  _ptreeFile = s._ptreeFile;
+}
 
 void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
@@ -830,7 +855,7 @@ void Simulation::save (stdfs::path file) const {
   }
   PTree::toJson(jt, _ptree);
 
-  json j = { jc, je, jp, jt };
+  json j = { jc, je, jp, jt, Plant::ID(_gidManager) };
 
   if (debugSerialization)
     std::cerr << "Serializing took " << duration(startTime) << " ms" << std::endl;
@@ -857,10 +882,9 @@ void Simulation::save (stdfs::path file) const {
     std::cerr << "Saving " << file << " (" << v.size() << " bytes) took "
               << duration(startTime) << " ms" << std::endl;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && 0
   std::cerr << "Reloading for round-trip test" << std::endl;
   Simulation that;
-  preventGlobalStatsOverride = true;
   load(file, that, "");
   assertEqual(*this, that);
 #endif
@@ -930,7 +954,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
     s._env.addCollisionData(p);
 
-    PStats *pstats = s._ptree.getUserData(p->id());
+    PStats *pstats = s._ptree.getUserData(p->genealogy().self);
     p->setPStatsPointer(pstats);
 
     s._env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
@@ -939,7 +963,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
         s._env.disseminateGeneticMaterial(o);
   }
 
-  s._gidManager.setNext(lastID);
+  s._gidManager.setNext(j[4]);
   s._env.postLoad();  /// FIXME Should not be required
 
   if (debugSerialization)

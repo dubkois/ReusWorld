@@ -158,21 +158,15 @@ void Organ::updateGlobalTransformation(void) {
 }
 
 void Organ::removeFromParent(void) {
-  if (_parent) {
-    _parent->_children.erase(this);
-    uint depth = 0;
-    for (Organ *c: _parent->_children)
-      depth = std::max(depth, c->_depth);
-    _parent->updateDepth(depth);
+  if (_parent)  _parent->_children.erase(this);
+}
+
+void Organ::updateDepth(void) {
+  _depth = 0;
+  for (Organ *c: _children) {
+    c->updateDepth();
+    _depth = std::max(_depth, c->_depth + (c->isStructural() ? 1 : 0));
   }
-}
-
-void Organ::updateParentDepth(void) {
-  if (_parent)  _parent->updateDepth(_depth + (isStructural() ? 1 : 0));
-}
-
-void Organ::updateDepth(uint newDepth) {
-  _depth = std::max(_depth, newDepth);
 
   if (debugGrowth) {
     std::cerr << OrganID(this);
@@ -180,7 +174,8 @@ void Organ::updateDepth(uint newDepth) {
     std::cerr << " Updated depth to " << _depth << std::endl;
   }
 
-  updateParentDepth();
+//    if (_plant->id() == Plant::ID(9732) && id() == OID(2))
+//      std::cerr << "Stop right there!" << std::endl;
 }
 
 void Organ::updateParent (Organ *newParent) {
@@ -189,7 +184,6 @@ void Organ::updateParent (Organ *newParent) {
     removeFromParent();
     _parent = newParent;
     if (_parent)  _parent->_children.insert(this);
-    updateParentDepth();
 
     updateTransformation();
   }
@@ -207,6 +201,42 @@ std::ostream& operator<< (std::ostream &os, const Organ &o) {
      << o._plantCoordinates.end << ", "
      << o._plantCoordinates.rotation << "}";
   return os << tmpos.rdbuf();
+}
+
+Organ* Organ::clone (const Organ *that_o, Plant *const this_p) {
+  Organ *this_o = new Organ (this_p);
+
+  this_o->_id = that_o->_id;
+
+  this_o->_parentCoordinates = that_o->_parentCoordinates;
+  this_o->_plantCoordinates = that_o->_plantCoordinates;
+  this_o->_globalCoordinates = that_o->_globalCoordinates;
+
+  this_o->_width = that_o->_width;
+  this_o->_length = that_o->_length;
+  this_o->_symbol = that_o->_symbol;
+  this_o->_layer = that_o->_layer;
+
+  assert(!that_o->_cloned);
+
+  this_o->_parent = that_o->_parent;
+  this_o->_children = that_o->_children;
+
+  this_o->_depth = that_o->_depth;
+
+  this_o->_surface = that_o->_surface;
+  this_o->_baseBiomass = that_o->_baseBiomass;
+  this_o->_accumulatedBiomass = that_o->_accumulatedBiomass;
+  this_o->_requiredBiomass = that_o->_requiredBiomass;
+
+  return this_o;
+}
+
+void Organ::updatePointers(const std::map<const Organ *, Organ *> &olookup) {
+  if (_parent)  _parent = olookup.at(_parent);
+  Collection updatedChildren;
+  for (Organ *o: _children) updatedChildren.insert(olookup.at(o));
+  _children = updatedChildren;
 }
 
 void save (nlohmann::json &j, const Organ::PlantCoordinates &c) {
@@ -262,8 +292,10 @@ Organ* Organ::load (const nlohmann::json &j, Organ *parent, Plant *plant,
   o->updateGlobalTransformation();
 
   organs.insert(o);
-  for (const nlohmann::json &jc: j[i++])
-    o->_children.insert(load(jc, o, plant, organs));
+  for (const nlohmann::json &jc: j[i++]) {
+    Organ *c = load(jc, o, plant, organs);
+    o->_children.insert(c);
+  }
 
   return o;
 }
