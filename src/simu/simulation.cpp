@@ -37,11 +37,17 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 }
 #endif
 
+std::map<genotype::env_controller::Outputs, stdfs::path> envPaths {
+  { genotype::env_controller::T_, "topology.dat" },
+  { genotype::env_controller::H_, "temperature.dat" },
+  { genotype::env_controller::W_, "hygrometry.dat" }
+};
 
-Simulation::Simulation (void) : _stats(), _aborted(false), _dataFolder(".") {}
+Simulation::Simulation (void)
+  : _stats(), _aborted(false), _dataFolder(".") {}
 
 bool Simulation::init (const EGenome &env, PGenome plant) {
-  _start = Stats::clock::now();
+  _start = clock::now();
 
 #ifdef INSTRUMENTALISE
     _env.init(instrumentaliseEnvGenome(env));
@@ -518,15 +524,19 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
   }
 }
 
-void Simulation::step (void) {
+void Simulation::printStepHeader (void) const {
   static const auto CTSIZE = utils::CurrentTime::width();
 
   std::string ptime = _env.time().pretty();
+  std::cout << std::string(22 + ptime.size() + 4 + CTSIZE, '#') << "\n"
+            << "## Simulation step " << ptime
+            << " at " << utils::CurrentTime{} << " ##"
+            << std::endl;
+}
+
+void Simulation::step (void) {
   if (Config::verbosity() > 0)
-    std::cout << std::string(22 + ptime.size() + 4 + CTSIZE, '#') << "\n"
-              << "## Simulation step " << ptime
-              << " at " << utils::CurrentTime{} << " ##"
-              << std::endl;
+    printStepHeader();
 
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
@@ -566,7 +576,7 @@ void Simulation::step (void) {
   });
 
   updateGenStats();
-  if (!_statsFile.empty()) logGlobalStats();
+  logToFiles();
 
   if (_env.hasTopologyChanged()) {
     for (const auto &it: _plants) {
@@ -587,8 +597,8 @@ void Simulation::step (void) {
 void Simulation::atEnd(void) {
   // Update once more so that data goes from y0d0h0 to yLd0h0 with L = stopAtYear()
   if (_env.startTime() < _env.time()) {
-    _stats.start = Stats::clock::now();
-    if (!_statsFile.empty()) logGlobalStats();
+    _stats.start = clock::now();
+    logToFiles();
   }
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
@@ -621,9 +631,10 @@ void Simulation::updatePlantAltitude(Plant &p, float h) {
 }
 
 void Simulation::setDataFolder (const stdfs::path &path) {
+  static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
+
   _dataFolder = path;
-  _statsFile = path / "global.dat";
-  _ptreeFile = path / "phylogeny.ptree.json";
+
   if (stdfs::exists(_dataFolder) && !stdfs::is_empty(_dataFolder)) {
     std::cerr << "WARNING: data folder '" << _dataFolder << "' is not empty."
                  " What do you want to do ([a]bort, [p]urge, [i]gnore)?"
@@ -636,6 +647,30 @@ void Simulation::setDataFolder (const stdfs::path &path) {
     }
   }
   if (!stdfs::exists(_dataFolder))  stdfs::create_directories(_dataFolder);
+
+  stdfs::path statsPath = path / "global.dat";
+  if (_statsFile.is_open()) _statsFile.close();
+  _statsFile.open(statsPath, openMode);
+  if (!_statsFile.is_open())
+    utils::doThrow<std::invalid_argument>(
+      "Unable to open stats file ", statsPath);
+
+  stdfs::path ptreePath = path / "phylogeny.ptree.json";
+  if (_ptreeFile.is_open()) _ptreeFile.close();
+  _ptreeFile.open(ptreePath, openMode);
+  if (!_ptreeFile.is_open())
+    utils::doThrow<std::invalid_argument>(
+      "Unable to open ptree file ", ptreePath);
+
+  using O = genotype::env_controller::Outputs;
+  for (O o: EnumUtils<O>::iterator()) {
+    stdfs::path envPath = path / envPaths.at(o);
+    if (_envFiles[o].is_open()) _envFiles[o].close();
+    _envFiles[o].open(envPath, openMode);
+    if (!_envFiles[o].is_open())
+      utils::doThrow<std::invalid_argument>(
+        "Unable to open voxel file ", o, " ", envPath);
+  }
 }
 
 void Simulation::updateGenStats (void) {
@@ -647,20 +682,19 @@ void Simulation::updateGenStats (void) {
   }
 }
 
+void Simulation::logToFiles (void) {
+  if (_statsFile.is_open())  logGlobalStats();
+  logEnvState();
+}
+
 void Simulation::logGlobalStats(void) {
   bool header = (_env.startTime() == _env.time());
 
-  std::ofstream ofs;
-  std::ios_base::openmode mode = std::fstream::out;
-  if (header) mode |= std::fstream::trunc;
-  else        mode |= std::fstream::app;
-  ofs.open(_statsFile, mode);
-
   if (header)
-    ofs << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
-           " Derivations Organs Flowers Fruits Matings"
-           " Reproductions dSeeds Births Deaths AvgDist AvgCompat"
-           " Species MinX MaxX\n";
+    _statsFile << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
+                  " Derivations Organs Flowers Fruits Matings"
+                  " Reproductions dSeeds Births Deaths AvgDist AvgCompat"
+                  " Species MinX MaxX\n";
 
   using decimal = Plant::decimal;
   decimal biomass = 0;
@@ -686,29 +720,50 @@ void Simulation::logGlobalStats(void) {
     maxx = std::max(maxx, x);
   }
 
-  ofs << _env.time().pretty()
-      << " " << Stats::duration(_stats.start)
-      << " " << _stats.minGeneration << " " << _stats.maxGeneration
-      << " " << _plants.size() << " " << seeds
-      << " " << females << " " << males
-      << " " << biomass
+  _statsFile << _env.time().pretty()
+             << " " << duration(_stats.start)
+             << " " << _stats.minGeneration << " " << _stats.maxGeneration
+             << " " << _plants.size() << " " << seeds
+             << " " << females << " " << males
+             << " " << biomass
 
-      << " " << _stats.derivations
-      << " " << organs << " " << flowers << " " << fruits
+             << " " << _stats.derivations
+             << " " << organs << " " << flowers << " " << fruits
 
-      << " " << _stats.matings << " " << _stats.reproductions
-      << " " << _stats.newSeeds << " " << _stats.newPlants
-      << " " << _stats.deadPlants << " "
+             << " " << _stats.matings << " " << _stats.reproductions
+             << " " << _stats.newSeeds << " " << _stats.newPlants
+             << " " << _stats.deadPlants
 
-      << " " << _stats.sumDistances / float(_stats.matings)
-      << " " << _stats.sumCompatibilities / float(_stats.matings)
+             << " " << _stats.sumDistances / float(_stats.matings)
+             << " " << _stats.sumCompatibilities / float(_stats.matings)
 
-      << " " << _ptree.width()
+             << " " << _ptree.width()
 
-      << " " << minx << " " << maxx
-      << std::endl;
+             << " " << minx << " " << maxx
+             << std::endl;
 
 //  debugPrintAll();
+}
+
+void doLog (std::ostream &os, const simu::Time &time,
+            const std::vector<float> &data) {
+  os << time.pretty();
+  for (float f: data) os << " " << f;
+  os << "\n";
+}
+
+void Simulation::logEnvState(void) {
+  using O = genotype::env_controller::Outputs;
+  for (O o: EnumUtils<O>::iterator()) {
+    std::ofstream &ofs = _envFiles[o];
+    if (!ofs.is_open()) continue;
+
+    switch (o) {
+    case O::T_: doLog(ofs, _env.time(), _env.topology());  break;
+    case O::H_: doLog(ofs, _env.time(), _env.temperature());  break;
+    case O::W_: doLog(ofs, _env.time(), _env.hygrometry()[SHALLOW]);  break;
+    }
+  }
 }
 
 // Low level writing of a bytes array
@@ -834,12 +889,10 @@ void Simulation::clone(const Simulation &s) {
     p->setPStatsPointer(_ptree.getUserData(p->genealogy().self));
   }
 
-  _start = Stats::clock::now();
+  _start = clock::now();
   _aborted = false;
 
   _dataFolder = s._dataFolder;
-  _statsFile = s._statsFile;
-  _ptreeFile = s._ptreeFile;
 }
 
 void Simulation::save (stdfs::path file) const {
@@ -894,7 +947,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
                        const std::string &constraints) {
   std::cout << "Loading " << file << "...\r" << std::flush;
 
-  s._start = Stats::clock::now();
+  s._start = clock::now();
   auto startTime = clock::now();
 
   std::vector<uint8_t> v;
@@ -970,20 +1023,16 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
     std::cerr << "Deserializing took "
               << duration(startTime) << " ms" << std::endl;
 
-#ifndef NDEBUG
-  if (!s._statsFile.empty())  s.logGlobalStats();
-#else
-  if (Config::logGlobalStats()) s.logGlobalStats();
-#endif
+  s.logToFiles();
 
   std::cout << "Loaded " << file << "          " << std::endl;
 }
 
-void assertEqual(const Simulation &lhs, const Simulation &rhs) {
+void assertEqual(const Simulation &lhs, const Simulation &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs._plants, rhs._plants);
-  assertEqual(lhs._ptree, rhs._ptree);
-  assertEqual(lhs._env, rhs._env);
+  assertEqual(lhs._plants, rhs._plants, deepcopy);
+  assertEqual(lhs._ptree, rhs._ptree, deepcopy);
+  assertEqual(lhs._env, rhs._env, deepcopy);
 }
 
 } // end of namespace simu

@@ -66,12 +66,10 @@ class Metabolism : public EDNA<Metabolism> {
 public:
   using decimal = config_t::decimal;
   using Elements = config_t::Elements;
-  Elements conversionRates; // f_c, f_w /// FIXME Unused ?
   Elements resistors;  // rho_c, rho_w
   decimal growthSpeed;  // k_g
   decimal deltaWidth;
 };
-DECLARE_GENOME_FIELD(Metabolism, Metabolism::Elements, conversionRates)
 DECLARE_GENOME_FIELD(Metabolism, Metabolism::Elements, resistors)
 DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, growthSpeed)
 DECLARE_GENOME_FIELD(Metabolism, Metabolism::decimal, deltaWidth)
@@ -82,7 +80,7 @@ class Plant : public EDNA<Plant> {
 
 public:
   BOCData cdata;
-  phylogeny::Genealogy gdata; ///< FIXME Not stored or compared or nothing...
+  phylogeny::Genealogy gdata;
 
   LSystem<SHOOT> shoot;
   LSystem<ROOT> root;

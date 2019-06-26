@@ -334,18 +334,18 @@ namespace genotype {
 
 namespace grammar {
 template <LSystemType L>
-void assertEqual (const Rule_t<L> &lhs, const Rule_t<L> &rhs) {
+void assertEqual (const Rule_t<L> &lhs, const Rule_t<L> &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.lhs, rhs.lhs);
-  assertEqual(lhs.rhs, rhs.rhs);
+  assertEqual(lhs.lhs, rhs.lhs, deepcopy);
+  assertEqual(lhs.rhs, rhs.rhs, deepcopy);
 }
 } // end of namespace grammar
 
 template <LSystemType L>
-void assertEqual (const LSystem<L> &lhs, const LSystem<L> &rhs) {
+void assertEqual (const LSystem<L> &lhs, const LSystem<L> &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.recursivity, rhs.recursivity);
-  assertEqual(lhs.rules, rhs.rules);
+  assertEqual(lhs.recursivity, rhs.recursivity, deepcopy);
+  assertEqual(lhs.rules, rhs.rules, deepcopy);
 }
 } // end of namespace genotype
 
@@ -374,9 +374,6 @@ struct adl_serializer<Map<T>> {
 #define GENOME Metabolism
 
 using ME = Metabolism::Elements;
-DEFINE_GENOME_FIELD_WITH_BOUNDS(ME, conversionRates, "",
-                                utils::uniformStdArray<ME>(1e-3),
-                                utils::uniformStdArray<ME>(1))
 DEFINE_GENOME_FIELD_WITH_BOUNDS(ME, resistors, "",
                                 utils::uniformStdArray<ME>(0),
                                 utils::uniformStdArray<ME>(1),
@@ -386,13 +383,11 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, growthSpeed, "", 0., 1., 1.
 DEFINE_GENOME_FIELD_WITH_BOUNDS(Metabolism::decimal, deltaWidth, "", 0., .2, .2, 1.)
 
 DEFINE_GENOME_MUTATION_RATES({
-  EDNA_PAIR(conversionRates, 2.f),
   EDNA_PAIR(      resistors, 2.f),
   EDNA_PAIR(    growthSpeed, 1.f),
   EDNA_PAIR(     deltaWidth, 1.f)
 })
 DEFINE_GENOME_DISTANCE_WEIGHTS({
-  EDNA_PAIR(conversionRates, 1.f),
   EDNA_PAIR(      resistors, 1.f),
   EDNA_PAIR(    growthSpeed, 1.f),
   EDNA_PAIR(     deltaWidth, 1.f)

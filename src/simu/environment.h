@@ -50,6 +50,10 @@ public:
   void init (const Genome &g);
   void destroy (void);
 
+  const auto& genome (void) const {
+    return _genome;
+  }
+
   auto width (void) const {
     return _genome.width;
   }
@@ -172,7 +176,8 @@ public:
   static void save (nlohmann::json &j, const Environment &e);
   static void load (const nlohmann::json &j, Environment &e);
 
-  friend void assertEqual (const Environment &lhs, const Environment &rhs);
+  friend void assertEqual (const Environment &lhs, const Environment &rhs,
+                           bool deepcopy);
 
 private:
   float interpolate (const Voxels &voxels, float x) const;

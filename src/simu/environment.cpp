@@ -81,17 +81,17 @@ void Environment::cgpStep (void) {
   _updatedTopology = _currTime.isStartOfYear()
       && (_currTime.year() % config::Simulation::updateTopologyEvery()) == 0;
 
-  inputs[I::D] = _currTime.timeOfYear();
+  inputs[I::D] = sin(2 * M_PI * _currTime.timeOfYear());
 
   const auto S = _startTime.toTimestamp(), E = _endTime.toTimestamp();
-  inputs[I::Y] = 1. - (E - _currTime.toTimestamp()) / (E - S);
+  inputs[I::Y] = sin(2 * M_PI * (1. - (E - _currTime.toTimestamp()) / (E - S)));
 
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
     float &T = _temperature[i];
     float &H = _hygrometry[SHALLOW][i];
 
-    inputs[I::X] = float(i) / _genome.voxels;
+    inputs[I::X] = 2 * float(i) / _genome.voxels - 1;
     inputs[I::T] = A / _genome.depth;
     inputs[I::H] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
     inputs[I::W] = H / config::Simulation::baselineShallowWater() - 1;
@@ -253,14 +253,16 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   if (debugEnvCTRL) e.showVoxelsContents();
 }
 
-void assertEqual (const Environment &lhs, const Environment &rhs) {
+void assertEqual (const Environment &lhs, const Environment &rhs,
+                  bool deepcopy) {
+
   using utils::assertEqual;
-  assertEqual(lhs._genome, rhs._genome);
-  assertEqual(lhs._dice, rhs._dice);
-  assertEqual(lhs._topology, rhs._topology);
-  assertEqual(lhs._temperature, rhs._temperature);
-  assertEqual(lhs._hygrometry, rhs._hygrometry);
-  assertEqual(*lhs._physics, *rhs._physics);
+  assertEqual(lhs._genome, rhs._genome, deepcopy);
+  assertEqual(lhs._dice, rhs._dice, deepcopy);
+  assertEqual(lhs._topology, rhs._topology, deepcopy);
+  assertEqual(lhs._temperature, rhs._temperature, deepcopy);
+  assertEqual(lhs._hygrometry, rhs._hygrometry, deepcopy);
+  assertEqual(*lhs._physics, *rhs._physics, deepcopy);
 }
 
 

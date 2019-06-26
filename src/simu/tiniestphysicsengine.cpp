@@ -556,19 +556,19 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   _rightEdges.erase(object->rightEdge.get());
 
   // Delete references in (potentially) englobed/englobing objects
-  for (CollisionObject *other: object->englobedObjects)
-    broadphase::noLongerEnglobes(object, other);
-  for (CollisionObject *other: object->englobingObjects)
-    broadphase::noLongerEnglobes(other, object);
+  while (!object->englobedObjects.empty())
+    broadphase::noLongerEnglobes(object, *object->englobedObjects.begin());
+  while (!object->englobingObjects.empty())
+    broadphase::noLongerEnglobes(*object->englobingObjects.begin(), object);
 
   // Also delete any remaining pistils
 //  /// FIXME This stinks to high heavens: O(n) with no reason...
-  for (auto itP = _pistils.begin(); itP != _pistils.end();) {
-    if (itP->organ->plant() == p)
-      itP = _pistils.erase(itP);
-    else  ++itP;
-  }
-//  for (const Organ *p: object->plant->flowers())  delPistil(p);
+//  for (auto itP = _pistils.begin(); itP != _pistils.end();) {
+//    if (itP->organ->plant() == p)
+//      itP = _pistils.erase(itP);
+//    else  ++itP;
+//  }
+  for (const Organ *p: object->plant->flowers())  delPistil(p);
 
   _data.erase(it);
   delete object;
@@ -1449,55 +1449,60 @@ void TinyPhysicsEngine::clone (const TinyPhysicsEngine &e,
 // =============================================================================
 
 template <EdgeSide S>
-void assertEqual (const Edge<S> &lhs, const Edge<S> &rhs) {
-  utils::assertEqual(lhs.object->plant->id(), rhs.object->plant->id());
-  utils::assertEqual(lhs.edge, rhs.edge);
+void assertEqual (const Edge<S> &lhs, const Edge<S> &rhs, bool deepcopy) {
+  utils::assertEqual(lhs.object->plant->id(), rhs.object->plant->id(), deepcopy);
+  utils::assertEqual(lhs.edge, rhs.edge, deepcopy);
 }
 
-void assertEqual(const UpperLayer::Item &lhs, const UpperLayer::Item &rhs) {
+void assertEqual(const UpperLayer::Item &lhs, const UpperLayer::Item &rhs,
+                 bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.l, rhs.l);
-  assertEqual(lhs.r, rhs.r);
-  assertEqual(lhs.y, rhs.y);
-  assertEqual(lhs.organ->id(), rhs.organ->id());
+  assertEqual(lhs.l, rhs.l, deepcopy);
+  assertEqual(lhs.r, rhs.r, deepcopy);
+  assertEqual(lhs.y, rhs.y, deepcopy);
+  assertEqual(lhs.organ->id(), rhs.organ->id(), deepcopy);
 }
 
-void assertEqual(const UpperLayer &lhs, const UpperLayer &rhs) {
-  utils::assertEqual(lhs.itemsInIsolation, rhs.itemsInIsolation);
-  utils::assertEqual(lhs.itemsInWorld, rhs.itemsInWorld);
+void assertEqual(const UpperLayer &lhs, const UpperLayer &rhs, bool deepcopy) {
+  utils::assertEqual(lhs.itemsInIsolation, rhs.itemsInIsolation, deepcopy);
+  utils::assertEqual(lhs.itemsInWorld, rhs.itemsInWorld, deepcopy);
 }
 
-void assertEqual(const Pistil &lhs, const Pistil &rhs) {
+void assertEqual(const Pistil &lhs, const Pistil &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.organ->id(), rhs.organ->id());
-  assertEqual(lhs.boundingDisk, rhs.boundingDisk);
+  assertEqual(lhs.organ->id(), rhs.organ->id(), deepcopy);
+  assertEqual(lhs.boundingDisk, rhs.boundingDisk, deepcopy);
 }
 
-void assertEqualShallow (const Collisions &lhs, const Collisions &rhs) {
+void assertEqualShallow (const Collisions &lhs, const Collisions &rhs,
+                         bool deepcopy) {
+
   using utils::assertEqual;
-  assertEqual(lhs.size(), rhs.size());
+  assertEqual(lhs.size(), rhs.size(), deepcopy);
   for (auto lhsIt = lhs.begin(), rhsIt = rhs.begin();
        lhsIt != lhs.end(); ++lhsIt, ++rhsIt)
-    assertEqual((*lhsIt)->plant->id(), (*rhsIt)->plant->id());
+    assertEqual((*lhsIt)->plant->id(), (*rhsIt)->plant->id(), deepcopy);
 }
 
-void assertEqual (const CollisionObject &lhs, const CollisionObject &rhs) {
+void assertEqual (const CollisionObject &lhs, const CollisionObject &rhs,
+                  bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.plant->id(), rhs.plant->id());
-  assertEqual(lhs.boundingRect, rhs.boundingRect);
-  assertEqualShallow(lhs.englobedObjects, rhs.englobedObjects);
-  assertEqualShallow(lhs.englobingObjects, rhs.englobingObjects);
-  assertEqual(lhs.leftEdge, rhs.leftEdge);
-  assertEqual(lhs.rightEdge, rhs.rightEdge);
-  assertEqual(lhs.layer, rhs.layer);
+  assertEqual(lhs.plant->id(), rhs.plant->id(), deepcopy);
+  assertEqual(lhs.boundingRect, rhs.boundingRect, deepcopy);
+  assertEqualShallow(lhs.englobedObjects, rhs.englobedObjects, deepcopy);
+  assertEqualShallow(lhs.englobingObjects, rhs.englobingObjects, deepcopy);
+  assertEqual(lhs.leftEdge, rhs.leftEdge, deepcopy);
+  assertEqual(lhs.rightEdge, rhs.rightEdge, deepcopy);
+  assertEqual(lhs.layer, rhs.layer, deepcopy);
 }
 
-void assertEqual (const TinyPhysicsEngine &lhs, const TinyPhysicsEngine &rhs) {
+void assertEqual (const TinyPhysicsEngine &lhs, const TinyPhysicsEngine &rhs,
+                  bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs._data, rhs._data);
-  assertEqual(lhs._leftEdges, rhs._leftEdges);
-  assertEqual(lhs._rightEdges, rhs._rightEdges);
-  assertEqual(lhs._pistils, rhs._pistils);
+  assertEqual(lhs._data, rhs._data, deepcopy);
+  assertEqual(lhs._leftEdges, rhs._leftEdges, deepcopy);
+  assertEqual(lhs._rightEdges, rhs._rightEdges, deepcopy);
+  assertEqual(lhs._pistils, rhs._pistils, deepcopy);
 }
 
 } // end of namespace physics

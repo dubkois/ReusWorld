@@ -1,5 +1,7 @@
 #include <csignal>
 
+#include <numeric>
+
 #include <omp.h>
 
 #include "kgd/external/cxxopts.hpp"
@@ -7,10 +9,12 @@
 #include "simu/simulation.h"
 #include "config/dependencies.h"
 
-//#define TEST 0
+//#define TEST 1
 #ifdef TEST
 #warning Test mode activated for timelines executable
 #endif
+
+static constexpr bool debugGenepool = false;
 
 bool isValidSeed(const std::string& s) {
   return !s.empty()
@@ -22,14 +26,323 @@ bool isValidSeed(const std::string& s) {
 
 using Plant = simu::Plant;
 using Simulation = simu::Simulation;
-using Fitnesses = std::map<std::string, double>;
-using PopFitnesses = std::vector<Fitnesses>;
-void computeFitnesses(Simulation &s, Fitnesses &fitnesses) {
-  fitnesses["Time"] = -s.wallTimeDuration();
 
-  float plants = s.plants().size(), organs = 0;
-  for (const auto &p: s.plants()) organs += p.second->organs().size();
-  fitnesses["Cplx"] = (plants > 0) ? organs / plants : 0;
+struct GenePool {
+  static constexpr int W = 30;
+  using G = Plant::Genome;
+
+  void parse (const Simulation &s) {
+    auto start = Simulation::clock::now();
+
+    values.clear();
+    svalues.clear();
+    for (const auto &p: s.plants())
+      addGenome(p.second->genome());
+
+    if (debugGenepool)
+      std::cout << *this << "\nParsed in " << Simulation::duration(start)
+                << " ms" << std::endl;
+  }
+
+  friend double matching (const GenePool &lhs, const GenePool &rhs) {
+    auto start = Simulation::clock::now();
+    uint match = 0, miss = 0;
+
+    if (debugGenepool)
+    std::cout << "\n" << std::string(80, '=') << "\n";
+
+    for (auto lhsMIt = lhs.values.begin(), rhsMIt = rhs.values.begin();
+         lhsMIt != lhs.values.end(); ++lhsMIt, ++rhsMIt) {
+      const auto lhsS = lhsMIt->second, rhsS = rhsMIt->second;
+      uint lmatch = 0, lmiss = 0;
+
+      // Debug
+      std::ostringstream lhsOss, rhsOss;
+      //
+
+      auto lhsSIt = lhsS.begin(), rhsSIt = rhsS.begin();
+      while (lhsSIt != lhsS.end() && rhsSIt != rhsS.end()) {
+        auto lhsV = *lhsSIt, rhsV = *rhsSIt;
+        if (lhsV == rhsV) {
+          lmatch++;
+          ++lhsSIt;
+          ++rhsSIt;
+
+          if (debugGenepool) {
+            lhsOss << " " << lhsV;
+            rhsOss << " " << rhsV;
+          }
+
+        } else if (lhsV < rhsV) {
+          lmiss++;
+          ++lhsSIt;
+
+          if (debugGenepool) {
+            lhsOss << " " << lhsV;
+            rhsOss << " " << std::setw(std::ceil(std::log10(lhsV+1))) << ' ';
+          }
+
+        } else {
+          lmiss++;
+          ++rhsSIt;
+
+          if (debugGenepool) {
+            lhsOss << " " << std::setw(std::ceil(std::log10(rhsV+1))) << ' ';
+            rhsOss << " " << rhsV;
+          }
+        }
+      }
+
+      lmiss += std::distance(lhsSIt, lhsS.end());
+      lmiss += std::distance(rhsSIt, rhsS.end());
+
+      if (debugGenepool) {
+        std::cout << " " << lmatch << " lmatches\n";
+        std::cout << " " << lmiss << " lmisses\n";
+      }
+
+      match += lmatch;
+      miss += lmiss;
+
+      // Debug
+      if (debugGenepool) {
+        std::cout << std::setw(W) << lhsMIt->first << ":";
+        std::cout << lhsOss.str();
+        for (auto it = lhsSIt; it!=lhsS.end(); ++it)
+          std::cout << " " << *it;
+        std::cout << "\n";
+        std::cout << std::setw(W) << " " << " ";
+        std::cout << rhsOss.str();
+        for (auto it = rhsSIt; it!=rhsS.end(); ++it)
+          std::cout << " " << *it;
+        std::cout << "\n";
+      }
+      //
+    }
+
+    auto lhsMIt = lhs.svalues.begin(), rhsMIt = rhs.svalues.begin();
+    while (lhsMIt != lhs.svalues.end() && rhsMIt != rhs.svalues.end()) {
+      uint lmatch = 0, lmiss = 0;
+
+      const auto &lhsK = lhsMIt->first, rhsK = rhsMIt->first;
+      if (lhsK == rhsK) { // Same key. Compare contents
+
+        // Debug
+        std::ostringstream lhsOss, rhsOss;
+        //
+
+        const auto lhsS = lhsMIt->second, rhsS = rhsMIt->second;
+        auto lhsSIt = lhsS.begin(), rhsSIt = rhsS.begin();
+        while (lhsSIt != lhsS.end() && rhsSIt != rhsS.end()) {
+          auto lhsV = *lhsSIt, rhsV = *rhsSIt;
+          if (lhsV == rhsV) {
+            lmatch++;
+            ++lhsSIt;
+            ++rhsSIt;
+
+            if (debugGenepool) {
+              lhsOss << " " << lhsV;
+              rhsOss << " " << rhsV;
+            }
+
+          } else if (lhsV < rhsV) {
+            lmiss++;
+            ++lhsSIt;
+
+            if (debugGenepool) {
+              lhsOss << " " << lhsV;
+              rhsOss << " " << std::setw(lhsV.length()) << ' ';
+            }
+
+          } else {
+            lmiss++;
+            ++rhsSIt;
+
+            if (debugGenepool) {
+              lhsOss << " " << std::setw(rhsV.length()) << ' ';
+              rhsOss << " " << rhsV;
+            }
+          }
+        }
+
+        lmiss += std::distance(lhsSIt, lhsS.end());
+        lmiss += std::distance(rhsSIt, rhsS.end());
+
+        // Debug
+        if (debugGenepool) {
+          std::cout << std::setw(W) << lhsMIt->first << ":";
+          std::cout << lhsOss.str();
+          for (auto it = lhsSIt; it!=lhsS.end(); ++it)
+            std::cout << " " << *it;
+          std::cout << "\n";
+          std::cout << std::setw(W) << " " << " ";
+          std::cout << rhsOss.str();
+          for (auto it = rhsSIt; it!=rhsS.end(); ++it)
+            std::cout << " " << *it;
+          std::cout << "\n";
+        }
+        //
+
+        ++lhsMIt;
+        ++rhsMIt;
+
+      } else if (lhsK < rhsK) {
+        if (debugGenepool) {
+          std::cout << std::setw(W) << lhsMIt->first << ":";
+          for (auto v: lhsMIt->second)  std::cout << " " << v;
+          std::cout << "\n";
+          std::cout << std::setw(W) << " " << "   " << "\n";
+        }
+
+        lmiss += lhsMIt->second.size();
+        ++lhsMIt;
+
+      } else {
+        if (debugGenepool) {
+          std::cout << std::setw(W) << rhsMIt->first << ":  \n";
+          std::cout << std::setw(W) << " " << " ";
+          for (auto v: rhsMIt->second)  std::cout << " " << v;
+          std::cout << "\n";
+        }
+
+        lmiss += rhsMIt->second.size();
+        ++rhsMIt;
+      }
+
+      if (debugGenepool) {
+        std::cout << " " << lmatch << " lmatches\n";
+        std::cout << " " << lmiss << " lmisses\n";
+      }
+
+      match += lmatch;
+      miss += lmiss;
+    }
+
+    for (auto it=lhsMIt; it!=lhs.svalues.end(); ++it) {
+      miss += it->second.size();
+
+      if (debugGenepool) {
+        std::cout << std::setw(W) << it->first << ":";
+        for (auto v: it->second)  std::cout << " " << v;
+        std::cout << "\n";
+        std::cout << std::setw(W) << " " << "   " << "\n";
+      }
+    }
+    for (auto it=rhsMIt; it!=rhs.svalues.end(); ++it) {
+      miss += it->second.size();
+
+      if (debugGenepool) {
+        std::cout << std::setw(W) << rhsMIt->first << ":  \n";
+        std::cout << std::setw(W) << " " << " ";
+        for (auto v: it->second)  std::cout << " " << v;
+        std::cout << "\n";
+      }
+    }
+
+    if (debugGenepool) {
+      std::cout << match << " matches\n";
+      std::cout << miss << " misses\n";
+      std::cout << "Matching = " << match / double(match + miss) << "\n";
+      std::cout << " computed in " << Simulation::duration(start) << " ms"
+                << std::endl;
+      std::cout << "\n" << std::string(80, '=') << "\n";
+    }
+
+    return match / double(match + miss);
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const GenePool &gp) {
+    os << std::setfill(' ');
+    for (const auto &p: gp.values) {
+      os << std::setw(W) << p.first << ":";
+      for (const auto v: p.second)
+        os << " " << v;
+      os << "\n";
+    }
+    for (const auto &p: gp.svalues) {
+      os << std::setw(W) << p.first << ":";
+      for (const auto v: p.second)
+        os << " " << v;
+      os << "\n";
+    }
+    return os;
+  }
+
+private:
+  std::map<std::string, std::set<int>> values;
+  std::map<std::string, std::set<std::string>> svalues;
+
+  void addGenome (const G &g) {
+#define NINSERT(N,X) values[N].insert(X);
+#define INSERT(X) NINSERT(#X, g.X)
+
+    NINSERT("cdata.optimalDistance", 10*g.cdata.getOptimalDistance())
+    NINSERT("cdata.inbreedTolerance", 10*g.cdata.getInbreedTolerance())
+    NINSERT("cdata.outbreedTolerance", 10*g.cdata.getOutbreedTolerance())
+
+    INSERT(shoot.recursivity)
+    for (const auto &p: g.shoot.rules)
+      svalues[std::string("shoot.") + p.second.lhs].insert(p.second.rhs);
+
+    INSERT(root.recursivity)
+    for (const auto &p: g.root.rules)
+      svalues[std::string("root.") + p.second.lhs].insert(p.second.rhs);
+
+    NINSERT("metabolism.resistors.G", 10*g.metabolism.resistors[0])
+    NINSERT("metabolism.resistors.W", 10*g.metabolism.resistors[1])
+    NINSERT("metabolism.growthSpeed", 10*g.metabolism.growthSpeed)
+    NINSERT("metabolism.deltaWidth", 100*g.metabolism.deltaWidth)
+
+    INSERT(dethklok)
+    NINSERT("fruitOvershoot", 10*g.fruitOvershoot)
+    INSERT(seedsPerFruit)
+    NINSERT("temperatureOptimal", 10*g.temperatureOptimal)
+    NINSERT("temperatureRange", 10*g.temperatureRange)
+
+#undef INSERT
+#undef NINSERT
+  }
+};
+
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME)
+using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
+struct Alternative {
+  static constexpr double MAGNITUDE = 1;
+
+  uint index;
+  Fitnesses_t fitnesses;
+
+  Simulation simulation;
+
+  /// Compare with a margin
+  friend bool operator< (const Alternative &lhs, const Alternative &rhs) {
+    for (Fitnesses f: EnumUtils<Fitnesses>::iterator()) {
+      double lhsF = lhs.fitnesses[f],
+             rhsF = rhs.fitnesses[f];
+      bool invert = lhsF < 0 && rhsF < 0;
+      if (invert) lhsF *= -1, rhsF *= -1;
+      lhsF = log10(lhsF);
+      rhsF = log10(rhsF);
+      if (std::fabs(lhsF - rhsF) >= MAGNITUDE)
+        return invert ? rhsF < lhsF : lhsF < rhsF;
+    }
+    return false;
+  }
+};
+
+using Population = std::vector<Alternative>;
+
+void computeFitnesses(Alternative &a, const GenePool &atstart) {
+  static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
+
+  const Simulation &s = a.simulation;
+  if (s.extinct()) {
+    a.fitnesses.fill(M_INF);
+    return;
+  }
+
+  GenePool atend;
+  atend.parse(s);
 
   float compat = 0;
   float ccount = 0;
@@ -46,37 +359,315 @@ void computeFitnesses(Simulation &s, Fitnesses &fitnesses) {
       ccount ++;
     }
   }
-  fitnesses["Cmpt"] = compat / ccount;
+  a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
+
+  a.fitnesses[STGN] = -matching(atstart, atend);
+
+  a.fitnesses[TIME] = -s.wallTimeDuration();
 }
 
 /// Implements strong pareto domination:
 ///  a dominates b iff forall i, a_i >= b_i and exists i / a_i > b_i
-bool paretoDominates (const Fitnesses &lhs, const Fitnesses &rhs) {
+bool paretoDominates (const Alternative &lhs, const Alternative &rhs) {
   bool better = false;
-  for (auto itLhs = lhs.begin(), itRhs = rhs.begin();
-       itLhs != lhs.end();
+  const auto &lhsF = lhs.fitnesses, rhsF = rhs.fitnesses;
+  for (auto itLhs = lhsF.begin(), itRhs = rhsF.begin();
+       itLhs != lhsF.end();
        ++itLhs, ++itRhs) {
-    auto vLhs = itLhs->second, vRhs = itRhs->second;
+    double vLhs = *itLhs, vRhs = *itRhs;
     if (vLhs < vRhs)  return false;
     better |= (vRhs < vLhs);
   }
   return better;
 }
 
-/// Code taken from gaga/gaga.hpp @ https://github.com/jdisset/gaga.git
-void paretoFront (const PopFitnesses &fitnesses, std::vector<uint> &front) {
-  for (uint i=0; i<fitnesses.size(); i++) {
+/// Code inspired by gaga/gaga.hpp @ https://github.com/jdisset/gaga.git
+void paretoFront (const Population &alternatives,
+                  const std::vector<uint> indices,
+                  std::vector<uint> &front) {
+
+  for (uint i=0; i<indices.size(); i++) {
+    const Alternative &a = alternatives[indices[i]];
     bool dominated = false;
+
     for (uint j=0; j<front.size() && !dominated; j++)
-      dominated = (paretoDominates(fitnesses[front[j]], fitnesses[i]));
+      dominated = (paretoDominates(alternatives[front[j]], a));
 
     if (!dominated)
-      for (uint j=i+1; j<fitnesses.size() && !dominated; j++)
-        dominated = paretoDominates(fitnesses[j], fitnesses[i]);
+      for (uint j=i+1; j<indices.size() && !dominated; j++)
+        dominated = paretoDominates(alternatives[indices[j]], a);
 
     if (!dominated)
-      front.push_back(i);
+      front.push_back(indices[i]);
   }
+}
+
+void controlGroup (uint duration,
+                   const genotype::Environment &envGenome,
+                   const genotype::Plant &plantGenome,
+                   const stdfs::path &subfolder) {
+
+
+  Alternative a;
+  Simulation &s = a.simulation;
+  auto start = Simulation::clock::now();
+  GenePool genepool;
+
+  s.init(envGenome, plantGenome);
+  s.setDataFolder(subfolder / "results");
+  s.setDuration(simu::Environment::DurationSetType::SET, duration);
+
+  genepool.parse(s);
+  while (!s.finished()) {
+    if (s.time().isStartOfYear())
+      s.printStepHeader();
+    s.step();
+  }
+
+  computeFitnesses(a, genepool);
+
+  std::cout << "Final fitnesses\n";
+  for (auto f: EnumUtils<Fitnesses>::iterator())
+    std::cout << "\t" << EnumUtils<Fitnesses>::getName(f)
+              << ": " << a.fitnesses[f] << "\n";
+
+  if (s.extinct())
+    std::cout << "\nControl group suffered extinction at "
+              << s.environment().time().pretty() << std::endl;
+  else
+    std::cout << "\nControl group completed in "
+              << Simulation::duration(start) / 1000. << " seconds" << std::endl;
+}
+
+void exploreTimelines (uint epochs, uint epochDuration, uint branching,
+                       uint gaseed,
+                       const genotype::Environment &envGenome,
+                       const genotype::Plant &plantGenome,
+                       const stdfs::path &subfolder) {
+
+  static constexpr auto DT = simu::Environment::DurationSetType::APPEND;
+  uint epoch = 0;
+
+  uint epoch_digits = std::ceil(std::log10(epochs)),
+       alternatives_digits = std::ceil(std::log10(branching));
+  auto alternativeDataFolder =
+    [&subfolder, epoch_digits, alternatives_digits]
+    (uint epoch, uint alternative) {
+      std::ostringstream oss;
+      oss << "results/e" << std::setfill('0') << std::setw(epoch_digits)
+          << epoch << "_a" << std::setw(alternatives_digits) << alternative;
+      return subfolder / oss.str();
+    };
+
+  auto championDataFolder = [&subfolder, epoch_digits] (uint epoch) {
+    std::ostringstream oss;
+    oss << "results/e" << std::setfill('0') << std::setw(epoch_digits)
+        << epoch << "_r";
+    return subfolder / oss.str();
+  };
+
+  auto epochHeader = [epoch_digits, &epoch] {
+    static const auto CTSIZE =  utils::CurrentTime::width();
+    std::cout << std::string(8+epoch_digits+4+CTSIZE+2, '#') << "\n"
+              << "# Epoch " << std::setw(epoch_digits) << epoch
+              << " at " << utils::CurrentTime{} << " #"
+              << std::endl;
+  };
+
+  rng::FastDice dice (gaseed);
+  auto start = Simulation::clock::now();
+
+  Population alternatives;
+  for (uint a=0; a<branching; a++)  alternatives.emplace_back();
+
+  GenePool genepool;
+
+  stdfs::create_directories(subfolder / "results/");
+  std::ofstream timelinesOFS (subfolder / "results/timelines.dat");
+  const auto logFitnesses =
+    [&timelinesOFS, &alternatives] (uint epoch, uint winner) {
+      std::ofstream &ofs = timelinesOFS;
+      auto N = alternatives.size();
+
+      if (epoch == 0) {
+        N = 1;
+        ofs << "E A W";
+        for (auto f: EnumUtils<Fitnesses>::iterator())
+          ofs << " " << EnumUtils<Fitnesses>::getName(f);
+        ofs << "\n";
+      }
+
+      for (uint i=0; i<N; i++) {
+        ofs << epoch << " " << i << " " << (i == winner);
+        for (const auto &f: alternatives[i].fitnesses)
+          ofs << " " << f;
+        ofs << "\n";
+      }
+
+      ofs.flush();
+    };
+
+  const auto logEnvController = [] (const Simulation &s) {
+    const genotype::Environment g = s.environment().genome();
+    g.toFile(s.dataFolder() / "controller");
+
+    std::ofstream ofs (s.dataFolder() / "controller.tex");
+    ofs << "\\documentclass[preview]{standalone}\n"
+           "\\usepackage{amsmath}\n"
+           "\\begin{document}\n"
+        << g.controller.toTex()
+        << "\\end{document}\n";
+    ofs.close();
+
+    using O = genotype::Environment::CGP::DotOptions;
+    g.controller.toDot(s.dataFolder() / "controller.dot", O::FULL | O::NO_ARITY);
+  };
+
+  Alternative *reality = &alternatives.front();
+  uint winner = 0;
+
+  reality->simulation.init(envGenome, plantGenome);
+  reality->simulation.setDataFolder(championDataFolder(epoch));
+  reality->simulation.setDuration(DT, epochDuration);
+  logEnvController(reality->simulation);
+
+  epochHeader();
+  genepool.parse(reality->simulation);
+
+  while (!reality->simulation.finished()) reality->simulation.step();
+
+  computeFitnesses(*reality, genepool);
+  logFitnesses(0, 0);
+
+  epoch++;
+  do {
+    epochHeader();
+    genepool.parse(reality->simulation);
+
+    // Populate next epoch from current best alternative
+    if (winner != 0)  alternatives[0].simulation.clone(reality->simulation);
+    for (uint a=1; a<branching; a++) {
+      if (winner != a)  alternatives[a].simulation.clone(reality->simulation);
+      alternatives[a].simulation.mutateEnvController(dice);
+    }
+
+    // Prepare data folder and set durations
+    for (uint a = 0; a < branching; a++) {
+      Simulation &s = alternatives[a].simulation;
+      s.setDuration(DT, epochDuration);
+      s.setDataFolder(alternativeDataFolder(epoch, a));
+      logEnvController(s);
+    }
+
+    // Execute alternative simulations in parallel
+    #pragma omp parallel for
+    for (uint a=0; a<branching; a++) {
+      Simulation &s = alternatives[a].simulation;
+
+      while (!s.finished()) s.step();
+
+      computeFitnesses(alternatives[a], genepool);
+    }
+
+    // Prefilter
+    std::vector<uint> indices (alternatives.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::sort(indices.begin(), indices.end(),
+              [&alternatives] (uint lhs, uint rhs) {
+      return alternatives[lhs] < alternatives[rhs];
+    });
+
+    std::vector<uint> eqIndices;
+    {
+      eqIndices.push_back(indices.back());
+      for (int i=indices.size()-2;
+           i>=0 && !(alternatives[indices[i]] < alternatives[indices[i+1]]);
+           --i)
+        eqIndices.push_back(indices[i]);
+    }
+
+    // Find 'best' alternative
+    std::vector<uint> pFront;
+    paretoFront(alternatives, eqIndices, pFront);
+    winner = *dice(pFront);
+    reality = &alternatives[winner];
+
+    logFitnesses(epoch, winner);
+
+    // Store result accordingly
+    stdfs::create_directory_symlink(reality->simulation.dataFolder().filename(),
+                                    championDataFolder(epoch));
+
+    // Print info
+    static const auto iwidth = std::ceil(std::log10(branching));
+    static constexpr auto pwidth = 10;
+    std::cout << std::setfill(' ');
+
+//    std::cout << "# Alternatives:\n"
+//                 "# " << std::setw(iwidth) << " ";
+//    for (auto f: EnumUtils<Fitnesses>::iterator())
+//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+//    std::cout << "\n";
+//    uint i=0;
+//    for (const Alternative &a: alternatives) {
+//      std::cout << "# " << std::setw(iwidth) << i++;
+//      for (double f: a.fitnesses)
+//        std::cout << " " << std::setw(pwidth) << f;
+//      std::cout << "\n";
+//    }
+
+//    std::cout << "#\n# Sorted:\n"
+//                 "# " << std::setw(iwidth) << " ";
+//    for (auto f: EnumUtils<Fitnesses>::iterator())
+//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+//    std::cout << "\n";
+//    for (uint i: indices) {
+//      const Alternative &a = alternatives[i];
+//      std::cout << "# " << std::setw(iwidth) << i;
+//      for (double f: a.fitnesses)
+//        std::cout << " " << std::setw(pwidth) << f;
+//      std::cout << "\n";
+//    }
+
+//    std::cout << "#\n# Equal range:"
+//                 "\n# " << std::setw(iwidth) << " ";
+//    for (auto f: EnumUtils<Fitnesses>::iterator())
+//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+//    std::cout << "\n";
+//    for (uint i: eqIndices) {
+//      std::cout << "# " << std::setw(iwidth) << i;
+//      for (double f: alternatives[i].fitnesses)
+//        std::cout << " " << std::setw(pwidth) << f;
+//      std::cout << "\n";
+//    }
+
+    std::cout << "#\n# " << pFront.size() << " alternatives in pareto front"
+                 "\n#  " << std::setw(iwidth);
+    for (auto f: EnumUtils<Fitnesses>::iterator())
+      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    std::cout << "\n";
+    for (uint i: pFront) {
+      std::cout << "# " << ((i == winner) ? '*' : ' ');
+      for (double f: alternatives[i].fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
+    std::cout << "#" << std::endl;
+
+    if (reality->simulation.extinct()) {
+      reality = nullptr;
+      break;
+    }
+
+    epoch++;
+  } while (epoch < epochs);
+
+  if (reality)
+    std::cout << "\nTimelines exploration completed in "
+              << Simulation::duration(start) / 1000. << " seconds" << std::endl;
+  else
+    std::cout << "\nTimelines exploration failed. Extinction at epoch "
+              << epoch << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -150,20 +741,10 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
+  config::Simulation::updateTopologyEvery.ref() = epochDuration;
   config::Simulation::setupConfig(configFile, verbosity);
+  config::Simulation::verbosity.ref() = 0;
   if (configFile.empty()) config::Simulation::printConfig("");
-
-  auto alternativeDataFolder = [&subfolder] (uint epoch, uint alternative) {
-    std::ostringstream oss;
-    oss << "results/e" << epoch << "_a" << alternative;
-    return subfolder / oss.str();
-  };
-
-  auto championDataFolder = [&subfolder] (uint epoch) {
-    std::ostringstream oss;
-    oss << "results/e" << epoch;
-    return subfolder / oss.str();
-  };
 
   if (!isValidSeed(envGenomeArg)) {
     std::cout << "Reading environment genome from input file '"
@@ -213,7 +794,24 @@ int main(int argc, char *argv[]) {
 #if !defined(NDEBUG) && TEST == 1
   // Test cloning
 
-  uint D = 2;
+//  uint i = 1;
+////  utils::assertEqual(i, i, true);
+
+//  double d = 0;
+////  utils::assertEqual(d, d, true);
+
+//  std::array<double, 10> a;
+////  utils::assertEqual(a, a, true);
+
+//  std::vector<double*> v0;
+//  for (uint i=0; i<10; i++) v0.push_back(&a[i]);
+
+//  std::vector<double*> v1 = v0;
+//  v1[0] = &d;
+
+//  utils::assertEqual(v0, v1, true);
+
+  uint D = 1;
   Simulation clonedSimu;
   {
     Simulation baseSimu;
@@ -224,6 +822,7 @@ int main(int argc, char *argv[]) {
     baseSimu.atEnd();
 
     clonedSimu.clone(baseSimu);
+    assertEqual(baseSimu, clonedSimu, true);
   }
 
   clonedSimu.setDuration(simu::Environment::DurationSetType::APPEND, D);
@@ -268,72 +867,16 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  using Simulation = simu::Simulation;
-  static constexpr auto DT = simu::Environment::DurationSetType::APPEND;
-  uint epoch = 0;
+  stdfs::remove_all(subfolder);
+#warning Auto-removing result folder
 
-  rng::FastDice dice (gaseed);
+  if (branching == 1)
+    controlGroup(epochs * epochDuration, envGenome, plantGenome,
+                 subfolder);
 
-  std::vector<Simulation> alternatives;
-  for (uint a=0; a<branching; a++)  alternatives.emplace_back();
-
-  PopFitnesses pfitnesses;
-  pfitnesses.resize(branching);
-
-  Simulation *reality = &alternatives.front();
-  uint winner = 0;
-
-  reality->init(envGenome, plantGenome);
-  reality->setDataFolder(championDataFolder(epoch));
-  reality->setDuration(DT, epochDuration);
-
-  while (!reality->finished()) reality->step();
-
-  epoch++;
-  do {
-    std::cout << "# Epoch " << epoch << " at " << utils::CurrentTime{} << " #"
-              << std::endl;
-
-    // Populate next epoch from current best alternative
-    if (winner != 0)  alternatives[0].clone(*reality);
-    for (uint a=1; a<branching; a++) {
-      if (winner != a)  alternatives[a].clone(*reality);
-      alternatives[a].mutateEnvController(dice);
-    }
-
-    // Prepare data folder and set durations
-    for (uint a = 0; a < branching; a++) {
-      alternatives[a].setDuration(DT, epochDuration);
-      alternatives[a].setDataFolder(alternativeDataFolder(epoch, a));
-    }
-
-    // Execute alternative simulations in parallel
-    #pragma omp parallel for
-    for (uint a=0; a<branching; a++) {
-      Simulation &s = alternatives[a];
-
-      while (!s.finished()) s.step();
-
-      computeFitnesses(s, pfitnesses[a]);
-    }
-
-    // Find 'best' alternative
-    std::vector<uint> pFront;
-    paretoFront(pfitnesses, pFront);
-    winner = *dice(pFront);
-    reality = &alternatives[winner];
-
-    // Store result accordingly
-    stdfs::rename(reality->dataFolder(), championDataFolder(epoch));
-
-    std::cout << "# " << pFront.size() << " alternatives in pareto front\n#\n";
-    for (uint i: pFront) {
-      const auto &f = pfitnesses[i];
-      for ()
-    }
-
-    epoch++;
-  } while (epoch < epochs);
+  else
+    exploreTimelines(epochs, epochDuration, branching, gaseed,
+                     envGenome, plantGenome, subfolder);
 
   return 0;
 

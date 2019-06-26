@@ -23,7 +23,7 @@ DEFINE_PARAMETER(bool, killSeedsEarly, true)
 
 DEFINE_PARAMETER(float, assimilationRate, .01)
 DEFINE_PARAMETER(float, baselineShallowWater, .5)
-DEFINE_PARAMETER(float, baselineLight, .1)
+DEFINE_PARAMETER(float, baselineLight, .5)
 DEFINE_PARAMETER(float, saturationRate, 1)
 DEFINE_PARAMETER(float, lifeCost, .05)
 DEFINE_PARAMETER(float, resourceCost, .5)

@@ -110,10 +110,10 @@ class CGP {
       return !(lhs == rhs);
     }
 
-    friend void assertEqual (const Node &lhs, const Node &rhs) {
+    friend void assertEqual (const Node &lhs, const Node &rhs, bool deepcopy) {
       using utils::assertEqual;
-      assertEqual(lhs.connections, rhs.connections);
-      assertEqual(lhs.fid, rhs.fid);
+      assertEqual(lhs.connections, rhs.connections, deepcopy);
+      assertEqual(lhs.fid, rhs.fid, deepcopy);
     }
   };
 
@@ -154,6 +154,20 @@ public:
       for (Connection &c: n.connections)  c = Connection(0);
     }
     for (Connection &o: outputConnections)  o = Connection(0);
+  }
+
+  CGP (const CGP &that)
+    : nodes(that.nodes), outputConnections(that.outputConnections),
+      persistentData(that.persistentData), usedNodes(that.usedNodes),
+      ldice(that.ldice) {
+
+    updateReferences();
+  }
+
+  CGP& operator= (CGP that) {
+    swap(*this, that);
+    updateReferences();
+    return *this;
   }
 
   void clear (void) {
@@ -205,11 +219,9 @@ public:
     for (uint o=0; o<O; o++)
       outputs[o] = utils::clip(-1., data(I+N+o), 1.);
 
+#ifndef NDEBUG
     for (double d: persistentData)  assert(!isnan(d));
-  }
-
-  CGP clone (void) const {
-    return CGP(*this);
+#endif
   }
 
   /// Uses parameter-less procedure 'single' from "Reducing Wasted Evaluations
@@ -304,7 +316,7 @@ public:
 
     for (uint o=0; o<O; o++) {
       std::set<NodeID> inputs;
-      oss << OUtils::getName(o, false);
+      oss << OUtils::getName(o, false) << "{}";
 
       std::ostringstream oss2;
       toTexRec(oss2, outputConnections[o], inputs);
@@ -444,14 +456,14 @@ public:
         && lhs.ldice == rhs.ldice;
   }
 
-  friend void assertEqual (const CGP &lhs, const CGP &rhs) {
+  friend void assertEqual (const CGP &lhs, const CGP &rhs, bool deepcopy) {
     using utils::assertEqual;
-    assertEqual(lhs.nodes, rhs.nodes);
-    assertEqual(lhs.outputConnections, rhs.outputConnections);
-    assertEqual(lhs.persistentData, rhs.persistentData);
-    assertEqual(lhs.usedNodes, rhs.usedNodes);
+    assertEqual(lhs.nodes, rhs.nodes, deepcopy);
+    assertEqual(lhs.outputConnections, rhs.outputConnections, deepcopy);
+    assertEqual(lhs.persistentData, rhs.persistentData, deepcopy);
+    assertEqual(lhs.usedNodes, rhs.usedNodes, deepcopy);
 //    assertEqual(lhs.localFunctionsMap, rhs.localFunctionsMap);
-    assertEqual(lhs.ldice, rhs.ldice);
+    assertEqual(lhs.ldice, rhs.ldice, deepcopy);
   }
 
   friend void to_json (nlohmann::json &j, const CGP &cgp) {
@@ -555,6 +567,24 @@ private:
   void registerLocalFunctions (void) {
     using functions::FID;
     localFunctionsMap[FID("rand")] = [this] (auto) { return ldice(-1., 1.); };
+  }
+
+  friend void swap (CGP &lhs, CGP &rhs) {
+    using std::swap;
+    swap(lhs.nodes, rhs.nodes);
+    swap(lhs.outputConnections, rhs.outputConnections);
+    swap(lhs.persistentData, rhs.persistentData);
+    swap(lhs.usedNodes, rhs.usedNodes);
+    swap(lhs.ldice, rhs.ldice);
+  }
+
+  void updateReferences (void) {
+    registerLocalFunctions();
+    for (Node &n: nodes) {
+      auto it = localFunctionsMap.find(n.fid);
+      if (it != localFunctionsMap.end())
+        n.function = it->second;
+    }
   }
 
   Function functionfromID (const FuncID &fid) const {

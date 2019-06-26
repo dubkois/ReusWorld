@@ -218,6 +218,7 @@ Organ* Organ::clone (const Organ *that_o, Plant *const this_p) {
   this_o->_layer = that_o->_layer;
 
   assert(!that_o->_cloned);
+  this_o->_cloned = false;
 
   this_o->_parent = that_o->_parent;
   this_o->_children = that_o->_children;
@@ -301,54 +302,54 @@ Organ* Organ::load (const nlohmann::json &j, Organ *parent, Plant *plant,
 }
 
 void assertEqual (const Organ::ParentCoordinates &lhs,
-                  const Organ::ParentCoordinates &rhs) {
-  utils::assertEqual(lhs.rotation, rhs.rotation);
+                  const Organ::ParentCoordinates &rhs, bool deepcopy) {
+  utils::assertEqual(lhs.rotation, rhs.rotation, deepcopy);
 }
 
 void assertEqual (const Organ::PlantCoordinates &lhs,
-                  const Organ::PlantCoordinates &rhs) {
+                  const Organ::PlantCoordinates &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.origin, rhs.origin);
-  assertEqual(lhs.end, rhs.end);
-  assertEqual(lhs.center, rhs.center);
-  assertEqual(lhs.rotation, rhs.rotation);
-  assertEqual(lhs.boundingRect, rhs.boundingRect);
-  assertEqual(lhs.corners, rhs.corners);
+  assertEqual(lhs.origin, rhs.origin, deepcopy);
+  assertEqual(lhs.end, rhs.end, deepcopy);
+  assertEqual(lhs.center, rhs.center, deepcopy);
+  assertEqual(lhs.rotation, rhs.rotation, deepcopy);
+  assertEqual(lhs.boundingRect, rhs.boundingRect, deepcopy);
+  assertEqual(lhs.corners, rhs.corners, deepcopy);
 }
 
 void assertEqual (const Organ::GlobalCoordinates &lhs,
-                  const Organ::GlobalCoordinates &rhs) {
+                  const Organ::GlobalCoordinates &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.origin, rhs.origin);
-  assertEqual(lhs.center, rhs.center);
-  assertEqual(lhs.boundingRect, rhs.boundingRect);
-  assertEqual(lhs.corners, rhs.corners);
+  assertEqual(lhs.origin, rhs.origin, deepcopy);
+  assertEqual(lhs.center, rhs.center, deepcopy);
+  assertEqual(lhs.boundingRect, rhs.boundingRect, deepcopy);
+  assertEqual(lhs.corners, rhs.corners, deepcopy);
 }
-void assertEqual (const Organ &lhs, const Organ &rhs) {
+void assertEqual (const Organ &lhs, const Organ &rhs, bool deepcopy) {
   using utils::assertEqual;
 
-  assertEqual(lhs._id, rhs._id);
-  assertEqual(lhs._plant->id(), rhs._plant->id());
-  assertEqual(lhs._parentCoordinates, rhs._parentCoordinates);
-  assertEqual(lhs._plantCoordinates, rhs._plantCoordinates);
-  assertEqual(lhs._globalCoordinates, rhs._globalCoordinates);
-  assertEqual(lhs._width, rhs._width);
-  assertEqual(lhs._length, rhs._length);
-  assertEqual(lhs._symbol, rhs._symbol);
-  assertEqual(lhs._layer, rhs._layer);
-  assertEqual(lhs._cloned, rhs._cloned);
-  assertEqual(lhs._depth, rhs._depth);
-  assertEqual(lhs._surface, rhs._surface);
-  assertEqual(lhs._baseBiomass, rhs._baseBiomass);
-  assertEqual(lhs._accumulatedBiomass, rhs._accumulatedBiomass);
-  assertEqual(lhs._requiredBiomass, rhs._requiredBiomass);
+  assertEqual(lhs._id, rhs._id, deepcopy);
+  assertEqual(lhs._plant->id(), rhs._plant->id(), deepcopy);
+  assertEqual(lhs._parentCoordinates, rhs._parentCoordinates, deepcopy);
+  assertEqual(lhs._plantCoordinates, rhs._plantCoordinates, deepcopy);
+  assertEqual(lhs._globalCoordinates, rhs._globalCoordinates, deepcopy);
+  assertEqual(lhs._width, rhs._width, deepcopy);
+  assertEqual(lhs._length, rhs._length, deepcopy);
+  assertEqual(lhs._symbol, rhs._symbol, deepcopy);
+  assertEqual(lhs._layer, rhs._layer, deepcopy);
+  assertEqual(lhs._cloned, rhs._cloned, deepcopy);
+  assertEqual(lhs._depth, rhs._depth, deepcopy);
+  assertEqual(lhs._surface, rhs._surface, deepcopy);
+  assertEqual(lhs._baseBiomass, rhs._baseBiomass, deepcopy);
+  assertEqual(lhs._accumulatedBiomass, rhs._accumulatedBiomass, deepcopy);
+  assertEqual(lhs._requiredBiomass, rhs._requiredBiomass, deepcopy);
 
-  assertEqual(bool(lhs._parent), bool(rhs._parent));
+  assertEqual(bool(lhs._parent), bool(rhs._parent), deepcopy);
   if (lhs._parent && rhs._parent)
-    assertEqual(lhs._parent->id(), rhs._parent->id());
+    assertEqual(lhs._parent->id(), rhs._parent->id(), deepcopy);
 
   Organ::OID_CMP sorter;
-  assertEqual(lhs._children, rhs._children, sorter);
+  assertEqual(lhs._children, rhs._children, sorter, deepcopy);
 }
 
 } // end of namespace simu

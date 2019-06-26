@@ -23,7 +23,7 @@ if (${CMAKE_INSTALL_PREFIX} MATCHES "^$ENV{HOME}")
     string(APPEND CMAKE_INSTALL_PREFIX "/${BUILD_TYPE}")
     set(CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX})
 endif()
-message(STATUS "> Install path is ${CMAKE_INSTALL_PREFIX}/")
+message("> Install path is ${CMAKE_INSTALL_PREFIX}/")
 
 
 ################################################################################
@@ -40,9 +40,9 @@ endif()
 ## Dependencies
 ################################################################################
 
-find_package(apt REQUIRED)
-include_directories(${apt_INCLUDE_DIRS})
-
+find_package(APOGeT REQUIRED)
+include_directories(${APOGeT_INCLUDE_DIRS})
+message("APOGeT found at " ${APOGeT_DIR})
 
 ################################################################################
 ## Source files (simulation)
@@ -110,20 +110,20 @@ add_executable(
   simulator
   $<TARGET_OBJECTS:SIMU_OBJS>
   "src/simulator.cpp")
-target_link_libraries(simulator ${apt_LIBRARIES})
+target_link_libraries(simulator ${APOGeT_LIBRARIES})
 
 ################################################################################
 ## Target (timelines explorer)
 ################################################################################
 find_package(OpenMP)
 if (OPENMP_FOUND)
-    message(STATUS "> OpenMP Found.")
-    message(STATUS "  > OpenMP flags are " ${OpenMP_CXX_LIBRARIES})
+    message("> OpenMP Found.")
+    message("  > OpenMP flags are " ${OpenMP_CXX_LIBRARIES})
   add_executable(
     timelines
     $<TARGET_OBJECTS:SIMU_OBJS>
     "src/timelines.cpp")
-  target_link_libraries(timelines ${apt_LIBRARIES} OpenMP::OpenMP_CXX)
+  target_link_libraries(timelines ${APOGeT_LIBRARIES} OpenMP::OpenMP_CXX)
 endif()
 
 ################################################################################
@@ -136,14 +136,14 @@ if (AUTO_CALIBRATION_TOOL)
   add_executable(auto-calibrator
                  $<TARGET_OBJECTS:SIMU_OBJS>
                  "src/misc/autocalibrator.cpp")
-  target_link_libraries(auto-calibrator ${apt_LIBRARIES})
+  target_link_libraries(auto-calibrator ${APOGeT_LIBRARIES})
 endif()
 
 option(ANALYZER_TOOL "Whether or not to build the analyzer tool" OFF)
 message("> Building analyzer tool: " ${ANALYZER_TOOL})
 if (ANALYZER_TOOL)
   add_executable(analyzer $<TARGET_OBJECTS:SIMU_OBJS> "src/misc/analyzer.cpp")
-  target_link_libraries(analyzer ${apt_LIBRARIES})
+  target_link_libraries(analyzer ${APOGeT_LIBRARIES})
 endif()
 
 option(SAVE_EQUAL_ASSERTER "Whether or not to build the tool for save equality assertion" OFF)
@@ -151,7 +151,7 @@ if (SAVE_EQUAL_ASSERTER)
   add_executable(save-equal-assert
                  $<TARGET_OBJECTS:SIMU_OBJS>
                  "src/misc/saveequalasserter.cpp")
-  target_link_libraries(save-equal-assert ${apt_LIBRARIES})
+  target_link_libraries(save-equal-assert ${APOGeT_LIBRARIES})
 endif()
 
 option(BUILD_TESTS "Whether or not to build test tools" OFF)
@@ -159,7 +159,7 @@ if (BUILD_TESTS)
   add_executable(test-cgp
                  $<TARGET_OBJECTS:SIMU_OBJS>
                  "src/cgp/minicgp_test.cpp")
-  target_link_libraries(test-cgp ${apt_LIBRARIES})
+  target_link_libraries(test-cgp ${APOGeT_LIBRARIES})
 endif()
 
 if (NOT CLUSTER_BUILD)
@@ -203,7 +203,8 @@ if (NOT CLUSTER_BUILD)
       "src/visualizer.cpp"
     )
     set_property(TARGET visualizer PROPERTY AUTOMOC ON)
-    target_link_libraries(visualizer ${QT_LIBS} ${apt_LIBRARIES})
+    target_link_libraries(visualizer ${QT_LIBS} ${APOGeT_LIBRARIES}
+                                                ${APOGeT_GUI_LIBRARIES})
 
 
 ################################################################################
@@ -216,7 +217,8 @@ if (NOT CLUSTER_BUILD)
       "src/phylogenyviewer.cpp"
     )
     set_property(TARGET pviewer PROPERTY AUTOMOC ON)
-    target_link_libraries(pviewer ${QT_LIBS} ${apt_LIBRARIES})
+    target_link_libraries(pviewer ${QT_LIBS} ${APOGeT_LIBRARIES}
+                                             ${APOGeT_GUI_LIBRARIES})
 
 
 ################################################################################
@@ -227,7 +229,10 @@ if (NOT CLUSTER_BUILD)
                      $<TARGET_OBJECTS:SIMU_OBJS>
                      "src/cgp/minicgp_blindwatchmaker.cpp")
       set_property(TARGET test-cgp-blindwatchmaker PROPERTY AUTOMOC ON)
-      target_link_libraries(test-cgp-blindwatchmaker ${QT_LIBS} ${apt_LIBRARIES})
+      target_link_libraries(test-cgp-blindwatchmaker ${QT_LIBS}
+                                                     ${APOGeT_LIBRARIES}
+                                                     ${APOGeT_GUI_LIBRARIES})
+
     endif()
 endif()
 
@@ -237,16 +242,16 @@ endif()
 ################################################################################
 
 
-message(STATUS "")
+message("")
 
 option(CLUSTER_BUILD "Whether or not building on a cluster (i-e no gui and local linkage)" ON)
-message(STATUS "> Cluster building mode is " ${CLUSTER_BUILD})
+message("> Cluster building mode is " ${CLUSTER_BUILD})
 if(CLUSTER_BUILD)
     add_definitions(-DCLUSTER_BUILD)
 endif()
 
 option(WITH_DEBUG_INFO "Sets whether to maximize debug data collection" OFF)
-message(STATUS "> With debug info " ${WITH_DEBUG_INFO})
+message("> With debug info " ${WITH_DEBUG_INFO})
 if(WITH_DEBUG_INFO)
     add_definitions(-DWITH_DEBUG_INFO)
 
@@ -261,7 +266,7 @@ endif()
 
 option(UPDATE_DEPENDENCIES "Whether or not to keep dependency data up-to-date
                             (implies extra compilation time)" ON)
-message(STATUS "> Auto updating dependencies " ${UPDATE_DEPENDENCIES})
+message("> Auto updating dependencies " ${UPDATE_DEPENDENCIES})
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     option(DEBUG_COLLISIONS "Add CPU/RAM cost to view collision tests" OFF)
@@ -271,16 +276,16 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     endif()
 endif()
 
-message(STATUS "> Build type is " ${CMAKE_BUILD_TYPE})
-message(STATUS "> Compile flags are " ${CMAKE_CXX_FLAGS})
-message(STATUS "")
+message("> Build type is " ${CMAKE_BUILD_TYPE})
+message("> Compile flags are " ${CMAKE_CXX_FLAGS})
+message("")
 
 
 ####################################################################################################
 ## Export configuration
 ####################################################################################################
 
-set(DEPENDENCY_GENERATOR ${apt_DIR}/generate_dependency_data.sh)
+set(DEPENDENCY_GENERATOR ${APOGeT_DIR}/generate_dependency_data.sh)
 set(DEPENDENCY_FILE "${CMAKE_CURRENT_BINARY_DIR}/reus.dependency")
 set(DEPENDENCY_DATA ${PROJECT_SOURCE_DIR}/src/config/dependencies_autogenerated.cpp)
 if (UPDATE_DEPENDENCIES)
@@ -295,7 +300,7 @@ if (UPDATE_DEPENDENCIES)
     add_custom_command(
         OUTPUT ${DEPENDENCY_DATA}
         COMMAND ${PROJECT_SOURCE_DIR}/scripts/format_dependencies_data.sh
-                ${DEPENDENCY_DATA} ${CMAKE_CURRENT_BINARY_DIR} ${apt_DIR}
+                ${DEPENDENCY_DATA} ${CMAKE_CURRENT_BINARY_DIR} ${APOGeT_DIR}
         COMMENT "Formatting dependency data"
         DEPENDS always_check
     )

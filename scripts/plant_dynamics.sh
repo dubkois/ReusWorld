@@ -25,6 +25,7 @@ persist=""
 loop=""
 outfile=""
 quiet=""
+commands=""
 while getopts "h?c:f:pl:o:q" opt; do
     case "$opt" in
     h|\?)

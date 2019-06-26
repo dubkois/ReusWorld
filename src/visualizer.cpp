@@ -3,7 +3,6 @@
 
 #include "kgd/external/cxxopts.hpp"
 
-#include "config/visuconfig.h"
 #include "visu/controller.h"
 
 #include "config/dependencies.h"
@@ -92,8 +91,8 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  config::Visualization::setupConfig(configFile, verbosity);
-  if (configFile.empty()) config::Visualization::printConfig("");
+  config::Simulation::setupConfig(configFile, verbosity);
+  if (configFile.empty()) config::Simulation::printConfig("");
 
   // ===========================================================================
   // == Qt setup

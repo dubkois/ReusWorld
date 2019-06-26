@@ -18,7 +18,7 @@ struct Count {
 };
 
 void finalCounts (const Simulation &simu) {
-  std::cout << "GID: " << genotype::BOCData::nextID() << "\n"
+  std::cout << "GID: " << simu::Plant::ID(simu.gidManager()) << "\n"
             << "SID: " << simu.phylogeny().nextNodeID() << std::endl;
 }
 
@@ -44,10 +44,9 @@ void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
     uint count = 0;
   };
   std::map<SID, Range> ranges;
-  const auto &phylogeny = simu.phylogeny();
   for (const auto &pair: simu.plants()) {
     simu::Plant &p = *pair.second;
-    Range &r = ranges[phylogeny.getSpeciesID(p.id())];
+    Range &r = ranges[p.species()];
     const simu::Rect b = p.boundingRect().translated(p.pos());
     if (b.l() < r.min)  r.min = b.l();
     if (r.max < b.r())  r.max = b.r();
@@ -107,7 +106,7 @@ void plotDensityHistogram (const Simulation &simu, const stdfs::path &savefile) 
   std::map<SID, uint> counts;
   const auto &phylogeny = simu.phylogeny();
   for (const auto &p: simu.plants())
-    counts[phylogeny.getSpeciesID(p.second->id())]++;
+    counts[p.second->species()]++;
 
   std::set<Count> sortedCounts;
   for (auto &p: counts) sortedCounts.insert({p.first, p.second});
@@ -169,7 +168,6 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
   }
 
   bool fullMatrix = sids.empty();
-  const auto &ptree = simu.phylogeny();
   uint i = 0, total = simu.plants().size();
   std::map<SID, std::set<genotype::BOCData::Sex>> sexes;
   std::map<SID, std::vector<const simu::Plant*>> species;
@@ -177,7 +175,7 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
     std::cout << "[" << std::setw(3) << 100 * (++i) / total
               << "%] Examining GID: " << p.second->id() << std::flush;
 
-    SID sid = ptree.getSpeciesID(p.second->id());
+    SID sid = p.second->species();
     std::cout << " (SID: " << sid << ") ...\r" << std::flush;
 
     if (fullMatrix || sids.find(sid) != sids.end())

@@ -56,30 +56,30 @@ void from_json (const nlohmann::json &j, Time &t) {
   iss >> t;
 }
 
-void assertEqual (const Time &lhs, const Time &rhs) {
+void assertEqual (const Time &lhs, const Time &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.hour(), rhs.hour());
-  assertEqual(lhs.day(), rhs.day());
-  assertEqual(lhs.year(), rhs.year());
+  assertEqual(lhs.hour(), rhs.hour(), deepcopy);
+  assertEqual(lhs.day(), rhs.day(), deepcopy);
+  assertEqual(lhs.year(), rhs.year(), deepcopy);
 }
 
-void assertEqual (const Point &lhs, const Point &rhs) {
+void assertEqual (const Point &lhs, const Point &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.x, rhs.x);
-  assertEqual(lhs.y, rhs.y);
+  assertEqual(lhs.x, rhs.x, deepcopy);
+  assertEqual(lhs.y, rhs.y, deepcopy);
 }
 
-void assertEqual (const Rect &lhs, const Rect &rhs) {
+void assertEqual (const Rect &lhs, const Rect &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.br, rhs.br);
-  assertEqual(lhs.ul, rhs.ul);
+  assertEqual(lhs.br, rhs.br, deepcopy);
+  assertEqual(lhs.ul, rhs.ul, deepcopy);
 }
 
 
-void assertEqual (const Disk &lhs, const Disk &rhs) {
+void assertEqual (const Disk &lhs, const Disk &rhs, bool deepcopy) {
   using utils::assertEqual;
-  assertEqual(lhs.center, rhs.center);
-  assertEqual(lhs.radius, rhs.radius);
+  assertEqual(lhs.center, rhs.center, deepcopy);
+  assertEqual(lhs.radius, rhs.radius, deepcopy);
 }
 
 } // end of namespace simu

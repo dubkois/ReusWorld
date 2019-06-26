@@ -183,7 +183,7 @@ public:
   static Organ* load (const nlohmann::json &j, Organ *parent, Plant *plant,
                       Collection &organs);
 
-  friend void assertEqual (const Organ &lhs, const Organ &rhs);
+  friend void assertEqual (const Organ &lhs, const Organ &rhs, bool deepcopy);
 };
 
 } // end of namespace simu

@@ -58,7 +58,7 @@ struct Point {
     p.x = j[0]; p.y = j[1];
   }
 
-  friend void assertEqual (const Point &lhs, const Point &rhs);
+  friend void assertEqual (const Point &lhs, const Point &rhs, bool deepcopy);
 };
 
 struct Rect {
@@ -128,7 +128,7 @@ struct Rect {
     r.ul = j[0];  r.br = j[1];
   }
 
-  friend void assertEqual (const Rect &lhs, const Rect &rhs);
+  friend void assertEqual (const Rect &lhs, const Rect &rhs, bool deepcopy);
 };
 
 struct Disk {
@@ -153,7 +153,7 @@ struct Disk {
     return os << "{" << d.center << ", " << d.radius << "}";
   }
 
-  friend void assertEqual (const Disk &lhs, const Disk &rhs);
+  friend void assertEqual (const Disk &lhs, const Disk &rhs, bool deepcopy);
 };
 
 struct Position {
@@ -221,7 +221,7 @@ struct Time {
 
   friend void to_json (nlohmann::json &j, const Time &t);
   friend void from_json (const nlohmann::json &j, Time &t);
-  friend void assertEqual (const Time &lhs, const Time &rhs);
+  friend void assertEqual (const Time &lhs, const Time &rhs, bool deepcopy);
 
 private:
   uint _year, _day, _hour;

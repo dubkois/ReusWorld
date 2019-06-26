@@ -3,7 +3,6 @@
 
 #include "kgd/apt/core/tree/phylogenetictree.hpp"
 
-#include "../genotype/environment.h"
 #include "../config/simuconfig.h"
 
 #include "environment.h"
@@ -16,6 +15,13 @@ protected:
   using EGenome = genotype::Environment;
   using PGenome = genotype::Plant;
 public:
+  using clock = std::chrono::high_resolution_clock;
+  using duration_t = std::chrono::milliseconds;
+  static constexpr auto duration = [] (clock::time_point start) {
+    return std::chrono::duration_cast<duration_t>(
+          clock::now() - start).count();
+  };
+
   Simulation (void);
 
   Simulation (Simulation &&) {}
@@ -30,10 +36,16 @@ public:
   virtual void step (void);
   void atEnd (void);
 
+  bool extinct (void) const {
+    return _plants.empty();
+  }
+
   void abort (void) { _aborted = true; }
   bool finished (void) const {
-    return _aborted || _plants.empty() || _env.endTime() <= _env.time();
+    return _aborted || extinct() || _env.endTime() <= _env.time();
   }
+
+  void printStepHeader (void) const;
 
   void setDuration (Environment::DurationSetType t, uint years) {
     _env.setDuration(t, years);
@@ -61,6 +73,10 @@ public:
     return _ptree;
   }
 
+  const auto& gidManager (void) const {
+    return _gidManager;
+  }
+
   void mutateEnvController (rng::AbstractDice &dice) {
     _env.mutateController(dice);
   }
@@ -68,7 +84,7 @@ public:
   void clone (const Simulation &s);
 
   auto wallTimeDuration (void) const {
-    return Stats::duration(_start);
+    return duration(_start);
   }
 
   stdfs::path periodicSaveName (void) const {
@@ -81,16 +97,11 @@ public:
   static void load (const stdfs::path &file, Simulation &s,
                     const std::string &constraints);
 
-  friend void assertEqual (const Simulation &lhs, const Simulation &rhs);
+  friend void assertEqual (const Simulation &lhs, const Simulation &rhs,
+                           bool deepcopy);
 
 protected:
   struct Stats {
-    using clock = std::chrono::high_resolution_clock;
-    using duration_t = std::chrono::milliseconds;
-    static constexpr auto duration = [] (clock::time_point start) {
-      return std::chrono::duration_cast<duration_t>(
-            clock::now() - start).count();
-    };
     clock::time_point start;
 
     uint derivations = 0;
@@ -118,10 +129,13 @@ protected:
   using PTree = phylogeny::PhylogeneticTree<PGenome, PStats>;
   PTree _ptree;
 
-  Stats::clock::time_point _start;
+  clock::time_point _start;
   bool _aborted;
 
-  stdfs::path _dataFolder, _statsFile, _ptreeFile;
+  stdfs::path _dataFolder;
+  std::ofstream _statsFile, _ptreeFile;
+  std::array<std::ofstream,
+             EnumUtils<genotype::env_controller::Outputs>::size()> _envFiles;
 
   virtual bool addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (float x, Plant::Seeds &seeds);
@@ -132,7 +146,10 @@ protected:
   virtual void updatePlantAltitude (Plant &p, float h);
 
   void updateGenStats (void);
+
+  void logToFiles (void);
   void logGlobalStats (void);
+  void logEnvState (void);
 
   void debugPrintAll (void) const;
 };

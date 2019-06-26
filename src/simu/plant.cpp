@@ -1291,12 +1291,12 @@ Plant* Plant::load (const nlohmann::json &j) {
   return p;
 }
 
-void assertEqual (const Plant &lhs, const Plant &rhs) {
+void assertEqual (const Plant &lhs, const Plant &rhs, bool deepcopy) {
   using utils::assertEqual;
 
-  assertEqual(lhs._genome, rhs._genome);
-  assertEqual(lhs._pos, rhs._pos);
-  assertEqual(lhs._age, rhs._age);
+  assertEqual(lhs._genome, rhs._genome, deepcopy);
+  assertEqual(lhs._pos, rhs._pos, deepcopy);
+  assertEqual(lhs._age, rhs._age, deepcopy);
 
   Organ::OID_CMP sorter;
 
@@ -1304,21 +1304,21 @@ void assertEqual (const Plant &lhs, const Plant &rhs) {
   using V = Plant::Organs::value_type;
   static_assert(std::is_nothrow_invocable_r<bool, P, const V&, const V&>::value, "No");
 
-  assertEqual(lhs._organs, rhs._organs, sorter);
-  assertEqual(lhs._bases, rhs._bases, sorter);
-  assertEqual(lhs._hairs, rhs._hairs, sorter);
-  assertEqual(lhs._sinks, rhs._sinks, sorter);
+  assertEqual(lhs._organs, rhs._organs, sorter, deepcopy);
+  assertEqual(lhs._bases, rhs._bases, sorter, deepcopy);
+  assertEqual(lhs._hairs, rhs._hairs, sorter, deepcopy);
+  assertEqual(lhs._sinks, rhs._sinks, sorter, deepcopy);
 
-  assertEqual(lhs._nonTerminals, rhs._nonTerminals);
-  assertEqual(lhs._flowers, rhs._flowers);
-  assertEqual(lhs._derived, rhs._derived);
-  assertEqual(lhs._boundingRect, rhs._boundingRect);
-  assertEqual(lhs._biomasses, rhs._biomasses);
-  assertEqual(lhs._reserves, rhs._reserves);
-  assertEqual(lhs._fruits, rhs._fruits);
-  assertEqual(lhs._currentStepSeeds, rhs._currentStepSeeds);
-  assertEqual(lhs._nextOrganID, rhs._nextOrganID);
-  assertEqual(lhs._killed, rhs._killed);
+  assertEqual(lhs._nonTerminals, rhs._nonTerminals, deepcopy);
+  assertEqual(lhs._flowers, rhs._flowers, deepcopy);
+  assertEqual(lhs._derived, rhs._derived, deepcopy);
+  assertEqual(lhs._boundingRect, rhs._boundingRect, deepcopy);
+  assertEqual(lhs._biomasses, rhs._biomasses, deepcopy);
+  assertEqual(lhs._reserves, rhs._reserves, deepcopy);
+  assertEqual(lhs._fruits, rhs._fruits, deepcopy);
+  assertEqual(lhs._currentStepSeeds, rhs._currentStepSeeds, deepcopy);
+  assertEqual(lhs._nextOrganID, rhs._nextOrganID, deepcopy);
+  assertEqual(lhs._killed, rhs._killed, deepcopy);
 }
 
 } // end of namespace simu

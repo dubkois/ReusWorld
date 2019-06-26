@@ -112,7 +112,7 @@ public:
                              std::map<const Organ *, Organ*>> &olookups);
 
   friend void assertEqual (const TinyPhysicsEngine &lhs,
-                           const TinyPhysicsEngine &rhs);
+                           const TinyPhysicsEngine &rhs, bool deepcopy);
 
 #ifdef DEBUG_COLLISIONS
   struct BranchCollisionObject {
