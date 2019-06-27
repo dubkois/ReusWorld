@@ -304,7 +304,7 @@ private:
   }
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, CNST)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
@@ -332,7 +332,7 @@ struct Alternative {
 
 using Population = std::vector<Alternative>;
 
-void computeFitnesses(Alternative &a, const GenePool &atstart) {
+void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
   const Simulation &s = a.simulation;
@@ -363,7 +363,9 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 
   a.fitnesses[STGN] = -matching(atstart, atend);
 
-  a.fitnesses[TIME] = -s.wallTimeDuration();
+  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
+
+//  a.fitnesses[TIME] = -s.wallTimeDuration();
 }
 
 /// Implements strong pareto domination:
@@ -417,14 +419,16 @@ void controlGroup (uint duration,
   s.setDataFolder(subfolder / "results");
   s.setDuration(simu::Environment::DurationSetType::SET, duration);
 
+  auto startpop = s.plants().size();
   genepool.parse(s);
+
   while (!s.finished()) {
     if (s.time().isStartOfYear())
       s.printStepHeader();
     s.step();
   }
 
-  computeFitnesses(a, genepool);
+  computeFitnesses(a, genepool, startpop);
 
   std::cout << "Final fitnesses\n";
   for (auto f: EnumUtils<Fitnesses>::iterator())
@@ -533,16 +537,18 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
 
   epochHeader();
   genepool.parse(reality->simulation);
+  auto startpop = reality->simulation.plants().size();
 
   while (!reality->simulation.finished()) reality->simulation.step();
 
-  computeFitnesses(*reality, genepool);
+  computeFitnesses(*reality, genepool, startpop);
   logFitnesses(0, 0);
 
   epoch++;
   do {
     epochHeader();
     genepool.parse(reality->simulation);
+    startpop = reality->simulation.plants().size();
 
     // Populate next epoch from current best alternative
     if (winner != 0)  alternatives[0].simulation.clone(reality->simulation);
@@ -566,7 +572,7 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
 
       while (!s.finished()) s.step();
 
-      computeFitnesses(alternatives[a], genepool);
+      computeFitnesses(alternatives[a], genepool, startpop);
     }
 
     // Prefilter
@@ -603,43 +609,43 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
     static constexpr auto pwidth = 10;
     std::cout << std::setfill(' ');
 
-//    std::cout << "# Alternatives:\n"
-//                 "# " << std::setw(iwidth) << " ";
-//    for (auto f: EnumUtils<Fitnesses>::iterator())
-//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-//    std::cout << "\n";
-//    uint i=0;
-//    for (const Alternative &a: alternatives) {
-//      std::cout << "# " << std::setw(iwidth) << i++;
-//      for (double f: a.fitnesses)
-//        std::cout << " " << std::setw(pwidth) << f;
-//      std::cout << "\n";
-//    }
+    std::cout << "# Alternatives:\n"
+                 "# " << std::setw(iwidth) << " ";
+    for (auto f: EnumUtils<Fitnesses>::iterator())
+      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    std::cout << "\n";
+    uint i=0;
+    for (const Alternative &a: alternatives) {
+      std::cout << "# " << std::setw(iwidth) << i++;
+      for (double f: a.fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
 
-//    std::cout << "#\n# Sorted:\n"
-//                 "# " << std::setw(iwidth) << " ";
-//    for (auto f: EnumUtils<Fitnesses>::iterator())
-//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-//    std::cout << "\n";
-//    for (uint i: indices) {
-//      const Alternative &a = alternatives[i];
-//      std::cout << "# " << std::setw(iwidth) << i;
-//      for (double f: a.fitnesses)
-//        std::cout << " " << std::setw(pwidth) << f;
-//      std::cout << "\n";
-//    }
+    std::cout << "#\n# Sorted:\n"
+                 "# " << std::setw(iwidth) << " ";
+    for (auto f: EnumUtils<Fitnesses>::iterator())
+      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    std::cout << "\n";
+    for (uint i: indices) {
+      const Alternative &a = alternatives[i];
+      std::cout << "# " << std::setw(iwidth) << i;
+      for (double f: a.fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
 
-//    std::cout << "#\n# Equal range:"
-//                 "\n# " << std::setw(iwidth) << " ";
-//    for (auto f: EnumUtils<Fitnesses>::iterator())
-//      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-//    std::cout << "\n";
-//    for (uint i: eqIndices) {
-//      std::cout << "# " << std::setw(iwidth) << i;
-//      for (double f: alternatives[i].fitnesses)
-//        std::cout << " " << std::setw(pwidth) << f;
-//      std::cout << "\n";
-//    }
+    std::cout << "#\n# Equal range:"
+                 "\n# " << std::setw(iwidth) << " ";
+    for (auto f: EnumUtils<Fitnesses>::iterator())
+      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    std::cout << "\n";
+    for (uint i: eqIndices) {
+      std::cout << "# " << std::setw(iwidth) << i;
+      for (double f: alternatives[i].fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
 
     std::cout << "#\n# " << pFront.size() << " alternatives in pareto front"
                  "\n#  " << std::setw(iwidth);
