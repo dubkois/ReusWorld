@@ -304,7 +304,7 @@ private:
   }
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, CNST)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
@@ -336,7 +336,7 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
   const Simulation &s = a.simulation;
-  if (s.extinct()) {
+  if (s.plants().size() < config::Simulation::initSeeds()) {
     a.fitnesses.fill(M_INF);
     return;
   }
@@ -363,9 +363,13 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
 
   a.fitnesses[STGN] = -matching(atstart, atend);
 
-  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
+//  double p = s.plants().size();
+//  static constexpr double L = 100, H = 500;
+//  a.fitnesses[CONT] = p < L ? 0 : p > H ? 1 : 1 - (H - p) / (H - L);
 
-//  a.fitnesses[TIME] = -s.wallTimeDuration();
+//  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
+
+  a.fitnesses[TIME] = -s.wallTimeDuration();
 }
 
 /// Implements strong pareto domination:
@@ -385,22 +389,21 @@ bool paretoDominates (const Alternative &lhs, const Alternative &rhs) {
 
 /// Code inspired by gaga/gaga.hpp @ https://github.com/jdisset/gaga.git
 void paretoFront (const Population &alternatives,
-                  const std::vector<uint> indices,
                   std::vector<uint> &front) {
 
-  for (uint i=0; i<indices.size(); i++) {
-    const Alternative &a = alternatives[indices[i]];
+  for (uint i=0; i<alternatives.size(); i++) {
+    const Alternative &a = alternatives[i];
     bool dominated = false;
 
     for (uint j=0; j<front.size() && !dominated; j++)
       dominated = (paretoDominates(alternatives[front[j]], a));
 
     if (!dominated)
-      for (uint j=i+1; j<indices.size() && !dominated; j++)
-        dominated = paretoDominates(alternatives[indices[j]], a);
+      for (uint j=i+1; j<alternatives.size() && !dominated; j++)
+        dominated = paretoDominates(alternatives[j], a);
 
     if (!dominated)
-      front.push_back(indices[i]);
+      front.push_back(i);
   }
 }
 
@@ -575,26 +578,9 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
       computeFitnesses(alternatives[a], genepool, startpop);
     }
 
-    // Prefilter
-    std::vector<uint> indices (alternatives.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    std::sort(indices.begin(), indices.end(),
-              [&alternatives] (uint lhs, uint rhs) {
-      return alternatives[lhs] < alternatives[rhs];
-    });
-
-    std::vector<uint> eqIndices;
-    {
-      eqIndices.push_back(indices.back());
-      for (int i=indices.size()-2;
-           i>=0 && !(alternatives[indices[i]] < alternatives[indices[i+1]]);
-           --i)
-        eqIndices.push_back(indices[i]);
-    }
-
     // Find 'best' alternative
     std::vector<uint> pFront;
-    paretoFront(alternatives, eqIndices, pFront);
+    paretoFront(alternatives, pFront);
     winner = *dice(pFront);
     reality = &alternatives[winner];
 
@@ -618,31 +604,6 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
     for (const Alternative &a: alternatives) {
       std::cout << "# " << std::setw(iwidth) << i++;
       for (double f: a.fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
-      std::cout << "\n";
-    }
-
-    std::cout << "#\n# Sorted:\n"
-                 "# " << std::setw(iwidth) << " ";
-    for (auto f: EnumUtils<Fitnesses>::iterator())
-      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-    std::cout << "\n";
-    for (uint i: indices) {
-      const Alternative &a = alternatives[i];
-      std::cout << "# " << std::setw(iwidth) << i;
-      for (double f: a.fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
-      std::cout << "\n";
-    }
-
-    std::cout << "#\n# Equal range:"
-                 "\n# " << std::setw(iwidth) << " ";
-    for (auto f: EnumUtils<Fitnesses>::iterator())
-      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-    std::cout << "\n";
-    for (uint i: eqIndices) {
-      std::cout << "# " << std::setw(iwidth) << i;
-      for (double f: alternatives[i].fitnesses)
         std::cout << " " << std::setw(pwidth) << f;
       std::cout << "\n";
     }
