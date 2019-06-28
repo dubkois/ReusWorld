@@ -76,6 +76,10 @@ struct Pistil {
   bool isValid (void) const {
     return organ && boundingDisk.radius > 0;
   }
+
+  friend bool operator< (const Pistil &lhs, const Pistil &rhs);
+  friend bool operator< (const Pistil &lhs, const Point &rhs);
+  friend bool operator< (const Point &lhs, const Pistil &rhs);
 };
 
 enum CollisionResult {
