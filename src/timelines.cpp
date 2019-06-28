@@ -569,7 +569,7 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
     }
 
     // Execute alternative simulations in parallel
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic)
     for (uint a=0; a<branching; a++) {
       Simulation &s = alternatives[a].simulation;
 
