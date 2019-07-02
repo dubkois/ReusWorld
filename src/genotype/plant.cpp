@@ -409,16 +409,16 @@ auto initRule = [] (const std::string &rhs) {
   return grammar::toSuccessor(Config::ls_axiom()) + " -> " + rhs;
 };
 DEFINE_PARAMETER(Config::NonTerminal, ls_axiom, 'S')
-DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("s[+l][-l]f"))
-DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("[+h][-h]"))
+DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("[-l]f"))
+DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("h"))
 DEFINE_PARAMETER(Config::NonTerminal, ls_maxNonTerminal, 'F')
 DEFINE_PARAMETER(uint, ls_maxRuleSize, 10)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
 
 static const auto tsize = [] (float wr = 1, float lr = 1) {
-  return Config::TerminalSize{ .01f * wr, .1f * lr };
+  return Config::OrganSize{ .01f * wr, .1f * lr };
 };
-DEFINE_CONTAINER_PARAMETER(Config::TerminalsSizes, ls_terminalsSizes, {
+DEFINE_CONTAINER_PARAMETER(Config::OrgansSizes, ls_terminalsSizes, {
   { 's', tsize() },
   { 'l', tsize() },
   { 'f', tsize(1, .5) },
@@ -427,14 +427,15 @@ DEFINE_CONTAINER_PARAMETER(Config::TerminalsSizes, ls_terminalsSizes, {
   { 't', tsize() },
   { 'h', tsize() }
 })
-const Config::TerminalSize& Config::sizeOf (char symbol) {
+DEFINE_PARAMETER(Config::OrganSize, ls_nonTerminalsSize, tsize(.5, .1))
+const Config::OrganSize& Config::sizeOf (char symbol) {
   static const auto &sizes = ls_terminalsSizes();
-  static const auto null = TerminalSize{0,0};
+  static const auto &other = ls_nonTerminalsSize();
   auto it = sizes.find(symbol);
   if (it != sizes.end())
     return it->second;
   else
-    return null;
+    return other;
 }
 
 
@@ -500,18 +501,18 @@ DEFINE_GENOME_DISTANCE_WEIGHTS({
 })
 
 namespace config {
-std::ostream& operator<< (std::ostream &os, const Config::TerminalSize &ts) {
+std::ostream& operator<< (std::ostream &os, const Config::OrganSize &ts) {
   return os << ts.width << 'x' << ts.length;
 }
-std::istream& operator>> (std::istream &is, Config::TerminalSize &ts) {
+std::istream& operator>> (std::istream &is, Config::OrganSize &ts) {
   char c;
   is >> ts.width >> c >> ts.length;
   return is;
 }
-void to_json (nlohmann::json &j, const Config::TerminalSize &ts) {
+void to_json (nlohmann::json &j, const Config::OrganSize &ts) {
   j = { ts.width, ts.length };
 }
-void from_json (const nlohmann::json &j, Config::TerminalSize &ts) {
+void from_json (const nlohmann::json &j, Config::OrganSize &ts) {
   uint i = 0;
   ts.width = j[i++], ts.length = j[i++];
 }

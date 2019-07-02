@@ -70,12 +70,13 @@ struct EDNA_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(uint, ls_maxRuleSize)
   DECLARE_PARAMETER(float, ls_rotationAngle)
 
-  struct TerminalSize {
+  struct OrganSize {
     float width, length;
   };
-  using TerminalsSizes = std::map<char, TerminalSize>;
-  DECLARE_PARAMETER(TerminalsSizes, ls_terminalsSizes)
-  static const TerminalSize& sizeOf (char symbol);
+  using OrgansSizes = std::map<char, OrganSize>;
+  DECLARE_PARAMETER(OrgansSizes, ls_terminalsSizes)
+  DECLARE_PARAMETER(OrganSize, ls_nonTerminalsSize)
+  static const OrganSize& sizeOf (char symbol);
 
 
   DECLARE_PARAMETER(Bui, ls_recursivityBounds)
@@ -85,8 +86,8 @@ struct EDNA_CONFIG_FILE(Plant) {
 };
 using PlantGenome = EDNAConfigFile<genotype::Plant>;
 
-std::ostream& operator<< (std::ostream &os, const PlantGenome::TerminalSize &ts);
-std::istream& operator>> (std::istream &is, PlantGenome::TerminalSize &ts);
+std::ostream& operator<< (std::ostream &os, const PlantGenome::OrganSize &ts);
+std::istream& operator>> (std::istream &is, PlantGenome::OrganSize &ts);
 
 } // end of namespace config
 

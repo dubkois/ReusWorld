@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-//#define CUSTOM_PLANTS 1
+#define CUSTOM_PLANTS 2
 //#define DISTANCE_TEST
 #endif
 
@@ -122,10 +122,10 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 
 #elif CUSTOM_PLANTS == 2
   N = 6; // 12
-  dx = .2;
+  dx = .0025;
 
   modifiedPrimordialPlant.shoot.recursivity = 10;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
 
   uint i=0;
 
@@ -253,6 +253,7 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   exit(255);
 #endif
 
+  std::vector<Plant*> newborns;
   float x0 = - dx * int(N / 2);
   for (uint i=0; i<N; i++) {
 
@@ -266,9 +267,11 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
     pg.cdata.sex = (i%2 ? Plant::Sex::MALE : Plant::Sex::FEMALE);
     float initBiomass = Plant::primordialPlantBaseBiomass(pg);
 
-    addPlant(pg, x0 + i * dx, initBiomass);
+    Plant *p = addPlant(pg, x0 + i * dx, initBiomass);
+    if (p)  newborns.push_back(p);
   }
 
+  postInsertionCleanup(newborns);
   updateGenStats();
 
   return true;
@@ -277,11 +280,11 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 void Simulation::destroy (void) {
   Plant::Seeds discardedSeeds;
   while (!_plants.empty())
-    delPlant(_plants.begin()->first, discardedSeeds);
+    delPlant(*_plants.begin()->second, discardedSeeds);
   _env.destroy();
 }
 
-bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
+Plant *Simulation::addPlant(const PGenome &g, float x, float biomass) {
   bool insertionAborted = false;
   Plant *plant = nullptr;
   Plants::iterator pit = _plants.end();
@@ -327,21 +330,33 @@ bool Simulation::addPlant(const PGenome &g, float x, float biomass) {
     }
   }
 
-  return !insertionAborted;
+  return insertionAborted ? nullptr : plant;
 }
 
-void Simulation::delPlant(float x, Plant::Seeds &seeds) {
-  Plant *p = _plants.at(x).get();
+void Simulation::delPlant(Plant &p, Plant::Seeds &seeds) {
+  p.destroy();
+  p.collectCurrentStepSeeds(seeds);
 
-  p->destroy();
-  p->collectCurrentStepSeeds(seeds);
+  if (debugPlantManagement) p.autopsy();
+  _env.removeCollisionData(&p);
 
-  if (debugPlantManagement) p->autopsy();
-  _env.removeCollisionData(p);
+  _ptree.delGenome(p.genome());
 
-  _ptree.delGenome(p->genome());
+  _plants.erase(p.pos().x);
+}
 
-  _plants.erase(x);
+void Simulation::postInsertionCleanup(std::vector<Plant*> newborns) {
+  // Notify the physics engine
+  _env.processNewObjects();
+
+  // Shuffle the vector
+  _env.dice().shuffle(newborns);
+
+  // Now test that there is enough space
+  Plant::Seeds discardedSeeds;
+  for (Plant *p: newborns)
+    if (_env.initialCollisionTest(p) != physics::NO_COLLISION)
+      delPlant(*p, discardedSeeds);
 }
 
 void Simulation::performReproductions(void) {
@@ -423,6 +438,7 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
   if (debugReproduction && seeds.size() > 0)
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
+  std::vector<Plant*> newborns;
   for (const Plant::Seed &seed: seeds) {
     if (seed.biomass <= 0)  continue;
 
@@ -520,8 +536,12 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
                 << " (extracted from plant " << seed.genome.gdata.mother.gid
                 << " at position " << seed.position.x << ")" << std::endl;
 
-    addPlant(seed.genome, x, seed.biomass);
+    // First insert regardless of space
+    Plant *p = addPlant(seed.genome, x, seed.biomass);
+    if (p)  newborns.push_back(p);
   }
+
+  postInsertionCleanup(newborns);
 }
 
 void Simulation::printStepHeader (void) const {
@@ -544,30 +564,27 @@ void Simulation::step (void) {
   _env.stepStart();
 
   Plant::Seeds seeds;
-  std::set<float> corpses;
+  std::set<Plant*> corpses;
   for (const auto &it: rng::randomIterator(_plants, _env.dice())) {
     const Plant_ptr &p = it.second;
     _stats.derivations += p->step(_env);
     if (p->isDead()) {
       if (debugDeath) p->autopsy();
-      corpses.insert(p->pos().x);
+      corpses.insert(p.get());
     }
   }
 
   _stats.deadPlants = corpses.size();
-  for (float x: corpses)
-    delPlant(x, seeds);
+  for (Plant *p: corpses)
+    delPlant(*p, seeds);
 
-#ifndef CUSTOM_PLANTS
+#if !CUSTOM_PLANTS || 1
   performReproductions();
 
   for (const auto &p: _plants)
     if (p.second->hasUncollectedSeeds())
       p.second->collectCurrentStepSeeds(seeds);
-  plantSeeds(seeds);
-
-  if (!seeds.empty())
-    _env.processNewObjects();
+  if (!seeds.empty()) plantSeeds(seeds);
 #endif
 
   _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),

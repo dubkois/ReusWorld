@@ -40,7 +40,7 @@ public:
 
   void addPlantItem(simu::Plant &sp, phylogeny::SID species);
   void updatePlantItem (simu::Plant &sp);
-  void delPlantItem(float x);
+  void delPlantItem(simu::Plant &sp);
 
   void speciesHovered (phylogeny::SID sid, bool hovered);
 

@@ -40,8 +40,8 @@ public:
                     const std::string &constraints);
 
 private:
-  bool addPlant (const PGenome &p, float x, float biomass) override;
-  void delPlant (float x, simu::Plant::Seeds &seeds) override;
+  simu::Plant* addPlant (const PGenome &p, float x, float biomass) override;
+  void delPlant (simu::Plant &p, simu::Plant::Seeds &seeds) override;
 
   void updatePlantAltitude(simu::Plant &p, float h) override;
 

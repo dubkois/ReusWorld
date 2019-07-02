@@ -13,11 +13,13 @@ struct Branch {
   Organ::Collection organs;
 
   template <typename F>
-  Branch (Organ::Collection &bases, const F &filter) : bounds(Rect::invalid()) {
+  Branch (const Organ::Collection &bases, const F &filter)
+    : bounds(Rect::invalid()) {
+
     for (Organ *o: bases) insert(o, filter);
   }
 
-  Branch (Organ::Collection &bases)
+  Branch (const Organ::Collection &bases)
     : Branch(bases, [] (const Organ*) { return true; }) {}
 
   template <typename F>

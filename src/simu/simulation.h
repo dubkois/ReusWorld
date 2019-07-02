@@ -137,8 +137,13 @@ protected:
   std::array<std::ofstream,
              EnumUtils<genotype::env_controller::Outputs>::size()> _envFiles;
 
-  virtual bool addPlant(const PGenome &g, float x, float biomass);
-  virtual void delPlant (float x, Plant::Seeds &seeds);
+  virtual Plant* addPlant(const PGenome &g, float x, float biomass);
+  virtual void delPlant (Plant &p, Plant::Seeds &seeds);
+
+  /// Check that all plants in \p newborns are collision free
+  /// Remove those that are found wanting
+  /// \note Traversal order is randomized
+  void postInsertionCleanup (std::vector<Plant*> newborns);
 
   virtual void performReproductions (void);
   virtual void plantSeeds (Plant::Seeds &seeds);

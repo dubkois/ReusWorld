@@ -15,17 +15,16 @@ void GraphicSimulation::setController(visu::Controller *c) {
 //  _pviewer.setParent(c->view());
 }
 
-bool GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
-  bool added = Simulation::addPlant(p, x, biomass);
-  if (added)
-    _controller->view()->addPlantItem(*_plants.at(x),
-                                      p.species());
-  return added;
+simu::Plant*
+GraphicSimulation::addPlant(const PGenome &p, float x, float biomass) {
+  simu::Plant *plant = Simulation::addPlant(p, x, biomass);
+  if (plant)  _controller->view()->addPlantItem(*plant, p.species());
+  return plant;
 }
 
-void GraphicSimulation::delPlant(float x, simu::Plant::Seeds &seeds) {
-  _controller->view()->delPlantItem(x);
-  Simulation::delPlant(x, seeds);
+void GraphicSimulation::delPlant(simu::Plant &p, simu::Plant::Seeds &seeds) {
+  _controller->view()->delPlantItem(p);
+  Simulation::delPlant(p, seeds);
 }
 
 void GraphicSimulation::updatePlantAltitude(simu::Plant &p, float h) {

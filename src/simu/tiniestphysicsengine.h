@@ -84,6 +84,8 @@ public:
   bool addCollisionData (const Environment &env, Plant *p);
   void removeCollisionData (Plant *p);
 
+  CollisionResult initialCollisionTest (const Plant *plant);
+
   CollisionResult collisionTest(const Plant *plant,
                                 const Branch &self, const Branch &branch,
                                 const Organ::Collection &newOrgans);

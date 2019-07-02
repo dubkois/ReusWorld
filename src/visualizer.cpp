@@ -7,6 +7,14 @@
 
 #include "config/dependencies.h"
 
+bool isValidSeed(const std::string& s) {
+  return !s.empty()
+    && std::all_of(s.begin(),
+                    s.end(),
+                    [](char c) { return std::isdigit(c); }
+    );
+}
+
 int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing
@@ -16,7 +24,11 @@ int main(int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
 
-  std::string envGenomeFile, plantGenomeFile;
+  std::string envGenomeArg, plantGenomeArg;
+
+  genotype::Environment envGenome;
+  genotype::Plant plantGenome;
+
   std::string loadSaveFile, loadConstraints;
 
   std::string morphologiesSaveFolder;
@@ -40,8 +52,10 @@ int main(int argc, char *argv[]) {
      cxxopts::value(duration))
     ("f,data-folder", "Folder under which to store the computational outputs",
      cxxopts::value(outputFolder))
-    ("e,environment", "Environment's genome", cxxopts::value(envGenomeFile))
-    ("p,plant", "Plant genome to start from", cxxopts::value(plantGenomeFile))
+    ("e,environment", "Environment's genome or a random seed",
+     cxxopts::value(envGenomeArg))
+    ("p,plant", "Plant genome to start from or a random seed",
+     cxxopts::value(plantGenomeArg))
     ("l,load", "Load a previously saved simulation",
      cxxopts::value(loadSaveFile))
     ("load-constraints", "Constraints to apply on dependencies check",
@@ -91,9 +105,6 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  config::Simulation::setupConfig(configFile, verbosity);
-  if (configFile.empty()) config::Simulation::printConfig("");
-
   // ===========================================================================
   // == Qt setup
 
@@ -107,15 +118,42 @@ int main(int argc, char *argv[]) {
   gui::MainView *v = new gui::MainView(s.environment(), w);
   visu::Controller c (s, *w, v);
 
-  if (loadSaveFile.empty()) {
-    genotype::Environment e = genotype::Environment::fromFile(envGenomeFile);
-    genotype::Plant p = genotype::Plant::fromFile(plantGenomeFile);
+  if (loadSaveFile.empty()) {    
+    config::Simulation::setupConfig(configFile, verbosity);
+    if (configFile.empty()) config::Simulation::printConfig("");
 
-    std::cout << "Environment:\n" << e
-              << "\nPlant:\n" << p
+    if (!isValidSeed(envGenomeArg)) {
+      std::cout << "Reading environment genome from input file '"
+                << envGenomeArg << "'" << std::endl;
+      envGenome = genotype::Environment::fromFile(envGenomeArg);
+
+    } else {
+      rng::FastDice dice (std::stoi(envGenomeArg));
+      std::cout << "Generating environment genome from rng seed "
+                << dice.getSeed() << std::endl;
+      envGenome = genotype::Environment::random(dice);
+    }
+    envGenome.toFile("last", 2);
+
+    if (!isValidSeed(plantGenomeArg)) {
+      std::cout << "Reading plant genome from input file '"
+                << plantGenomeArg << "'" << std::endl;
+      plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+
+    } else {
+      rng::FastDice dice (std::stoi(plantGenomeArg));
+      std::cout << "Generating plant genome from rng seed "
+                << dice.getSeed() << std::endl;
+      plantGenome = genotype::Plant::random(dice);
+    }
+
+    plantGenome.toFile("last", 2);
+
+    std::cout << "Environment:\n" << envGenome
+              << "\nPlant:\n" << plantGenome
               << std::endl;
 
-    s.init(e, p);
+    s.init(envGenome, plantGenome);
 
   } else
     visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints);

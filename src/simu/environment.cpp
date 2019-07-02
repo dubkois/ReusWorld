@@ -167,6 +167,11 @@ void Environment::removeCollisionData(Plant *p) {
 }
 
 physics::CollisionResult
+Environment::initialCollisionTest (const Plant *plant) const {
+  return _physics->initialCollisionTest(plant);
+}
+
+physics::CollisionResult
 Environment::collisionTest (const Plant *plant,
                             const Branch &self, const Branch &branch,
                             const std::set<Organ*> &newOrgans) const {

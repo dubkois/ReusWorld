@@ -1157,6 +1157,67 @@ void TinyPhysicsEngine::broadphaseCollision(const CollisionObject *object,
 }
 
 CollisionResult
+TinyPhysicsEngine::initialCollisionTest(const Plant *plant) {
+  // == Debug ==
+  auto indent = utils::make_if<debugCollision,
+                               utils::IndentingOStreambuf>(std::cerr);
+  // ===========
+
+  CollisionResult res = NO_COLLISION;
+  Rect bounds = plant->boundingRect();
+
+  CollisionObject *object = *find(plant);
+  const_Collisions aabbCandidates;
+  broadphaseCollision(object, aabbCandidates, bounds);
+
+  if (debugCollision) {
+    std::cerr << "Possible collisions for " << plant->id() << " ("
+              << object->boundingRect << "): " << aabbCandidates.size() << " [";
+    for (const CollisionObject *o: aabbCandidates)
+      std::cerr << " " << o->plant->id();
+    std::cerr << " ]" << std::endl;
+  }
+
+  Branch branch (plant->organs());
+
+  bool ignoreSeeds = !plant->isInSeedState();
+  for (const CollisionObject *that: aabbCandidates) {
+    if (ignoreSeeds && that->plant->isInSeedState()) continue;
+
+    Rect i = intersection(that->boundingRect, bounds);
+    if (!i.isValid()) continue;
+
+    narrowphase::IntercollisionFunctor iterFunctor (branch, that->plant, i);
+    if(narrowPhaseCollision(iterFunctor))
+      res = CollisionResult::INTER_COLLISION;
+  }
+
+  if (debugCollision) std::cerr << "Plant does not collide with other plants"
+                                << std::endl;
+
+#ifdef DEBUG_COLLISIONS
+  if (res != NO_COLLISION) {
+    auto &v = collisionsDebugData[plant];
+    for (const Organ *o: branch.organs) {
+      BranchCollisionObject bco;
+      bco.res = res;
+
+      const auto &coords = o->globalCoordinates();
+      bco.pos = coords.origin;
+      bco.rot = o->inPlantCoordinates().rotation;
+      bco.symb = o->symbol();
+      bco.w = o->width();
+      bco.l = o->length();
+
+      v.push_back(bco);
+    }
+  }
+#endif
+
+  return res;
+}
+
+CollisionResult
 TinyPhysicsEngine::collisionTest(const Plant *plant,
                                  const Branch &self, const Branch &branch,
                                  const Organ::Collection &newOrgans) {
@@ -1225,9 +1286,10 @@ TinyPhysicsEngine::collisionTest(const Plant *plant,
       std::cerr << " ]" << std::endl;
     }
 
+    bool ignoreSeeds = !plant->isInSeedState();
     for (const CollisionObject *that: aabbCandidates) {
       // Ignore collision with seeds
-      if (that->plant->isInSeedState()) continue;
+      if (ignoreSeeds && that->plant->isInSeedState()) continue;
 
       Rect i = intersection(that->boundingRect, branch.bounds);
       if (!i.isValid()) continue;

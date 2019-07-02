@@ -151,6 +151,9 @@ public:
   void removeCollisionData (Plant *p);
 
   physics::CollisionResult
+  initialCollisionTest (const Plant *plant) const;
+
+  physics::CollisionResult
   collisionTest (const Plant *plant,
                  const Branch &self, const Branch &branch,
                  const std::set<Organ*> &newOrgans) const;

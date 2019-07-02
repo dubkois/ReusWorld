@@ -59,15 +59,15 @@ void MainView::updatePlantItem (simu::Plant &sp) {
   p->updateGeometry();
 }
 
-void MainView::delPlantItem(float x) {
-  auto it = _plants.find(x);
+void MainView::delPlantItem(simu::Plant &sp) {
+  auto it = _plants.find(sp.pos().x);
   assert(it != _plants.end());
-  Plant *p = *it;
-  assert(p);
-  if (p == _selection)  selectNextPlant();
+  gui::Plant *vp = *it;
+  assert(vp);
+  if (vp == _selection)  selectNextPlant();
   _plants.erase(it);
-  _scene->removeItem(p);
-  p->deleteLater();
+  _scene->removeItem(vp);
+  vp->deleteLater();
 }
 
 void MainView::update(void) {
