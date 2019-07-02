@@ -304,6 +304,20 @@ private:
   }
 };
 
+struct Parameters {
+  genotype::Environment envGenome;
+  genotype::Plant plantGenome;
+
+  stdfs::path subfolder = "tmp/test_timelines/";
+
+  uint epoch = 0;
+  uint epochs = 100;
+  uint epochDuration = 1;
+  uint branching = 3;
+
+  decltype(genotype::Environment::rngSeed) gaseed;
+};
+
 DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
@@ -331,6 +345,8 @@ struct Alternative {
 };
 
 using Population = std::vector<Alternative>;
+
+using ParetoFront = std::vector<uint>;
 
 void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
@@ -389,7 +405,7 @@ bool paretoDominates (const Alternative &lhs, const Alternative &rhs) {
 
 /// Code inspired by gaga/gaga.hpp @ https://github.com/jdisset/gaga.git
 void paretoFront (const Population &alternatives,
-                  std::vector<uint> &front) {
+                  ParetoFront &front) {
 
   for (uint i=0; i<alternatives.size(); i++) {
     const Alternative &a = alternatives[i];
@@ -407,20 +423,64 @@ void paretoFront (const Population &alternatives,
   }
 }
 
-void controlGroup (uint duration,
-                   const genotype::Environment &envGenome,
-                   const genotype::Plant &plantGenome,
-                   const stdfs::path &subfolder) {
+void printSummary (const Parameters &parameters,
+                   const Population &alternatives,
+                   const ParetoFront &pFront,
+                   uint winner) {
+  static const auto iwidth = std::ceil(std::log10(parameters.branching));
+  static constexpr auto pwidth = 10;
 
+  static const auto fitnessHeader = [] {
+    for (auto f: EnumUtils<Fitnesses>::iterator())
+      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    std::cout << "\n";
+  };
+
+  if (parameters.epoch == 0) {
+    std::cout << "# Seed epoch:\n"
+                 "# " << std::setw(iwidth) << " ";
+    fitnessHeader();
+    std::cout << "# " << std::setw(iwidth) << 0;
+    for (double f: alternatives[0].fitnesses)
+      std::cout << " " << std::setw(pwidth) << f;
+    std::cout << "\n";
+
+  } else {
+    std::cout << "# Alternatives:\n"
+                 "# " << std::setw(iwidth) << " ";
+    fitnessHeader();
+    uint i=0;
+    for (const Alternative &a: alternatives) {
+      std::cout << "# " << std::setw(iwidth) << i++;
+      for (double f: a.fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
+
+    std::cout << "#\n# " << pFront.size() << " alternatives in pareto front"
+                 "\n#  " << std::setw(iwidth);
+    fitnessHeader();
+    for (uint i: pFront) {
+      std::cout << "# " << ((i == winner) ? '*' : ' ');
+      for (double f: alternatives[i].fitnesses)
+        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "\n";
+    }
+    std::cout << "#" << std::endl;
+  }
+}
+
+void controlGroup (const Parameters &parameters) {
 
   Alternative a;
   Simulation &s = a.simulation;
   auto start = Simulation::clock::now();
   GenePool genepool;
 
-  s.init(envGenome, plantGenome);
-  s.setDataFolder(subfolder / "results");
-  s.setDuration(simu::Environment::DurationSetType::SET, duration);
+  s.init(parameters.envGenome, parameters.plantGenome);
+  s.setDataFolder(parameters.subfolder / "results");
+  s.setDuration(simu::Environment::DurationSetType::SET,
+                parameters.epochs * parameters.epochDuration);
 
   auto startpop = s.plants().size();
   genepool.parse(s);
@@ -446,51 +506,46 @@ void controlGroup (uint duration,
               << Simulation::duration(start) / 1000. << " seconds" << std::endl;
 }
 
-void exploreTimelines (uint epochs, uint epochDuration, uint branching,
-                       uint gaseed,
-                       const genotype::Environment &envGenome,
-                       const genotype::Plant &plantGenome,
-                       const stdfs::path &subfolder) {
+void exploreTimelines (Parameters parameters) {
 
   static constexpr auto DT = simu::Environment::DurationSetType::APPEND;
-  uint epoch = 0;
 
-  uint epoch_digits = std::ceil(std::log10(epochs)),
-       alternatives_digits = std::ceil(std::log10(branching));
+  uint epoch_digits = std::ceil(std::log10(parameters.epochs)),
+       alternatives_digits = std::ceil(std::log10(parameters.branching));
   auto alternativeDataFolder =
-    [&subfolder, epoch_digits, alternatives_digits]
+    [&parameters, epoch_digits, alternatives_digits]
     (uint epoch, uint alternative) {
       std::ostringstream oss;
       oss << "results/e" << std::setfill('0') << std::setw(epoch_digits)
           << epoch << "_a" << std::setw(alternatives_digits) << alternative;
-      return subfolder / oss.str();
+      return parameters.subfolder / oss.str();
     };
 
-  auto championDataFolder = [&subfolder, epoch_digits] (uint epoch) {
+  auto championDataFolder = [&parameters, epoch_digits] (uint epoch) {
     std::ostringstream oss;
     oss << "results/e" << std::setfill('0') << std::setw(epoch_digits)
         << epoch << "_r";
-    return subfolder / oss.str();
+    return parameters.subfolder / oss.str();
   };
 
-  auto epochHeader = [epoch_digits, &epoch] {
+  auto epochHeader = [epoch_digits, &parameters] {
     static const auto CTSIZE =  utils::CurrentTime::width();
     std::cout << std::string(8+epoch_digits+4+CTSIZE+2, '#') << "\n"
-              << "# Epoch " << std::setw(epoch_digits) << epoch
+              << "# Epoch " << std::setw(epoch_digits) << parameters.epoch
               << " at " << utils::CurrentTime{} << " #"
               << std::endl;
   };
 
-  rng::FastDice dice (gaseed);
+  rng::FastDice dice (parameters.gaseed);
   auto start = Simulation::clock::now();
 
   Population alternatives;
-  for (uint a=0; a<branching; a++)  alternatives.emplace_back();
+  for (uint a=0; a<parameters.branching; a++)  alternatives.emplace_back();
 
   GenePool genepool;
 
-  stdfs::create_directories(subfolder / "results/");
-  std::ofstream timelinesOFS (subfolder / "results/timelines.dat");
+  stdfs::create_directories(parameters.subfolder / "results/");
+  std::ofstream timelinesOFS (parameters.subfolder / "results/timelines.dat");
   const auto logFitnesses =
     [&timelinesOFS, &alternatives] (uint epoch, uint winner) {
       std::ofstream &ofs = timelinesOFS;
@@ -533,9 +588,9 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
   Alternative *reality = &alternatives.front();
   uint winner = 0;
 
-  reality->simulation.init(envGenome, plantGenome);
-  reality->simulation.setDataFolder(championDataFolder(epoch));
-  reality->simulation.setDuration(DT, epochDuration);
+  reality->simulation.init(parameters.envGenome, parameters.plantGenome);
+  reality->simulation.setDataFolder(championDataFolder(parameters.epoch));
+  reality->simulation.setDuration(DT, parameters.epochDuration);
   logEnvController(reality->simulation);
 
   epochHeader();
@@ -544,10 +599,11 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
 
   while (!reality->simulation.finished()) reality->simulation.step();
 
-  computeFitnesses(*reality, genepool, startpop);
+  computeFitnesses(*reality, genepool, startpop);  
+  printSummary(parameters, alternatives, ParetoFront(), -1);
   logFitnesses(0, 0);
 
-  epoch++;
+  parameters.epoch++;
   do {
     epochHeader();
     genepool.parse(reality->simulation);
@@ -555,22 +611,22 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
 
     // Populate next epoch from current best alternative
     if (winner != 0)  alternatives[0].simulation.clone(reality->simulation);
-    for (uint a=1; a<branching; a++) {
+    for (uint a=1; a<parameters.branching; a++) {
       if (winner != a)  alternatives[a].simulation.clone(reality->simulation);
       alternatives[a].simulation.mutateEnvController(dice);
     }
 
     // Prepare data folder and set durations
-    for (uint a = 0; a < branching; a++) {
+    for (uint a=0; a<parameters.branching; a++) {
       Simulation &s = alternatives[a].simulation;
-      s.setDuration(DT, epochDuration);
-      s.setDataFolder(alternativeDataFolder(epoch, a));
+      s.setDuration(DT, parameters.epochDuration);
+      s.setDataFolder(alternativeDataFolder(parameters.epoch, a));
       logEnvController(s);
     }
 
     // Execute alternative simulations in parallel
     #pragma omp parallel for schedule(dynamic)
-    for (uint a=0; a<branching; a++) {
+    for (uint a=0; a<parameters.branching; a++) {
       Simulation &s = alternatives[a].simulation;
 
       while (!s.finished()) s.step();
@@ -579,62 +635,33 @@ void exploreTimelines (uint epochs, uint epochDuration, uint branching,
     }
 
     // Find 'best' alternative
-    std::vector<uint> pFront;
+    ParetoFront pFront;
     paretoFront(alternatives, pFront);
     winner = *dice(pFront);
     reality = &alternatives[winner];
 
-    logFitnesses(epoch, winner);
+    logFitnesses(parameters.epoch, winner);
 
     // Store result accordingly
     stdfs::create_directory_symlink(reality->simulation.dataFolder().filename(),
-                                    championDataFolder(epoch));
+                                    championDataFolder(parameters.epoch));
 
-    // Print info
-    static const auto iwidth = std::ceil(std::log10(branching));
-    static constexpr auto pwidth = 10;
-    std::cout << std::setfill(' ');
-
-    std::cout << "# Alternatives:\n"
-                 "# " << std::setw(iwidth) << " ";
-    for (auto f: EnumUtils<Fitnesses>::iterator())
-      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-    std::cout << "\n";
-    uint i=0;
-    for (const Alternative &a: alternatives) {
-      std::cout << "# " << std::setw(iwidth) << i++;
-      for (double f: a.fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
-      std::cout << "\n";
-    }
-
-    std::cout << "#\n# " << pFront.size() << " alternatives in pareto front"
-                 "\n#  " << std::setw(iwidth);
-    for (auto f: EnumUtils<Fitnesses>::iterator())
-      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
-    std::cout << "\n";
-    for (uint i: pFront) {
-      std::cout << "# " << ((i == winner) ? '*' : ' ');
-      for (double f: alternatives[i].fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
-      std::cout << "\n";
-    }
-    std::cout << "#" << std::endl;
+    printSummary(parameters, alternatives, pFront, winner);
 
     if (reality->simulation.extinct()) {
       reality = nullptr;
       break;
     }
 
-    epoch++;
-  } while (epoch < epochs);
+    parameters.epoch++;
+  } while (parameters.epoch < parameters.epochs);
 
   if (reality)
     std::cout << "\nTimelines exploration completed in "
               << Simulation::duration(start) / 1000. << " seconds" << std::endl;
   else
     std::cout << "\nTimelines exploration failed. Extinction at epoch "
-              << epoch << std::endl;
+              << parameters.epoch << std::endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -647,13 +674,9 @@ int main(int argc, char *argv[]) {
   Verbosity verbosity = Verbosity::SHOW;
 
   std::string envGenomeArg, plantGenomeArg;
-  genotype::Environment envGenome;
-  genotype::Plant plantGenome;
+  decltype(genotype::Environment::rngSeed) envOverrideSeed;
 
-  decltype(genotype::Environment::rngSeed) envOverrideSeed, gaseed;
-
-  stdfs::path subfolder = "tmp/test_timelines/";
-  uint epochs = 100, epochDuration = 1, branching = 3;
+  Parameters parameters;
 
   cxxopts::Options options("ReusWorld (timelines explorer)",
                            "Continuous 1 + lambda of a 2D simulation of plants"
@@ -666,7 +689,7 @@ int main(int argc, char *argv[]) {
     ("v,verbosity", "Verbosity level. " + config::verbosityValues(),
      cxxopts::value(verbosity))
     ("f,folder", "Folder under which to store the results",
-     cxxopts::value(subfolder))
+     cxxopts::value(parameters.subfolder))
     ("e,environment", "Environment's genome or a random seed",
      cxxopts::value(envGenomeArg))
     ("p,plant", "Plant genome to start from or a random seed",
@@ -674,13 +697,13 @@ int main(int argc, char *argv[]) {
     ("env-seed", "Overrides enviroment's seed with provided value",
      cxxopts::value(envOverrideSeed))
     ("ga-seed", "RNG seed for the genetic algorithm",
-     cxxopts::value(gaseed))
+     cxxopts::value(parameters.gaseed))
     ("epochs", "Number of epochs",
-     cxxopts::value(epochs))
+     cxxopts::value(parameters.epochs))
     ("epoch-duration", "Number of years per epoch",
-     cxxopts::value(epochDuration))
+     cxxopts::value(parameters.epochDuration))
     ("alternatives-per-epoch", "Number of explored alternatives per epoch",
-     cxxopts::value(branching))
+     cxxopts::value(parameters.branching))
     ;
 
   auto result = options.parse(argc, argv);
@@ -708,7 +731,7 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  config::Simulation::updateTopologyEvery.ref() = epochDuration;
+  config::Simulation::updateTopologyEvery.ref() = parameters.epochDuration;
   config::Simulation::setupConfig(configFile, verbosity);
   config::Simulation::verbosity.ref() = 0;
   if (configFile.empty()) config::Simulation::printConfig("");
@@ -716,33 +739,33 @@ int main(int argc, char *argv[]) {
   if (!isValidSeed(envGenomeArg)) {
     std::cout << "Reading environment genome from input file '"
               << envGenomeArg << "'" << std::endl;
-    envGenome = genotype::Environment::fromFile(envGenomeArg);
+    parameters.envGenome = genotype::Environment::fromFile(envGenomeArg);
 
   } else {
     rng::FastDice dice (std::stoi(envGenomeArg));
     std::cout << "Generating environment genome from rng seed "
               << dice.getSeed() << std::endl;
-    envGenome = genotype::Environment::random(dice);
+    parameters.envGenome = genotype::Environment::random(dice);
   }
-  if (result.count("env-seed")) envGenome.rngSeed = envOverrideSeed;
-  envGenome.toFile("last", 2);
+  if (result.count("env-seed")) parameters.envGenome.rngSeed = envOverrideSeed;
+  parameters.envGenome.toFile("initial", 2);
 
   if (!isValidSeed(plantGenomeArg)) {
     std::cout << "Reading plant genome from input file '"
               << plantGenomeArg << "'" << std::endl;
-    plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+    parameters.plantGenome = genotype::Plant::fromFile(plantGenomeArg);
 
   } else {
     rng::FastDice dice (std::stoi(plantGenomeArg));
     std::cout << "Generating plant genome from rng seed "
               << dice.getSeed() << std::endl;
-    plantGenome = genotype::Plant::random(dice);
+    parameters.plantGenome = genotype::Plant::random(dice);
   }
 
-  plantGenome.toFile("last", 2);
+  parameters.plantGenome.toFile("inital", 2);
 
-  std::cout << "Environment:\n" << envGenome
-            << "\nPlant:\n" << plantGenome
+  std::cout << "Environment:\n" << parameters.envGenome
+            << "\nPlant:\n" << parameters.plantGenome
             << std::endl;
 
 //  // ===========================================================================
@@ -834,16 +857,14 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  stdfs::remove_all(subfolder);
+  stdfs::remove_all(parameters.subfolder);
 #warning Auto-removing result folder
 
-  if (branching == 1)
-    controlGroup(epochs * epochDuration, envGenome, plantGenome,
-                 subfolder);
+  if (parameters.branching <= 1)
+    controlGroup(parameters);
 
   else
-    exploreTimelines(epochs, epochDuration, branching, gaseed,
-                     envGenome, plantGenome, subfolder);
+    exploreTimelines(parameters);
 
   return 0;
 

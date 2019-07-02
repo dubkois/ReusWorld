@@ -578,7 +578,7 @@ void Simulation::step (void) {
   for (Plant *p: corpses)
     delPlant(*p, seeds);
 
-#if !CUSTOM_PLANTS || 1
+#if !CUSTOM_PLANTS
   performReproductions();
 
   for (const auto &p: _plants)

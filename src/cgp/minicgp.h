@@ -282,6 +282,7 @@ public:
 
   friend std::ostream& operator<< (std::ostream &os, const CGP &cgp) {
     auto flags = os.flags();
+    auto fill = os.fill();
     const auto pad = [] { return std::setw(4); };
 
     os << "CGP {\n\t" << std::setfill(' ');
@@ -306,6 +307,7 @@ public:
       os << pad() << nid << " ";
     os << "\n}" << std::endl;
 
+    os.fill(fill);
     os.flags(flags);
     return os;
   }
