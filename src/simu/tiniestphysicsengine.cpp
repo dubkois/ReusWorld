@@ -418,7 +418,6 @@ void TinyPhysicsEngine::processNewObjects(void) {
   }
 }
 
-#ifndef NDEBUG
 void TinyPhysicsEngine::debug (void) const {
 #if 1
   // Check that no pistil outlive its plant
@@ -427,7 +426,7 @@ void TinyPhysicsEngine::debug (void) const {
       utils::doThrow<std::logic_error>("Leftover pistil!");
   }
 #endif
-#if 0
+#if 1
   // Check that every pistil is correctly placed
   for (const CollisionObject *co: _data) {
     const Plant *p = co->plant;
@@ -465,7 +464,7 @@ void TinyPhysicsEngine::debug (void) const {
             if (it != _pistils.end()) {
               found = true;
 
-              std::cerr << "\t\tFound something!\n";
+              std::cerr << "\t\tFound something: " << *it << "\n";
 
               Disk bd = it->boundingDisk;
               std::cerr << "\t\t" << bd.center << " ~= "
@@ -480,11 +479,17 @@ void TinyPhysicsEngine::debug (void) const {
             } else
               std::cerr << "\t\tNot found...\n";
           }
-          std::cerr << "Here are the pistils for "
+          std::cerr << "Here are the flowers contained in "
+                    << PlantID(p) << ":" << std::endl;
+          for (const Organ *o: p->flowers())
+            std::cerr << "\t" << OrganID(o, true) << "@"
+                      << o->globalCoordinates().center << "\n";
+          std::cerr << "Here are the pistils registered for "
                     << PlantID(p) << ":" << std::endl;
           for (const Pistil &ps: _pistils)
             if (ps.organ->plant() == p)
-              std::cerr << "\t" << ps << "\n";
+              std::cerr << "\t" << OrganID(ps.organ, true) << "@"
+                        << ps.boundingDisk.center << "\n";
         }
         if(!(found && matched))
           utils::doThrow<std::logic_error>("Something went wrong...");
@@ -493,7 +498,6 @@ void TinyPhysicsEngine::debug (void) const {
   }
 #endif
 }
-#endif
 
 Collisions::iterator TinyPhysicsEngine::find (const Plant *p) {
   auto it = _data.find(*p);
@@ -561,6 +565,22 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   while (!object->englobingObjects.empty())
     broadphase::noLongerEnglobes(*object->englobingObjects.begin(), object);
 
+
+
+  std::set<const Organ*> pistilsV1, pistilsV2;
+
+  for (auto itP = _pistils.begin(); itP != _pistils.end(); ++itP)
+    if (itP->organ->plant() == p)
+      pistilsV1.insert(itP->organ);
+
+  for (const Organ *p: object->plant->flowers()) {
+    auto it = _pistils.find(p->globalCoordinates().center);
+    if (it != _pistils.end() && it->organ == p)
+      pistilsV2.insert(p);
+  }
+
+  utils::assertEqual(pistilsV1, pistilsV2, false);
+
   // Also delete any remaining pistils
 //  /// FIXME This stinks to high heavens: O(n) with no reason...
 //  for (auto itP = _pistils.begin(); itP != _pistils.end();) {
@@ -569,6 +589,7 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
 //    else  ++itP;
 //  }
   for (const Organ *p: object->plant->flowers())  delPistil(p);
+  /// FIXME This is not working as expected... Why?
 
   _data.erase(it);
   delete object;
@@ -1349,19 +1370,18 @@ Disk boundingDiskFor (const Organ *o) {
 }
 
 void TinyPhysicsEngine::addPistil(Organ *p) {
-#ifdef NDEBUG
-  _pistils.emplace(p, boundingDiskFor(p));
-#else
-  auto res = _pistils.emplace(p, boundingDiskFor(p));
-  assert(p->globalCoordinates().center == boundingDiskFor(p).center);
-  if (debugReproduction) {
-    if (res.second)
-      std::cerr << "Added " << *res.first << std::endl;
-    else
-      std::cerr << "Unable to insert pistil " << Pistil(p, boundingDiskFor(p))
-                << " (equal to " << *res.first << ")" << std::endl;
-  }
-#endif
+  if constexpr (debugReproduction) {
+    auto res = _pistils.emplace(p, boundingDiskFor(p));
+    assert(p->globalCoordinates().center == boundingDiskFor(p).center);
+    if (debugReproduction) {
+      if (res.second)
+        std::cerr << "Added " << *res.first << std::endl;
+      else
+        std::cerr << "Unable to insert pistil " << Pistil(p, boundingDiskFor(p))
+                  << " (equal to " << *res.first << ")" << std::endl;
+    }
+  } else
+    _pistils.emplace(p, boundingDiskFor(p));
 }
 
 void TinyPhysicsEngine::delPistil(const Organ *p) {

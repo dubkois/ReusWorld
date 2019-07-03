@@ -104,9 +104,7 @@ public:
   // Call after loading a save file to ensure everything is fine
   void postLoad (void);
 
-#ifndef NDEBUG
   void debug (void) const;
-#endif
 
   void clone (const TinyPhysicsEngine &e,
               const std::map<const Plant*, Plant*> &plookup,

@@ -531,6 +531,8 @@ public:
 
 private:
   CGP (rng::AbstractDice &dice) {
+    ldice.reset(dice(0u, std::numeric_limits<uint>::max()));
+
     registerLocalFunctions();
 
     using utils::make_array;
