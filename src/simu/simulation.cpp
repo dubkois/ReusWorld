@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 2
+//#define CUSTOM_PLANTS 2
 //#define DISTANCE_TEST
 #endif
 

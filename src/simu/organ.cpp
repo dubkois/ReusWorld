@@ -101,13 +101,6 @@ void Organ::updateDimensions(bool andTransformations) {
 }
 
 void Organ::updateTransformation(void) {
-  static constexpr auto PID = phylogeny::GID(40277);
-  static constexpr auto OID = 4;
-  if (_plant->id() == PID && _id == OID)
-    std::cerr << OrganID(this) << " Moving from P"
-              << _plantCoordinates.center
-              << ", G" << _globalCoordinates.center;
-
   _plantCoordinates.rotation = _parentCoordinates.rotation;
   if (_parent)  _plantCoordinates.rotation += _parent->_plantCoordinates.rotation;
 
@@ -121,12 +114,6 @@ void Organ::updateTransformation(void) {
   updateGlobalTransformation();
 
   for (Organ *c: _children) c->updateTransformation();
-
-  if (_plant->id() == PID && _id == OID)
-    std::cerr << " to P"
-              << _plantCoordinates.center
-              << ", G" << _globalCoordinates.center
-              << std::endl;
 }
 
 void Organ::updateBoundingBox(void) {

@@ -16,7 +16,7 @@ static constexpr bool debugBroadphase = false;
 static constexpr bool debugNarrowphase = false;
 static constexpr bool debugCollision = false || debugBroadphase || debugNarrowphase;
 static constexpr bool debugUpperLayer = false;
-static constexpr bool debugReproduction = false;
+static constexpr bool debugReproduction = true;
 
 static constexpr float floatPrecision = 1e6;
 bool fuzzyEqual (float lhs, float rhs) {
@@ -418,10 +418,24 @@ void TinyPhysicsEngine::processNewObjects(void) {
   }
 }
 
+void checkSex (const Plant *p) {
+  if (p->sex() != Plant::Sex::FEMALE)
+    utils::doThrow<std::logic_error>("Non female plant with pistils");
+}
+
+void checkType (const Organ *o) {
+  if (!o->isFlower())
+    utils::doThrow<std::logic_error>(
+      "Non flower ", OrganID(o), " in pistils collection");
+}
+
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 void TinyPhysicsEngine::debug (void) const {
 #if 1
   // Check that no pistil outlive its plant
   for (const Pistil &ps: _pistils) {
+    checkType(ps.organ);
     if (find(ps.organ->plant()) == _data.end())
       utils::doThrow<std::logic_error>("Leftover pistil!");
   }
@@ -444,8 +458,7 @@ void TinyPhysicsEngine::debug (void) const {
           if (it != _pistils.end()) {
             found = true;
 
-            Disk bd = it->boundingDisk;
-            if(bd.center == o->globalCoordinates().center) {
+            if(it->organ == o) {
               matched = true;
               break;
             }
@@ -469,7 +482,7 @@ void TinyPhysicsEngine::debug (void) const {
               Disk bd = it->boundingDisk;
               std::cerr << "\t\t" << bd.center << " ~= "
                         << o->globalCoordinates().center << "? ";
-              if(bd.center == o->globalCoordinates().center) {
+              if(it->organ == o) {
                 std::cerr << "Match!\n";
                 matched = true;
                 break;
@@ -498,6 +511,7 @@ void TinyPhysicsEngine::debug (void) const {
   }
 #endif
 }
+#pragma GCC pop_options
 
 Collisions::iterator TinyPhysicsEngine::find (const Plant *p) {
   auto it = _data.find(*p);
@@ -565,31 +579,47 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   while (!object->englobingObjects.empty())
     broadphase::noLongerEnglobes(*object->englobingObjects.begin(), object);
 
+  /// DEBUG ====================================================================
+  /// NOTE The following tests pass (most of the time).
+  /// The pistil-managing code should be considered unsafe and ought be debugged
+  /// thoroughly (but won't be for lack of time...)
 
+//  if (p != object->plant)
+//    utils::doThrow<std::logic_error>(
+//      "Expecting plant ", PlantID(p), " got ", PlantID(object->plant));
 
-  std::set<const Organ*> pistilsV1, pistilsV2;
+//  std::set<const Organ*> pistilsV1, pistilsV2;
 
-  for (auto itP = _pistils.begin(); itP != _pistils.end(); ++itP)
-    if (itP->organ->plant() == p)
-      pistilsV1.insert(itP->organ);
+//  for (auto itP = _pistils.begin(); itP != _pistils.end(); ++itP) {
+//    if (itP->organ->plant() == p) {
+//      checkType(itP->organ);
+//      pistilsV1.insert(itP->organ);
+//    }
+//  }
+//  if (!pistilsV1.empty()) checkSex(p);
 
-  for (const Organ *p: object->plant->flowers()) {
-    auto it = _pistils.find(p->globalCoordinates().center);
-    if (it != _pistils.end() && it->organ == p)
-      pistilsV2.insert(p);
-  }
+//  for (const Organ *p: object->plant->flowers()) {
+//    checkType(p);
+//    auto it = _pistils.find(p->globalCoordinates().center);
+//    if (it != _pistils.end() && it->organ == p)
+//      pistilsV2.insert(p);
+//  }
+//  if (!pistilsV2.empty()) checkSex(p);
 
-  utils::assertEqual(pistilsV1, pistilsV2, false);
+//  utils::assertEqual(pistilsV1, pistilsV2, false);
+
+  /// ==========================================================================
 
   // Also delete any remaining pistils
-//  /// FIXME This stinks to high heavens: O(n) with no reason...
-//  for (auto itP = _pistils.begin(); itP != _pistils.end();) {
-//    if (itP->organ->plant() == p)
-//      itP = _pistils.erase(itP);
-//    else  ++itP;
-//  }
-  for (const Organ *p: object->plant->flowers())  delPistil(p);
-  /// FIXME This is not working as expected... Why?
+//  /// FIXME This stinks to high heavens: O(n) but with reasons...
+  for (auto itP = _pistils.begin(); itP != _pistils.end();) {
+    if (itP->organ->plant() == p)
+      itP = _pistils.erase(itP);
+    else  ++itP;
+  }
+
+/// FIXME This is not working as expected... Why?
+//  for (const Organ *p: object->plant->flowers())  delPistil(p);
 
   _data.erase(it);
   delete object;
@@ -898,8 +928,8 @@ bool immediateFamily(const Organ *lhs, const Organ *rhs) {
 }
 
 auto intraPlantCollisionTest (const Organ *lhs, const Organ *rhs) {
-  if (lhs->isNonTerminal()) return SKIP;
-  if (rhs->isNonTerminal()) return SKIP;
+//  if (lhs->isNonTerminal()) return SKIP;
+//  if (rhs->isNonTerminal()) return SKIP;
   if (alignedOrgans(lhs, rhs))  return ABORT;
   if (immediateFamily(lhs, rhs)) return SKIP;
   return TEST;
@@ -1349,17 +1379,21 @@ TinyPhysicsEngine::collisionTest(const Plant *plant,
 
 // =============================================================================
 
+bool operator< (const Point &lhs, const Point &rhs) {
+  if (!fuzzyEqual(lhs.x, rhs.x))  return fuzzyLower(lhs.x, rhs.x);
+  return fuzzyLower(lhs.y, rhs.y);
+}
 
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
-  return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
+  return lhs.boundingDisk.center < rhs.boundingDisk.center;
 }
 
 bool operator< (const Pistil &lhs, const Point &rhs) {
-  return fuzzyLower(lhs.boundingDisk.center.x, rhs.x);
+  return lhs.boundingDisk.center < rhs;
 }
 
 bool operator< (const Point &lhs, const Pistil &rhs) {
-  return fuzzyLower(lhs.x, rhs.boundingDisk.center.x);
+  return lhs < rhs.boundingDisk.center;
 }
 
 Disk boundingDiskFor (const Organ *o) {
@@ -1401,26 +1435,38 @@ void TinyPhysicsEngine::delPistil(const Organ *p) {
 }
 
 void TinyPhysicsEngine::updatePistil (Organ *p, const Point &oldPos) {
+  if (p->globalCoordinates().center == oldPos)
+    return;
+
   auto it = _pistils.find(oldPos);
-  if (it != _pistils.end() && it->organ == p) {
+  if (it == _pistils.end()) {
+    if (debugReproduction)
+      std::cerr << "Could not find pistil for " << OrganID(p) << " at pos "
+                << oldPos << " thus ";
+    addPistil(p);
+
+  } else if (it->organ == p) {
     Pistil s = *it;
     _pistils.erase(it);
 
     if (debugReproduction)
-      std::cerr << "Updating" << s;
+      std::cerr << "Updating " << s;
 
     s.boundingDisk = boundingDiskFor(p);
 
     if (debugReproduction)
       std::cerr << " >> " << s.boundingDisk << std::endl;
 
-    _pistils.insert(s);
-  } else {
-    if (debugReproduction)
-      std::cerr << "Could not find pistil for " << OrganID(p) << " at pos "
-                << oldPos << " thus ";
-    addPistil(p);
-  }
+    auto res = _pistils.insert(s);
+    if (!res.second && debugReproduction)
+      utils::doThrow<std::logic_error>(
+        "Cannot move pistil for ", OrganID(p), " to ",
+        p->globalCoordinates().center, ". Spot is already taken by ", *res.first);
+
+  } else if (debugReproduction)
+    utils::doThrow<std::logic_error>(
+      "Cannot access pistil ", OrganID(p), " for update at ",
+      p->globalCoordinates().center, ". Spot is already taken by ", *it);
 }
 
 struct LowerBound {

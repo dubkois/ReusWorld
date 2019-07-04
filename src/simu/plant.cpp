@@ -107,10 +107,6 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
 
   assert(o->isFlower());
 
-  if (debugReproduction)
-    std::cerr << OrganID(o) << " Replacing with fruit at "
-              << o->globalCoordinates().center << std::endl;
-
   Organ *parent = o->parent();
   float rotation = o->localRotation();
   Layer l = o->layer();
@@ -127,6 +123,11 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
   p.first->second.fruit = fruit;
 
   _dirty.set(DIRTY_METABOLISM, true);
+
+  if (debugReproduction)
+    std::cerr << OrganID(o) << " Replacing with fruit "
+              << OrganID(fruit, true) << " at O"
+              << o->globalCoordinates().origin << std::endl;
 
   // Clean up
   Point fpos = o->globalCoordinates().center;
@@ -191,7 +192,7 @@ void printSubTree (const Organ *st, uint depth,
   }
 }
 
-uint Plant::deriveRules(Environment &env) {
+uint Plant::deriveRules(Environment &env, PistilsCache &opp) {
   uint derivations = 0;
   std::set<OID> unprocessed;
   for (Organ *o: _nonTerminals) unprocessed.insert(o->id());
@@ -317,6 +318,11 @@ uint Plant::deriveRules(Environment &env) {
 
     derivations++;
 
+    // Insert new flowers in pistils positions cache
+    if (sex() == Sex::FEMALE)
+      for (Organ *o: newOrgans)
+        if (o->isFlower())
+          opp.emplace(o->id(), o->globalCoordinates().center);
 
     // Update pistils positions cache
 //    if (sex() == Sex::FEMALE)
@@ -1014,7 +1020,7 @@ uint Plant::step(Environment &env) {
   if ((SConfig::DEBUG_NO_METABOLISM() || _age % SConfig::stepsPerDay() == 0)
     && !_nonTerminals.empty()) {
 
-    derived += deriveRules(env);
+    derived += deriveRules(env, oldPistilsPositions);
     _derived += bool(derived);
 
     if (!_nonTerminals.empty()) {
