@@ -49,7 +49,7 @@ void Environment::stepStart(void) {
 void Environment::stepEnd (void) {
   cgpStep();
 
-#if 1
+#if 0
 #warning debugging physics
   _physics->debug();
 #endif

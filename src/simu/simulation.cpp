@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 1
+//#define CUSTOM_PLANTS 3
 //#define DISTANCE_TEST
 #endif
 
@@ -232,8 +232,24 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 //  i++;
 
 #elif CUSTOM_PLANTS == 3
+  N = 2;
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+
+  genomes[0].shoot.rules = {
+    SRULE("S -> [-l[l]]A"),
+    SRULE("A -> AAAA")
+  };
+  genomes[0].root.rules = {
+    RRULE("S -> [hAAA]"),
+    RRULE("A -> AAAA")
+  };
+  genomes[0].dethklok = -1;
+
+  genomes[1] = genomes[0];
+
+#elif CUSTOM_PLANTS == 4
   N = 1;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone());
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
   genomes[0].dethklok = -1;
 #endif
 #endif

@@ -505,6 +505,8 @@ void TinyPhysicsEngine::debug (void) const {
     }
   }
 #endif
+  std::cerr << __PRETTY_FUNCTION__
+            << " No errors found in physics engine" << std::endl;
 }
 #pragma GCC pop_options
 
