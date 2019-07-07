@@ -278,9 +278,7 @@ public:
   }
 
 private:  
-  using PistilsCache = std::map<OID, Point>;
-
-  uint deriveRules(Environment &env, PistilsCache &opp);
+  uint deriveRules(Environment &env);
 
   void assignToViews (Organ *o);
 

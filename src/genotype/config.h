@@ -69,13 +69,14 @@ struct EDNA_CONFIG_FILE(Plant) {
   DECLARE_PARAMETER(NonTerminal, ls_maxNonTerminal)
   DECLARE_PARAMETER(uint, ls_maxRuleSize)
   DECLARE_PARAMETER(float, ls_rotationAngle)
+  DECLARE_PARAMETER(float, ls_nonTerminalCost)  /// Ratio of 's' cost
 
   struct OrganSize {
     float width, length;
+    float area (void) const { return width * length; }
   };
   using OrgansSizes = std::map<char, OrganSize>;
   DECLARE_PARAMETER(OrgansSizes, ls_terminalsSizes)
-  DECLARE_PARAMETER(OrganSize, ls_nonTerminalsSize)
   static const OrganSize& sizeOf (char symbol);
 
 

@@ -16,7 +16,7 @@ static constexpr bool debugBroadphase = false;
 static constexpr bool debugNarrowphase = false;
 static constexpr bool debugCollision = false || debugBroadphase || debugNarrowphase;
 static constexpr bool debugUpperLayer = false;
-static constexpr bool debugReproduction = true;
+static constexpr bool debugReproduction = false;
 
 static constexpr float floatPrecision = 1e6;
 bool fuzzyEqual (float lhs, float rhs) {
@@ -418,11 +418,6 @@ void TinyPhysicsEngine::processNewObjects(void) {
   }
 }
 
-void checkSex (const Plant *p) {
-  if (p->sex() != Plant::Sex::FEMALE)
-    utils::doThrow<std::logic_error>("Non female plant with pistils");
-}
-
 void checkType (const Organ *o) {
   if (!o->isFlower())
     utils::doThrow<std::logic_error>(
@@ -579,46 +574,15 @@ void TinyPhysicsEngine::removeCollisionData (Plant *p) {
   while (!object->englobingObjects.empty())
     broadphase::noLongerEnglobes(*object->englobingObjects.begin(), object);
 
-  /// DEBUG ====================================================================
-  /// NOTE The following tests pass (most of the time).
-  /// The pistil-managing code should be considered unsafe and ought be debugged
-  /// thoroughly (but won't be for lack of time...)
-
-//  if (p != object->plant)
-//    utils::doThrow<std::logic_error>(
-//      "Expecting plant ", PlantID(p), " got ", PlantID(object->plant));
-
-//  std::set<const Organ*> pistilsV1, pistilsV2;
-
-//  for (auto itP = _pistils.begin(); itP != _pistils.end(); ++itP) {
-//    if (itP->organ->plant() == p) {
-//      checkType(itP->organ);
-//      pistilsV1.insert(itP->organ);
-//    }
-//  }
-//  if (!pistilsV1.empty()) checkSex(p);
-
-//  for (const Organ *p: object->plant->flowers()) {
-//    checkType(p);
-//    auto it = _pistils.find(p->globalCoordinates().center);
-//    if (it != _pistils.end() && it->organ == p)
-//      pistilsV2.insert(p);
-//  }
-//  if (!pistilsV2.empty()) checkSex(p);
-
-//  utils::assertEqual(pistilsV1, pistilsV2, false);
-
-  /// ==========================================================================
-
   // Also delete any remaining pistils
-//  /// FIXME This stinks to high heavens: O(n) but with reasons...
+  /// NOTE This stinks to high heavens: O(n) but with reasons...
   for (auto itP = _pistils.begin(); itP != _pistils.end();) {
     if (itP->organ->plant() == p)
       itP = _pistils.erase(itP);
     else  ++itP;
   }
 
-/// FIXME This is not working as expected... Why?
+/// NOTE This is not working as expected... Why?
 //  for (const Organ *p: object->plant->flowers())  delPistil(p);
 
   _data.erase(it);
@@ -928,8 +892,8 @@ bool immediateFamily(const Organ *lhs, const Organ *rhs) {
 }
 
 auto intraPlantCollisionTest (const Organ *lhs, const Organ *rhs) {
-//  if (lhs->isNonTerminal()) return SKIP;
-//  if (rhs->isNonTerminal()) return SKIP;
+  if (lhs->isNonTerminal()) throw std::logic_error("SAT collision with non terminal");
+  if (rhs->isNonTerminal()) throw std::logic_error("SAT collision with non terminal");
   if (alignedOrgans(lhs, rhs))  return ABORT;
   if (immediateFamily(lhs, rhs)) return SKIP;
   return TEST;
@@ -942,6 +906,7 @@ struct AutocollisionFunctor {
 
   bool prepare (XEvents &xevents) {
     for (const Organ *o: organs) {
+      if (o->isNonTerminal()) continue;
       xevents.emplace(IN, o);
       xevents.emplace(OUT, o);
     }
@@ -969,13 +934,18 @@ struct BranchcollisionFunctor {
 
   bool prepare (XEvents &xevents) {
     if (organs.empty()) return false;
+
+    counts[0] = 0;
     for (const Organ *o: organs) {
+      if (o->isNonTerminal()) continue;
       xevents.emplace(IN, o, 1);
       xevents.emplace(OUT, o, 1);
+      counts[0]++;
     }
-    counts[0] = organs.size();
 
+    counts[1] = 0;
     for (Organ *o: branch.organs) {
+      if (o->isNonTerminal()) continue;
       if (organs.find(o) == organs.end()) {
         xevents.emplace(IN, o, 2);
         xevents.emplace(OUT, o, 2);
@@ -1019,7 +989,10 @@ struct IntracollisionFunctor {
 
   bool prepare (XEvents &xevents) {
     // Collect organs at least touching the plant-plant intersection
+
+    counts[0] = 0;
     for (const Organ *o: branch.organs) {
+      if (o->isNonTerminal()) continue;
       if (intersects(inter, o->globalCoordinates().boundingRect)) {
         xevents.emplace(IN, o, 1);
         xevents.emplace(OUT, o, 1);
@@ -1028,7 +1001,9 @@ struct IntracollisionFunctor {
     }
     if (!counts[0])  return false;
 
+    counts[1] = 0;
     for (const Organ *o: self.organs) {
+      if (o->isNonTerminal()) continue;
       if (intersects(inter, o->globalCoordinates().boundingRect)) {
         xevents.emplace(IN, o, 2);
         xevents.emplace(OUT, o, 2);
@@ -1073,7 +1048,10 @@ struct IntercollisionFunctor {
 
   bool prepare (XEvents &xevents) {
     // Collect organs at least touching the plant-plant intersection
+
+    counts[0] = 0;
     for (const Organ *o: branch.organs) {
+      if (o->isNonTerminal()) continue;
       if (intersects(intersection, o->globalCoordinates().boundingRect)) {
         xevents.emplace(IN, o, 1);
         xevents.emplace(OUT, o, 1);
@@ -1082,7 +1060,9 @@ struct IntercollisionFunctor {
     }
     if (!counts[0])  return false;
 
+    counts[1] = 0;
     for (const Organ *o: other->organs()) {
+      if (o->isNonTerminal()) continue;
       if (intersects(intersection, o->globalCoordinates().boundingRect)) {
         xevents.emplace(IN, o, 2);
         xevents.emplace(OUT, o, 2);
@@ -1215,6 +1195,8 @@ TinyPhysicsEngine::initialCollisionTest(const Plant *plant) {
   // ===========
 
   CollisionResult res = NO_COLLISION;
+  if (plant->isInSeedState()) return res;
+
   Rect bounds = plant->boundingRect();
 
   CollisionObject *object = *find(plant);
@@ -1231,9 +1213,8 @@ TinyPhysicsEngine::initialCollisionTest(const Plant *plant) {
 
   Branch branch (plant->organs());
 
-  bool ignoreSeeds = !plant->isInSeedState();
   for (const CollisionObject *that: aabbCandidates) {
-    if (ignoreSeeds && that->plant->isInSeedState()) continue;
+    if (that->plant->isInSeedState()) continue;
 
     Rect i = intersection(that->boundingRect, bounds);
     if (!i.isValid()) continue;
@@ -1337,10 +1318,9 @@ TinyPhysicsEngine::collisionTest(const Plant *plant,
       std::cerr << " ]" << std::endl;
     }
 
-    bool ignoreSeeds = !plant->isInSeedState();
     for (const CollisionObject *that: aabbCandidates) {
       // Ignore collision with seeds
-      if (ignoreSeeds && that->plant->isInSeedState()) continue;
+      if (that->plant->isInSeedState()) continue;
 
       Rect i = intersection(that->boundingRect, branch.bounds);
       if (!i.isValid()) continue;
@@ -1379,21 +1359,16 @@ TinyPhysicsEngine::collisionTest(const Plant *plant,
 
 // =============================================================================
 
-bool operator< (const Point &lhs, const Point &rhs) {
-  if (!fuzzyEqual(lhs.x, rhs.x))  return fuzzyLower(lhs.x, rhs.x);
-  return fuzzyLower(lhs.y, rhs.y);
-}
-
 bool operator< (const Pistil &lhs, const Pistil &rhs) {
-  return lhs.boundingDisk.center < rhs.boundingDisk.center;
+  return fuzzyLower(lhs.boundingDisk.center.x, rhs.boundingDisk.center.x);
 }
 
 bool operator< (const Pistil &lhs, const Point &rhs) {
-  return lhs.boundingDisk.center < rhs;
+  return fuzzyLower(lhs.boundingDisk.center.x, rhs.x);
 }
 
 bool operator< (const Point &lhs, const Pistil &rhs) {
-  return lhs < rhs.boundingDisk.center;
+  return fuzzyLower(lhs.x, rhs.boundingDisk.center.x);
 }
 
 Disk boundingDiskFor (const Organ *o) {

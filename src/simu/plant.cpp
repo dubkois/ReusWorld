@@ -192,7 +192,13 @@ void printSubTree (const Organ *st, uint depth,
   }
 }
 
-uint Plant::deriveRules(Environment &env, PistilsCache &opp) {
+uint Plant::deriveRules(Environment &env) {
+  // Store current pistils location in case of an update
+  std::map<OID, Point> oldPistilsPositions;
+  if (sex() == Sex::FEMALE)
+    for (Organ *f: _flowers)
+      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
+
   uint derivations = 0;
   std::set<OID> unprocessed;
   for (Organ *o: _nonTerminals) unprocessed.insert(o->id());
@@ -318,39 +324,33 @@ uint Plant::deriveRules(Environment &env, PistilsCache &opp) {
 
     derivations++;
 
-    // Insert new flowers in pistils positions cache
-    if (sex() == Sex::FEMALE)
-      for (Organ *o: newOrgans)
-        if (o->isFlower())
-          opp.emplace(o->id(), o->globalCoordinates().center);
-
     // Update pistils positions cache
-//    if (sex() == Sex::FEMALE)
-//      for (Organ *p: _flowers)
-//        if (oldPistilsPositions.find(p->id()) == oldPistilsPositions.end())
-//          oldPistilsPositions.emplace(p->id(), p->globalCoordinates().center);
+    if (sex() == Sex::FEMALE)
+      for (Organ *p: _flowers)
+        if (oldPistilsPositions.find(p->id()) == oldPistilsPositions.end())
+          oldPistilsPositions.emplace(p->id(), p->globalCoordinates().center);
 
     if (debugDerivation > 1)
       std::cerr << "\t\t>>> " << toString(layer) << std::endl;
   }
 
-//  // Update pistils as needed
-//  for (auto &p: oldPistilsPositions) {
-//    auto it = _flowers.find(p.first);
-//    if (it == _flowers.end())
-//      utils::doThrow<std::logic_error>("Lost track of pistil ", p.first, "!");
+  // Update pistils as needed
+  for (auto &p: oldPistilsPositions) {
+    auto it = _flowers.find(p.first);
+    if (it == _flowers.end())
+      utils::doThrow<std::logic_error>("Lost track of pistil ", p.first, "!");
 
-//    Organ *pistil = *it;
-//    if (p.second != pistil->globalCoordinates().center) {
-//      env.updateGeneticMaterial(pistil, p.second); // If position changed
+    Organ *pistil = *it;
+    if (p.second != pistil->globalCoordinates().center) {
+      env.updateGeneticMaterial(pistil, p.second); // If position changed
 
-//      // Check if this freed up some space for others
-//      for (Organ *f: _flowers)
-//        if (f->id() != p.first
-//            && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
-//          env.updateGeneticMaterial(f, f->globalCoordinates().center);
-//    }
-//  }
+      // Check if this freed up some space for others
+      for (Organ *f: _flowers)
+        if (f->id() != p.first
+            && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
+          env.updateGeneticMaterial(f, f->globalCoordinates().center);
+    }
+  }
 
   // Update all depths (wasteful but accurate)
   updateDepths();
@@ -557,11 +557,20 @@ float Plant::sinkRequirement (Organ *o) const {
 }
 
 float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
+  static const auto& ntcost = [] {
+    const auto ssize = GConfig::sizeOf('s');
+    return ssize.area() * GConfig::ls_nonTerminalCost();
+  }();
+
   const std::string &succ = g.successor(l, symbol);
   float cost = 0;
   for (char c: succ) {
-    const auto &size = GConfig::sizeOf(c);
-    cost += size.width * size.length;
+    if (Rule_base::isTerminal(c)) {
+      const auto &size = GConfig::sizeOf(c);
+      cost += size.area();
+    } else if (Rule_base::isValidNonTerminal(c))
+      cost += ntcost;
+//  else no cost
   }
   return cost;
 }
@@ -1009,18 +1018,11 @@ uint Plant::step(Environment &env) {
     if (starvedOut) kill();
   }
 
-  // Store current pistils location in case of an update
-  // (rule derivation, apex suppression, ...)
-  std::map<OID, Point> oldPistilsPositions;
-  if (sex() == Sex::FEMALE)
-    for (Organ *f: _flowers)
-      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
-
   uint derived = 0;
   if ((SConfig::DEBUG_NO_METABOLISM() || _age % SConfig::stepsPerDay() == 0)
     && !_nonTerminals.empty()) {
 
-    derived += deriveRules(env, oldPistilsPositions);
+    derived += deriveRules(env);
     _derived += bool(derived);
 
     if (!_nonTerminals.empty()) {
@@ -1050,10 +1052,10 @@ uint Plant::step(Environment &env) {
 
   /// Recursively delete dead organs
   // First take note of the current flowers
-//  std::map<OID, Point> oldPistilsPositions;
-//  if (sex() == Sex::FEMALE)
-//    for (Organ *f: _flowers)
-//      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
+  std::map<OID, Point> oldPistilsPositions;
+  if (sex() == Sex::FEMALE)
+    for (Organ *f: _flowers)
+      oldPistilsPositions.emplace(f->id(), f->globalCoordinates().center);
 
   // Perform suppressions
   bool deleted = false;
@@ -1064,31 +1066,13 @@ uint Plant::step(Environment &env) {
     updateMetabolicValues();
   }
 
-//  // Update remaining flowers (check if some space was freed)
-//  for (auto &pair: oldPistilsPositions)
-//    if (_flowers.find(pair.first) == _flowers.end())
-//      for (Organ *f: _flowers)
-//        if (fabs(f->globalCoordinates().center.x - pair.second.x) < 1e-3)
-//          env.updateGeneticMaterial(f, f->globalCoordinates().center);
-
-  // Update pistils as needed
-  for (auto &p: oldPistilsPositions) {
-    auto it = _flowers.find(p.first);
-    if (it == _flowers.end())
-//      utils::doThrow<std::logic_error>("Lost track of pistil ", p.first, "!");
-      continue;
-
-    Organ *pistil = *it;
-    if (p.second != pistil->globalCoordinates().center) {
-      env.updateGeneticMaterial(pistil, p.second); // If position changed
-
-      // Check if this freed up some space for others
+  // Update remaining flowers (check if some space was freed)
+  for (auto &pair: oldPistilsPositions)
+    if (_flowers.find(pair.first) == _flowers.end())
       for (Organ *f: _flowers)
-        if (f->id() != p.first
-            && fabs(f->globalCoordinates().center.x - p.second.x) < 1e-3)
+        if (f->id() != pair.first
+            && fabs(f->globalCoordinates().center.x - pair.second.x) < 1e-3)
           env.updateGeneticMaterial(f, f->globalCoordinates().center);
-    }
-  }
 
   update(env);
 

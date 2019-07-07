@@ -117,32 +117,32 @@ void Organ::updateTransformation(void) {
 }
 
 void Organ::updateBoundingBox(void) {
-  Point pend = _plantCoordinates.end;
-  auto width = _width;
-  if (_length == 0 && _width == 0) {
-    static const auto S = GConfig::ls_terminalsSizes().at('s').width;
-    width = S;
-    pend = _plantCoordinates.origin
-        + Point::fromPolar(_plantCoordinates.rotation, S);
+  if (_length == 0 && _width == 0) {  // Apex have no size
+    assert(_plantCoordinates.origin == _plantCoordinates.end);
+    Point O = _plantCoordinates.origin;
+    _plantCoordinates.center = O;
+    _plantCoordinates.corners = { O, O, O, O };
+    _plantCoordinates.boundingRect = Rect{ O, O };
+
+  } else {
+    Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * _width});
+    _plantCoordinates.corners = {
+      _plantCoordinates.origin + v, _plantCoordinates.end + v,
+      _plantCoordinates.end - v, _plantCoordinates.origin - v
+    };
+
+    Rect &pr = _plantCoordinates.boundingRect;
+    pr = Rect::invalid();
+    for (const Point &p: _plantCoordinates.corners) {
+      pr.ul.x = std::min(pr.ul.x, p.x);
+      pr.ul.y = std::max(pr.ul.y, p.y);
+      pr.br.x = std::max(pr.br.x, p.x);
+      pr.br.y = std::min(pr.br.y, p.y);
+    }
+
+    _plantCoordinates.center = pr.center();
   }
 
-  Point v = rotate_point(_plantCoordinates.rotation, {0, .5f * width});
-
-  _plantCoordinates.corners = {
-    _plantCoordinates.origin + v, pend + v,
-    pend - v, _plantCoordinates.origin - v
-  };
-
-  Rect &pr = _plantCoordinates.boundingRect;
-  pr = Rect::invalid();
-  for (const Point &p: _plantCoordinates.corners) {
-    pr.ul.x = std::min(pr.ul.x, p.x);
-    pr.ul.y = std::max(pr.ul.y, p.y);
-    pr.br.x = std::max(pr.br.x, p.x);
-    pr.br.y = std::min(pr.br.y, p.y);
-  }
-
-  _plantCoordinates.center = pr.center();
 
   updateGlobalTransformation();
 }

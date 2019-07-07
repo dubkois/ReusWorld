@@ -414,6 +414,7 @@ DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("h"))
 DEFINE_PARAMETER(Config::NonTerminal, ls_maxNonTerminal, 'F')
 DEFINE_PARAMETER(uint, ls_maxRuleSize, 10)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
+DEFINE_PARAMETER(float, ls_nonTerminalCost, .1)
 
 static const auto tsize = [] (float wr = 1, float lr = 1) {
   return Config::OrganSize{ .01f * wr, .1f * lr };
@@ -427,10 +428,9 @@ DEFINE_CONTAINER_PARAMETER(Config::OrgansSizes, ls_terminalsSizes, {
   { 't', tsize() },
   { 'h', tsize() }
 })
-DEFINE_PARAMETER(Config::OrganSize, ls_nonTerminalsSize, tsize(.5, .1))
 const Config::OrganSize& Config::sizeOf (char symbol) {
   static const auto &sizes = ls_terminalsSizes();
-  static const auto &other = ls_nonTerminalsSize();
+  static const auto &other = Config::OrganSize {0,0};
   auto it = sizes.find(symbol);
   if (it != sizes.end())
     return it->second;

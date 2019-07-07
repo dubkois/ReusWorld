@@ -50,6 +50,7 @@ void Environment::stepEnd (void) {
   cgpStep();
 
 #if 1
+#warning debugging physics
   _physics->debug();
 #endif
 

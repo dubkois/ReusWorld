@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-//#define CUSTOM_PLANTS 2
+#define CUSTOM_PLANTS 1
 //#define DISTANCE_TEST
 #endif
 
@@ -122,10 +122,11 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 
 #elif CUSTOM_PLANTS == 2
   N = 6; // 12
-  dx = .0025;
+  dx = .5;
 
   modifiedPrimordialPlant.shoot.recursivity = 10;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  for (uint i=0; i<N; i++)
+    genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
 
   uint i=0;
 
@@ -284,7 +285,7 @@ void Simulation::destroy (void) {
   _env.destroy();
 }
 
-Plant *Simulation::addPlant(const PGenome &g, float x, float biomass) {
+Plant* Simulation::addPlant(const PGenome &g, float x, float biomass) {
   bool insertionAborted = false;
   Plant *plant = nullptr;
   Plants::iterator pit = _plants.end();
@@ -355,7 +356,8 @@ void Simulation::postInsertionCleanup(std::vector<Plant*> newborns) {
   // Now test that there is enough space
   Plant::Seeds discardedSeeds;
   for (Plant *p: newborns)
-    if (_env.initialCollisionTest(p) != physics::NO_COLLISION)
+    if (!p->isInSeedState()
+        && _env.initialCollisionTest(p) != physics::NO_COLLISION)
       delPlant(*p, discardedSeeds);
 }
 

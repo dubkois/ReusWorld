@@ -16,11 +16,11 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
-static constexpr bool drawOrganID = false;
+static constexpr bool drawOrganID = true;
 static constexpr bool drawPlantID = false;
-static constexpr bool drawOrganContour = false;
-static constexpr bool drawOrganCorners = false;
-static constexpr bool drawQtBoundingBox = false;
+static constexpr bool drawOrganContour = true;
+static constexpr bool drawOrganCorners = true;
+static constexpr bool drawQtBoundingBox = true;
 
 struct Plant::PlantMenu : public QMenu {
   Plant *plantVisu;
@@ -63,17 +63,15 @@ struct Plant::PlantMenu : public QMenu {
   }
 };
 
+static auto apexSize (void) {
+  static const float s = GConfig::sizeOf('s').width;
+  return s;
+}
+
 const auto& pathForSymbol (char symbol) {
   static const auto apexPath = [] {
     QPainterPath p;
-//    p.moveTo(0, -.5);
-//    p.lineTo(1, 0);
-//    p.lineTo(0, .5);
-//    p.closeSubpath();
-//    p.cubicTo({.33, -.5}, {.33,0}, {1, 0});
-//    p.cubicTo({.33,0}, {.33,  .5}, {0, 0});
-//    p.closeSubpath();
-    p.addEllipse({.5,0}, .5, .5);
+    p.addEllipse({.5,0}, .5, .25);
     return p;
   }();
 
@@ -160,10 +158,19 @@ Plant::Plant(simu::Plant &p, Species s)
   updateTooltip();
 }
 
+const auto& minBoundingBox (void) {
+  static const auto box = [] {
+    float AS = apexSize();
+    return QRectF (-.5*AS, -AS, AS, 2*AS);
+  }();
+  return box;
+}
+
 void Plant::updateGeometry(void) {
   prepareGeometryChange();
   setPos(toQPoint(_plant.pos()));
-  _boundingRect = toQRect(_plant.boundingRect());
+  _boundingRect = toQRect(_plant.boundingRect())
+                  .united(minBoundingBox());
   float m = .1 * _boundingRect.height();
   _boundingRect.adjust(-m, -2*m, m, m);
 }
@@ -211,6 +218,7 @@ void Plant::paint (QPainter *painter, float scale, uint id,
     painter->save();
       const QPainterPath &path = pathForSymbol(s);
       float baseScale = (scale - 1) * std::min(l, w);
+      if (l == 0 && w == 0) baseScale = baseWidth;
       painter->scale(baseScale + l, baseScale + w);
 
       if (stroke != Qt::transparent) {
@@ -232,7 +240,7 @@ void Plant::paint (QPainter *painter, float scale, uint id,
         QFont font = painter->font();
         font.setPointSizeF(.5);
         painter->setFont(font);
-        painter->translate(.5 * l, 0);
+        painter->translate(.5 * (l>0? l : baseWidth), 0);
         painter->scale(.5 * baseWidth, .5 * baseWidth);
         painter->drawText(QRectF(-1,-.75,2,2), Qt::AlignCenter,
                           QString("_%1_").arg(id));
