@@ -352,40 +352,49 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
   const Simulation &s = a.simulation;
-  if (s.plants().size() < config::Simulation::initSeeds()) {
+  if (s.plants().size() < config::Simulation::initSeeds())
     a.fitnesses.fill(M_INF);
-    return;
-  }
 
-  GenePool atend;
-  atend.parse(s);
+  else {
+    GenePool atend;
+    atend.parse(s);
 
-  float compat = 0;
-  float ccount = 0;
-  for (const auto &lhs_p: s.plants()) {
-    const Plant &lhs = *lhs_p.second;
-    if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+    float compat = 0;
+    float ccount = 0;
+    for (const auto &lhs_p: s.plants()) {
+      const Plant &lhs = *lhs_p.second;
+      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
 
-    for (const auto &rhs_p: s.plants()) {
-      const Plant &rhs = *rhs_p.second;
-      if (rhs.sex() != Plant::Sex::MALE)  continue;
-      if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+      for (const auto &rhs_p: s.plants()) {
+        const Plant &rhs = *rhs_p.second;
+        if (rhs.sex() != Plant::Sex::MALE)  continue;
+        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
 
-      compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
-      ccount ++;
+        compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
+        ccount ++;
+      }
     }
+    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
+
+    a.fitnesses[STGN] = -matching(atstart, atend);
+
+  //  double p = s.plants().size();
+  //  static constexpr double L = 100, H = 500;
+  //  a.fitnesses[CONT] = p < L ? 0 : p > H ? 1 : 1 - (H - p) / (H - L);
+
+  //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
+
+    a.fitnesses[TIME] = -s.wallTimeDuration();
   }
-  a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
 
-  a.fitnesses[STGN] = -matching(atstart, atend);
-
-//  double p = s.plants().size();
-//  static constexpr double L = 100, H = 500;
-//  a.fitnesses[CONT] = p < L ? 0 : p > H ? 1 : 1 - (H - p) / (H - L);
-
-//  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
-
-  a.fitnesses[TIME] = -s.wallTimeDuration();
+  // log to local file
+  std::ofstream ofs (a.simulation.dataFolder() / "fitnesses.dat");
+  for (auto f: EnumUtils<Fitnesses>::iterator())
+    ofs << " " << EnumUtils<Fitnesses>::getName(f);
+  ofs << "\n";
+  for (auto f: EnumUtils<Fitnesses>::iterator())
+    ofs << " " << a.fitnesses[f];
+  ofs << "\n";
 }
 
 /// Implements strong pareto domination:
