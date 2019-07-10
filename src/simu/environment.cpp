@@ -256,6 +256,8 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
 
   Genome::CGP::load(j[i++], e._genome.controller);
 
+  e._updatedTopology = false;
+
   if (debugEnvCTRL) e.showVoxelsContents();
 }
 
