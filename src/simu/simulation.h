@@ -133,7 +133,7 @@ protected:
   bool _aborted;
 
   stdfs::path _dataFolder;
-  std::ofstream _statsFile, _genealogyFile;
+  std::ofstream _statsFile;
   std::array<std::ofstream,
              EnumUtils<genotype::env_controller::Outputs>::size()> _envFiles;
 

@@ -38,8 +38,6 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(uint, updateTopologyEvery)
   DECLARE_PARAMETER(float, heightPenaltyStddev)
 
-  DECLARE_PARAMETER(bool, logGenealogy)
-
   DECLARE_DEBUG_PARAMETER(bool, DEBUG_NO_METABOLISM, false)
 };
 

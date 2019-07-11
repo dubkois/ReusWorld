@@ -293,9 +293,6 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   postInsertionCleanup(newborns);
   updateGenStats();
 
-  if (Config::logGenealogy())
-    _genealogyFile.open(dataFolder() / "genealogy.dat");
-
   return true;
 }
 
@@ -345,14 +342,6 @@ Plant* Simulation::addPlant(const PGenome &g, float x, float biomass) {
                   << biomass << " initial biomass" << std::endl;
 
       _stats.newPlants++;
-
-      if (Config::logGenealogy()) {
-        const auto &gn = g.genealogy();
-        if (gn.mother.gid != Plant::ID::INVALID)
-          _genealogyFile << gn.mother.gid << " " << gn.self.gid << "\n";
-        if (gn.father.gid != Plant::ID::INVALID)
-          _genealogyFile << gn.father.gid << " " << gn.self.gid << "\n";
-      }
 
     } else {
       insertionAborted = true;
@@ -714,15 +703,6 @@ void Simulation::setDataFolder (const stdfs::path &path) {
   if (!_statsFile.is_open())
     utils::doThrow<std::invalid_argument>(
       "Unable to open stats file ", statsPath);
-
-  if (Config::logGenealogy()) {
-    stdfs::path genealogyPath = path / "genealogy.dat";
-    if (_genealogyFile.is_open()) _genealogyFile.close();
-    _genealogyFile.open(genealogyPath, openMode);
-    if (!_genealogyFile.is_open())
-      utils::doThrow<std::invalid_argument>(
-            "Unable to open genealogy file ", genealogyPath);
-  }
 
   using O = genotype::env_controller::Outputs;
   for (O o: EnumUtils<O>::iterator()) {
