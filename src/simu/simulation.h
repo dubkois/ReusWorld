@@ -133,7 +133,7 @@ protected:
   bool _aborted;
 
   stdfs::path _dataFolder;
-  std::ofstream _statsFile, _ptreeFile;
+  std::ofstream _statsFile, _genealogyFile;
   std::array<std::ofstream,
              EnumUtils<genotype::env_controller::Outputs>::size()> _envFiles;
 
@@ -146,7 +146,7 @@ protected:
   void postInsertionCleanup (std::vector<Plant*> newborns);
 
   virtual void performReproductions (void);
-  virtual void plantSeeds (Plant::Seeds &seeds);
+  virtual void plantSeeds (const Plant::Seeds &seeds);
 
   virtual void updatePlantAltitude (Plant &p, float h);
 

@@ -34,6 +34,8 @@ DEFINE_PARAMETER(float, temperatureRangePenalty, 10)
 DEFINE_PARAMETER(uint, updateTopologyEvery, 10)
 DEFINE_PARAMETER(float, heightPenaltyStddev, 1)
 
+DEFINE_PARAMETER(bool, logGenealogy, false)
+
 DEFINE_DEBUG_PARAMETER(bool, DEBUG_NO_METABOLISM, false)
 
 #undef CFILE

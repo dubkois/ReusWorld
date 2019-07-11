@@ -37,6 +37,8 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 }
 #endif
 
+static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
+
 std::map<genotype::env_controller::Outputs, stdfs::path> envPaths {
   { genotype::env_controller::T_, "topology.dat" },
   { genotype::env_controller::H_, "temperature.dat" },
@@ -291,6 +293,9 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   postInsertionCleanup(newborns);
   updateGenStats();
 
+  if (Config::logGenealogy())
+    _genealogyFile.open(dataFolder() / "genealogy.dat");
+
   return true;
 }
 
@@ -340,6 +345,14 @@ Plant* Simulation::addPlant(const PGenome &g, float x, float biomass) {
                   << biomass << " initial biomass" << std::endl;
 
       _stats.newPlants++;
+
+      if (Config::logGenealogy()) {
+        const auto &gn = g.genealogy();
+        if (gn.mother.gid != Plant::ID::INVALID)
+          _genealogyFile << gn.mother.gid << " " << gn.self.gid << "\n";
+        if (gn.father.gid != Plant::ID::INVALID)
+          _genealogyFile << gn.father.gid << " " << gn.self.gid << "\n";
+      }
 
     } else {
       insertionAborted = true;
@@ -429,6 +442,7 @@ void Simulation::performReproductions(void) {
         for (auto &g: litter) {
           g.genealogy().updateAfterCrossing(mother->genealogy(),
                                             father->genealogy(), _gidManager);
+          _ptree.registerCandidate(g.genealogy());
           if (debugReproduction)  std::cerr << " " << g.id();
         }
         if (debugReproduction)  std::cerr << std::endl;
@@ -445,7 +459,7 @@ void Simulation::performReproductions(void) {
   }
 }
 
-void Simulation::plantSeeds(Plant::Seeds &seeds) {
+void Simulation::plantSeeds(const Plant::Seeds &seeds) {
   using utils::gauss;
 
   static constexpr int debug = debugReproduction | debugTopology;
@@ -456,9 +470,14 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
   if (debugReproduction && seeds.size() > 0)
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
+  std::vector<Plant::Seed> unplanted;
   std::vector<Plant*> newborns;
+
   for (const Plant::Seed &seed: seeds) {
-    if (seed.biomass <= 0)  continue;
+    if (seed.biomass <= 0) {
+      unplanted.push_back(seed);
+      continue;
+    }
 
     float startH = _env.heightAt(seed.position.x), maxH = startH, h = startH;
     float avgDx = 1 + 5 * std::max(0.f, seed.position.y - h);
@@ -559,6 +578,9 @@ void Simulation::plantSeeds(Plant::Seeds &seeds) {
     if (p)  newborns.push_back(p);
   }
 
+  for (const Plant::Seed &seed: unplanted)
+    _ptree.unregisterCandidate(seed.genome.genealogy());
+
   postInsertionCleanup(newborns);
 }
 
@@ -641,7 +663,12 @@ void Simulation::atEnd(void) {
     return pair.second->species();
   });
 
-  _ptree.saveTo(_ptreeFile);
+  stdfs::path ptreePath = dataFolder() / "phylogeny.ptree.json";
+  std::ofstream ptreeFile (ptreePath, openMode);
+  if (!ptreeFile.is_open())
+    utils::doThrow<std::invalid_argument>(
+      "Unable to open ptree file ", ptreePath);
+  _ptree.saveTo(ptreeFile);
 
   if (Config::verbosity() > 0) {
     std::cout << "Simulation ";
@@ -666,8 +693,6 @@ void Simulation::updatePlantAltitude(Plant &p, float h) {
 }
 
 void Simulation::setDataFolder (const stdfs::path &path) {
-  static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
-
   _dataFolder = path;
 
   if (stdfs::exists(_dataFolder) && !stdfs::is_empty(_dataFolder)) {
@@ -690,12 +715,14 @@ void Simulation::setDataFolder (const stdfs::path &path) {
     utils::doThrow<std::invalid_argument>(
       "Unable to open stats file ", statsPath);
 
-  stdfs::path ptreePath = path / "phylogeny.ptree.json";
-  if (_ptreeFile.is_open()) _ptreeFile.close();
-  _ptreeFile.open(ptreePath, openMode);
-  if (!_ptreeFile.is_open())
-    utils::doThrow<std::invalid_argument>(
-      "Unable to open ptree file ", ptreePath);
+  if (Config::logGenealogy()) {
+    stdfs::path genealogyPath = path / "genealogy.dat";
+    if (_genealogyFile.is_open()) _genealogyFile.close();
+    _genealogyFile.open(genealogyPath, openMode);
+    if (!_genealogyFile.is_open())
+      utils::doThrow<std::invalid_argument>(
+            "Unable to open genealogy file ", genealogyPath);
+  }
 
   using O = genotype::env_controller::Outputs;
   for (O o: EnumUtils<O>::iterator()) {
