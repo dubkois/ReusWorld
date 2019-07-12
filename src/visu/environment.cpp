@@ -114,6 +114,9 @@ void debugPaintLeaves (QPainter *painter, const ULItems &items,
 }
 
 void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) {
+  // Draw slightly more on the right to hide the junction lines
+  static constexpr float OVERDRAW = .05;
+
   const auto voxels = _object.voxelCount();
   const auto voxelWidth = _object.width() / voxels;
   const auto top = -_object.yextent(), bottom = _object.yextent();
@@ -124,7 +127,7 @@ void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWi
   for (uint i=0; i<voxels; i++) {
     const float x0 = -_object.xextent() + i * voxelWidth,
                 x1 = std::min( _object.xextent(),
-                              -_object.xextent() + (i+1) * voxelWidth + 1);
+                              -_object.xextent() + (i+1+OVERDRAW) * voxelWidth);
 
     const auto y0 = _object.heightAt(x0), y1 = _object.heightAt(x1);
     const auto t0 = _object.temperatureAt(x0), t1 = _object.temperatureAt(x1);
