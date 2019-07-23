@@ -318,7 +318,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME, DENS)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
@@ -378,9 +378,9 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
 
     a.fitnesses[STGN] = -matching(atstart, atend);
 
-  //  double p = s.plants().size();
-  //  static constexpr double L = 100, H = 500;
-  //  a.fitnesses[CONT] = p < L ? 0 : p > H ? 1 : 1 - (H - p) / (H - L);
+    double p = s.plants().size();
+    static constexpr double L = 250, H = 2500;
+    a.fitnesses[DENS] = (p < L ? 0 : (p > H ? 0 : 1));
 
   //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
 
