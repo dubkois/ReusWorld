@@ -866,9 +866,6 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Core setup
 
-  stdfs::remove_all(parameters.subfolder);
-#warning Auto-removing result folder
-
   if (parameters.branching <= 1)
     controlGroup(parameters);
 

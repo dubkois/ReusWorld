@@ -172,6 +172,15 @@ int main(int argc, char *argv[]) {
     config::Simulation::printConfig();
   }
 
+  std::ofstream ofs (s.dataFolder() / "controller.last.tex");
+  ofs << "\\documentclass[preview]{standalone}\n"
+         "\\usepackage{amsmath}\n"
+         "\\begin{document}\n"
+      << envGenome.controller.toTex()
+      << "\\end{document}\n";
+  ofs.close();
+
+
   if (!duration.empty()) {
     if (duration.size() < 2)
       utils::doThrow<std::invalid_argument>(
