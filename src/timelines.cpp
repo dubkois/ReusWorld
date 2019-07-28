@@ -318,7 +318,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, TIME, DENS)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
