@@ -99,8 +99,9 @@ void Environment::cgpStep (void) {
 
     _genome.controller.evaluate(inputs, outputs);
 
+    // Keep 10% of space
     if (_updatedTopology)
-      A = outputs[O::T_] * _genome.depth;
+      A = .9 * outputs[O::T_] * _genome.depth;
 
     T = .5 * (outputs[O::H_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
     H = (1 + outputs[O::W_]) * config::Simulation::baselineShallowWater();
