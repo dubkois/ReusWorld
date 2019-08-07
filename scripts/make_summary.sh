@@ -23,6 +23,7 @@ then
   # run folder > Agreggate first
   agg="yes"
   for t in global topology temperature hygrometry; do rm -v $1/$t.dat; done
+  head -1 $1/e00_r/global.dat > $1/global.dat
   for e in $1/e*_r
   do
     for t in global topology temperature hygrometry; do cat $e/$t.dat >> $1/$t.dat; done
