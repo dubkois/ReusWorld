@@ -374,7 +374,7 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
         ccount ++;
       }
     }
-    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
+//    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
 
     a.fitnesses[STGN] = -matching(atstart, atend);
 
@@ -620,6 +620,7 @@ void exploreTimelines (Parameters parameters) {
 
     // Populate next epoch from current best alternative
     if (winner != 0)  alternatives[0].simulation.clone(reality->simulation);
+    #pragma omp parallel for schedule(dynamic)
     for (uint a=1; a<parameters.branching; a++) {
       if (winner != a)  alternatives[a].simulation.clone(reality->simulation);
       alternatives[a].simulation.mutateEnvController(dice);

@@ -16,11 +16,11 @@ namespace gui {
 
 using GConfig = config::PlantGenome;
 
-static constexpr bool drawOrganID = true;
+static constexpr bool drawOrganID = false;
 static constexpr bool drawPlantID = false;
-static constexpr bool drawOrganContour = true;
-static constexpr bool drawOrganCorners = true;
-static constexpr bool drawQtBoundingBox = true;
+static constexpr bool drawOrganContour = false;
+static constexpr bool drawOrganCorners = false;
+static constexpr bool drawQtBoundingBox = false;
 
 struct Plant::PlantMenu : public QMenu {
   Plant *plantVisu;

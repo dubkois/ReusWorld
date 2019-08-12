@@ -18,11 +18,11 @@ then
 fi
 
 agg=""
-if [ ! -f $1/global.dat ]
+if [ -d $1/e00_r ]
 then
   # run folder > Agreggate first
   agg="yes"
-  for t in global topology temperature hygrometry; do rm -v $1/$t.dat; done
+  for t in global topology temperature hygrometry; do rm -fv $1/$t.dat; done
   head -1 $1/e00_r/global.dat > $1/global.dat
   for e in $1/e*_r
   do
