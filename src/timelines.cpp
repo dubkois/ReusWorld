@@ -318,7 +318,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, DIST, STGN, DENS, TIME)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
@@ -352,34 +352,47 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
   const Simulation &s = a.simulation;
-  if (s.plants().size() < config::Simulation::initSeeds())
-    a.fitnesses.fill(M_INF);
+  a.fitnesses.fill(M_INF);
 
-  else {
+  if (s.plants().size() >= config::Simulation::initSeeds()) {
     GenePool atend;
     atend.parse(s);
 
-    float compat = 0;
-    float ccount = 0;
-    for (const auto &lhs_p: s.plants()) {
-      const Plant &lhs = *lhs_p.second;
-      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+// == Inter-species compatibility
+/* Exploited by plants through massive divergence in the compatibility function
+   Induced insanely huge phylogenetic trees and computation times
+ */
+// ==
+//    float compat = 0;
+//    float ccount = 0;
+//    for (const auto &lhs_p: s.plants()) {
+//      const Plant &lhs = *lhs_p.second;
+//      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
 
-      for (const auto &rhs_p: s.plants()) {
-        const Plant &rhs = *rhs_p.second;
-        if (rhs.sex() != Plant::Sex::MALE)  continue;
-        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+//      for (const auto &rhs_p: s.plants()) {
+//        const Plant &rhs = *rhs_p.second;
+//        if (rhs.sex() != Plant::Sex::MALE)  continue;
+//        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
 
-        compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
-        ccount ++;
+//        compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
+//        ccount ++;
+//      }
+//    }
+//    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
+
+// == Inter-species evolutionary distance
+    const auto &aliveSpecies = a.simulation.phylogeny().aliveSpecies();
+
+    for (auto itL = aliveSpecies.begin(); itL != aliveSpecies.end(); ++itL) {
+      for (auto itR = std::next(itL); itR != aliveSpecies.end(); ++itR) {
+
       }
     }
-//    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
 
     a.fitnesses[STGN] = -matching(atstart, atend);
 
     double p = s.plants().size();
-    static constexpr double L = 250, H = 2500;
+    static constexpr double L = 500, H = 2500;
     a.fitnesses[DENS] = (p < L ? 0 : (p > H ? 0 : 1));
 
   //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
