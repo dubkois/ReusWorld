@@ -65,6 +65,8 @@ struct CONFIG_FILE(CGP) {
 
 namespace cgp {
 
+static constexpr bool checkBounds = true;
+
 template <typename IEnum, uint N, typename OEnum, uint A = 2>
 class CGP {
   enum NodeType { IN = 1<<1, INTERNAL = 1<<2, OUT = 1<<3 };
@@ -205,6 +207,15 @@ public:
   void evaluate (const Inputs &inputs, Outputs &outputs) {
     std::copy(inputs.begin(), inputs.end(), persistentData.begin());
 
+    if (checkBounds) {
+      for (uint i=0; i<I; i++) {
+        if (inputs[i] < -1 || 1 < inputs[i])
+          utils::doThrow<std::logic_error>(
+            "Out-of-bounds value ", inputs[i], " for input ",
+            IUtils::getName(i));
+      }
+    }
+
     std::array<double, A> localInputs;
     for (const auto &p: usedNodes) {
       uint i = p.second;
@@ -214,6 +225,11 @@ public:
       for (uint j=0; j<a; j++)
         localInputs[j] = data(n.connections[j]);
       persistentData[i] = n.function(localInputs);
+
+      if (checkBounds && (persistentData[i] < -1 || 1 < persistentData[i]))
+        utils::doThrow<std::logic_error>(
+          "Function ", n.fid, " produced out-of-bounds value ",
+          persistentData[i]);
     }
     
     for (uint o=0; o<O; o++)
@@ -760,7 +776,7 @@ double add (const Inputs<S> &inputs) {
 
 template <uint S>
 double mult (const Inputs<S> &inputs) {
-  double prod = 0;
+  double prod = 1;
   for (auto i: inputs)  prod *= i;
   return prod;
 }

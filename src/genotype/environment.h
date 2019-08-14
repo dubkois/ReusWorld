@@ -6,12 +6,19 @@
 
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(
   genotype::env_controller, Inputs,
-    D, Y, X, T, H, W
+    D, // Time of year
+    Y, // Time of simulation
+    X, // X coordinate
+    T, // Topology
+    H, // Heat
+    W  // Water
 )
 
 DEFINE_NAMESPACE_PRETTY_ENUMERATION(
   genotype::env_controller, Outputs,
-    T_, H_, W_
+    T_, // New topology
+    H_, // New heat
+    W_  // New water
 )
 
 namespace genotype {

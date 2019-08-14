@@ -50,7 +50,7 @@ fi
 for t in topology temperature hygrometry
 do
   echo "Plotting $1/$t.dat"
-  ./scripts/plot_voxels.sh $1/$t.dat
+  ./scripts/plot_voxels.sh $1/$t.dat 2
 done
 
 echo "Collating summaries"
@@ -58,11 +58,11 @@ if [ -z "$agg" ]
 then
   montage -tile 4x2 $1/controller_tex.png $1/controller_dot.png $1/pt_dynamics_summary.png $1/ot_dynamics_summary.png \
                     $1/st_dynamics_summary.png $1/topology.png $1/temperature.png $1/hygrometry.png\
-          -geometry 1680x1050<+2+2 $1/summary.png
+          -geometry '1680x1050+2+2<' $1/summary.png
 else
   montage -tile 3x2 $1/pt_dynamics_summary.png $1/ot_dynamics_summary.png $1/st_dynamics_summary.png \
                     $1/topology.png $1/temperature.png $1/hygrometry.png \
-          -geometry 1680x1050<+2+2 $1/summary.png
+          -geometry '1680x1050+2+2<' $1/summary.png
 fi
 # xdg-open $1/summary.png
 
