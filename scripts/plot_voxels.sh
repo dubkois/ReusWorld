@@ -17,6 +17,7 @@ then
   exit 1
 fi
 
+[ -z "$2" ] && $2=3
 if [ "$2" -lt 2 -o "$2" -gt 3 ]
 then
   echo "Wrong dimension. '$2' is neither 2 nor 3"
@@ -25,7 +26,7 @@ then
 fi
 
 map=""
-[ "$2" -eq 2 ] && map="set pm3d map"
+[ "$2" -eq 2 ] && map="set pm3d map;"
 
 rows=$(wc -l $1 | cut -d ' ' -f 1)
 stride=$((($rows) / 5))
@@ -36,6 +37,7 @@ gnuplot -e "
   set ylabel 'Time';
   set ytics ($ytics);
   set title '$(basename $1 .dat)';
+  $map
   set term pngcairo size 1680,1050;
   set output '$(dirname $1)/$(basename $1 .dat).png';
   splot '< cut -d \" \" -f2- $1' matrix with pm3d notitle " -p
