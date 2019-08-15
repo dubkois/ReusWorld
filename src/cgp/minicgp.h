@@ -228,12 +228,11 @@ public:
 
       if (checkBounds && (persistentData[i] < -1 || 1 < persistentData[i]))
         utils::doThrow<std::logic_error>(
-          "Function ", n.fid, " produced out-of-bounds value ",
+          "Out-of-bounds value: ", n.fid, "(", localInputs, ") = ",
           persistentData[i]);
     }
     
-    for (uint o=0; o<O; o++)
-      outputs[o] = utils::clip(-1., data(I+N+o), 1.);
+    for (uint o=0; o<O; o++)  outputs[o] = data(I+N+o);
 
 #ifndef NDEBUG
     for (double d: persistentData)  assert(!isnan(d));
@@ -684,13 +683,13 @@ namespace functions {
 
 namespace oary {
 template <uint S>
-double one (const Inputs<S> &) {  return 1;     }
+double mone (const Inputs<S> &) { return -1;    }
 
 template <uint S>
 double zero (const Inputs<S> &) { return 0;     }
 
 template <uint S>
-double pi (const Inputs<S> &) {   return M_PI;  }
+double one (const Inputs<S> &) {  return 1;     }
 } // end of namespace oary
 
 namespace unary {
@@ -711,13 +710,13 @@ double sq (const Inputs<S> &inputs) {
 
 template <uint S>
 double sqrt (const Inputs<S> &inputs) {
-  if (inputs[0] < 0)  return 0;
-  return std::sqrt(inputs[0]);
+  return std::sqrt(std::fabs(inputs[0]));
 }
 
 template <uint S>
 double exp (const Inputs<S> &inputs) {
-  return std::exp(inputs[0]);
+  static constexpr double e = std::exp(1.) - 1.;
+  return (std::exp(inputs[0])-1)/e;
 }
 
 template <uint S>
@@ -741,15 +740,47 @@ double tanh (const Inputs<S> &inputs) {
 }
 
 template <uint S>
+double asin (const Inputs<S> &inputs) {
+  return 2*std::asin(inputs[0])/M_PI;
+}
+
+template <uint S>
+double acos (const Inputs<S> &inputs) {
+  return std::cos(inputs[0]) / M_PI;
+}
+
+template <uint S>
 double step (const Inputs<S> &inputs) {
   return utils::sgn(inputs[0]);
 }
+
+template <uint S>
+double inv (const Inputs<S> &inputs) {
+  if (inputs[0] == 0) return 0;
+  return utils::clip(-1., 1./inputs[0], 1.);
+}
+
+template <uint S>
+double rond (const Inputs<S> &inputs) {
+  return std::round(inputs[0]);
+}
+
+template <uint S>
+double flor (const Inputs<S> &inputs) {
+  return std::floor(inputs[0]);
+}
+
+template <uint S>
+double ceil (const Inputs<S> &inputs) {
+  return std::ceil(inputs[0]);
+}
+
 } // end of namespace unary
 
 namespace binary {
 template <uint S>
 double del (const Inputs<S> &inputs) {
-  return inputs[0] - inputs[1];
+  return (inputs[0] - inputs[1]) / 2.;
 }
 
 template <uint S>
@@ -757,6 +788,21 @@ double div (const Inputs<S> &inputs) {
   if (inputs[1] != 0)
     return inputs[0] / inputs[1];
   return 0;
+}
+
+template <uint S>
+double gt (const Inputs<S> &inputs) {
+  return inputs[0] > inputs[1];
+}
+
+template <uint S>
+double lt (const Inputs<S> &inputs) {
+  return inputs[0] < inputs[1];
+}
+
+template <uint S>
+double eq (const Inputs<S> &inputs) {
+  return inputs[0] == inputs[1];
 }
 
 template <uint S>
@@ -771,7 +817,7 @@ template <uint S>
 double add (const Inputs<S> &inputs) {
   double sum = 0;
   for (auto i: inputs)  sum += i;
-  return sum;
+  return sum / S;
 }
 
 template <uint S>
@@ -779,6 +825,20 @@ double mult (const Inputs<S> &inputs) {
   double prod = 1;
   for (auto i: inputs)  prod *= i;
   return prod;
+}
+
+template <uint S>
+double min (const Inputs<S> &inputs) {
+  double v = inputs[0];
+  for (uint i=1; i<S; i++)  v = std::min(v, inputs[i]);
+  return v;
+}
+
+template <uint S>
+double max (const Inputs<S> &inputs) {
+  double v = inputs[0];
+  for (uint i=1; i<S; i++)  v = std::max(v, inputs[i]);
+  return v;
 }
 } // end of namespace nary
 
@@ -791,20 +851,21 @@ CGP<IE,N,OE,A>::functionsMap {
 #define FUNC(X) std::make_pair(functions::FID(#X), &functions::ARITY::X<A>)
 #define ARITY oary
 //  FUNC(rand)
-  FUNC(one),  FUNC(zero), FUNC(pi),
+  FUNC(mone),  FUNC(zero), FUNC(one),
 #undef ARITY
 
 #define ARITY unary
-  FUNC(id),   FUNC(abs),  FUNC(sq),   FUNC(sqrt), FUNC(exp),  FUNC(sin),
-  FUNC(cos),  FUNC(tan),  FUNC(step),
+  FUNC(id),   FUNC(abs),  FUNC(sq),   FUNC(sqrt), FUNC(exp),
+  FUNC(sin),  FUNC(cos),  FUNC(tan),  FUNC(tanh), FUNC(asin),  FUNC(acos),
+  FUNC(step), FUNC(inv),  FUNC(rond), FUNC(flor), FUNC(ceil),
 #undef ARITY
 
 #define ARITY binary
-  FUNC(del),  FUNC(div),  FUNC(hgss),
+  FUNC(del),  FUNC(div),  FUNC(gt),   FUNC(lt),   FUNC(eq),    FUNC(hgss),
 #undef ARITY
 
 #define ARITY nary
-  FUNC(add),  FUNC(mult)
+  FUNC(add),  FUNC(mult), FUNC(min),  FUNC(max)
 #undef ARITY
 #undef FUNC
 };
@@ -814,17 +875,18 @@ template <typename IE, uint N, typename OE, uint A>
 const std::map<FuncID, uint> CGP<IE,N,OE,A>::arities {
 #define AR(X) std::make_pair(functions::FID(#X), ARITY)
 #define ARITY 0
-  AR(rand), AR(one),  AR(zero), AR(pi),
+  AR(rand), AR(one),  AR(zero), AR(mone),
 #undef ARITY
 #define ARITY 1
-  AR(id),   AR(abs),  AR(sq),  AR(sqrt), AR(exp),  AR(sin),
-  AR(cos),  AR(tan),  AR(step),
+  AR(id),   AR(abs),  AR(sq),   AR(sqrt), AR(exp),
+  AR(sin),  AR(cos),  AR(tan),  AR(tanh), AR(asin),  AR(acos),
+  AR(step), AR(inv),  AR(rond), AR(flor), AR(ceil),
 #undef ARITY
 #define ARITY 2
-  AR(del),  AR(div),  AR(hgss),
+  AR(del),  AR(div),  AR(gt),   AR(lt),   AR(eq),    AR(hgss),
 #undef ARITY
 #define ARITY -1
-  AR(add),  AR(mult)
+  AR(add),  AR(mult), AR(min),  AR(max)
 #undef ARITY
 #undef AR
 };
@@ -846,22 +908,26 @@ CGP<IE,N,OE,A>::latexFormatters {
   }
 #define PRINT(X) [] (std::ostream &os) { os << X; }
 #define NOOP [] (std::ostream &) {}
-  FMT(rand,    PRINT("rand"),         NOOP, NOOP),
-  FMT( one,       PRINT("1"),         NOOP, NOOP),
-  FMT(zero,       PRINT("0"),         NOOP, NOOP),
-  FMT(  pi,    PRINT("\\pi"),         NOOP, NOOP),
+  FMT(rand,       PRINT("rand"),         NOOP, NOOP),
+  FMT(mone,         PRINT("-1"),         NOOP, NOOP),
+  FMT(zero,          PRINT("0"),         NOOP, NOOP),
+  FMT( one,          PRINT("1"),         NOOP, NOOP),
 
-  FMT(  id,             NOOP,         NOOP, NOOP),
-  FMT( abs,       PRINT("|"),         NOOP, PRINT("|")),
-  FMT(  sq,       PRINT("("),         NOOP, PRINT(")^2")),
-  FMT(sqrt, PRINT("\\sqrt{"),         NOOP, PRINT("}")),
-  FMT( exp,     PRINT("e^{"),         NOOP, PRINT("}")),
+  FMT(  id,                NOOP,         NOOP, NOOP),
+  FMT( abs,          PRINT("|"),         NOOP, PRINT("|")),
+  FMT(  sq,          PRINT("("),         NOOP, PRINT(")^2")),
+  FMT(sqrt,    PRINT("\\sqrt{"),         NOOP, PRINT("}")),
+  FMT( exp,        PRINT("e^{"),         NOOP, PRINT("}")),
+  FMT( inv, PRINT("\\frac{1}{"),         NOOP, PRINT("}")),
 
-  FMT( del,       PRINT("("), PRINT(" - "), PRINT(")")),
-  FMT( div, PRINT("\\frac{"),  PRINT("}{"), PRINT("}")),
+  FMT( del,          PRINT("("), PRINT(" - "), PRINT(")")),
+  FMT( div,    PRINT("\\frac{"),  PRINT("}{"), PRINT("}")),
+  FMT(  gt,          PRINT("("),   PRINT(">"), PRINT(")")),
+  FMT(  lt,          PRINT("("),   PRINT("<"), PRINT(")")),
+  FMT(  lt,          PRINT("("),  PRINT("=="), PRINT(")")),
 
-  FMT( add,       PRINT("("), PRINT(" + "), PRINT(")")),
-  FMT(mult,       PRINT("("), PRINT(" * "), PRINT(")")),
+  FMT( add,          PRINT("("), PRINT(" + "), PRINT(")")),
+  FMT(mult,          PRINT("("), PRINT(" * "), PRINT(")")),
 #undef NOOP
 #undef PRINT
 #undef FMT

@@ -79,8 +79,8 @@ void Environment::cgpStep (void) {
   using Outputs = CGP::Outputs;
   Outputs outputs;
 
-  _updatedTopology = _currTime.isStartOfYear()
-      && (_currTime.year() % config::Simulation::updateTopologyEvery()) == 0;
+  _updatedTopology =
+    (_currTime.toTimestamp() % config::Simulation::updateTopologyEvery()) == 0;
 
   inputs[I::D] = sin(2 * M_PI * _currTime.timeOfYear());
 

@@ -52,20 +52,18 @@ using cgp::functions::FID;
 
 DEFINE_CONTAINER_PARAMETER(CGP::FunctionSet, functionSet, {
   // 0-ary
-  FID("rand"), FID("one"),  FID("zero"), FID("pi"),
+  FID("mone"),  FID("zero"), FID("one"), FID("rand"),
 
   // unary
-  FID("id"),   FID("abs"),  FID("sq"),   FID("sqrt"), FID("exp"),  FID("sin"),
-  FID("cos"),  FID("tan"),  FID("step"),
+  FID("id"),   FID("abs"),  FID("sq"),   FID("sqrt"), FID("exp"),
+  FID("sin"),  FID("cos"),  FID("tan"),  FID("tanh"), FID("asin"), FID("acos"),
+  FID("step"), FID("inv"),  FID("rond"), FID("flor"), FID("ceil"),
 
   // binary
-  FID("del"),  FID("div"),
-
-  // ternary
-  FID("hgss"),
+  FID("del"),  FID("div"),  FID("gt"),   FID("lt"),   FID("eq"),   FID("hgss"),
 
   // n-ary
-  FID("add"),  FID("mult")
+  FID("add"),  FID("mult"), FID("min"),  FID("max")
 })
 
 #undef CFILE

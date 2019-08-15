@@ -35,7 +35,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(float, temperatureMaxRange)
   DECLARE_PARAMETER(float, temperatureRangePenalty) // stddev
 
-  DECLARE_PARAMETER(uint, updateTopologyEvery)
+  DECLARE_PARAMETER(uint, updateTopologyEvery)  // In tics
   DECLARE_PARAMETER(float, heightPenaltyStddev)
 
   DECLARE_DEBUG_PARAMETER(bool, DEBUG_NO_METABOLISM, false)

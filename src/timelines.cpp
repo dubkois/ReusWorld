@@ -318,7 +318,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, DIST, STGN, DENS, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
 using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
@@ -348,16 +348,13 @@ using Population = std::vector<Alternative>;
 
 using ParetoFront = std::vector<uint>;
 
-void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
+void computeFitnesses(Alternative &a, const GenePool &atstart) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
   const Simulation &s = a.simulation;
   a.fitnesses.fill(M_INF);
 
   if (s.plants().size() >= config::Simulation::initSeeds()) {
-    GenePool atend;
-    atend.parse(s);
-
 // == Inter-species compatibility
 /* Exploited by plants through massive divergence in the compatibility function
    Induced insanely huge phylogenetic trees and computation times
@@ -380,23 +377,63 @@ void computeFitnesses(Alternative &a, const GenePool &atstart, int startpop) {
 //    }
 //    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
 
-// == Inter-species evolutionary distance
-    const auto &aliveSpecies = a.simulation.phylogeny().aliveSpecies();
+// == Inter-species compatibility (std-dev)
+/* ?
+ */
 
-    for (auto itL = aliveSpecies.begin(); itL != aliveSpecies.end(); ++itL) {
-      for (auto itR = std::next(itL); itR != aliveSpecies.end(); ++itR) {
+    std::vector<float> compats;
+    float avgCompat = 0, stdCompat = 0;
 
+    for (const auto &lhs_p: s.plants()) {
+      const Plant &lhs = *lhs_p.second;
+      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+
+      for (const auto &rhs_p: s.plants()) {
+        const Plant &rhs = *rhs_p.second;
+        if (rhs.sex() != Plant::Sex::MALE)  continue;
+        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+
+        float compat = lhs.genome().compatibility(distance(lhs.genome(),
+                                                           rhs.genome()));
+        avgCompat += compat;
+        compats.push_back(avgCompat);
       }
     }
 
+    if (!compats.empty()) {
+      avgCompat /= compats.size();
+      for (float c: compats)  stdCompat += std::pow(avgCompat - c, 2);
+      stdCompat = std::sqrt(stdCompat / compats.size());
+    }
+
+    a.fitnesses[CMPT] = stdCompat;
+
+// == Inter-species evolutionary distance
+/* Not completed */
+//    const auto &aliveSpecies = a.simulation.phylogeny().aliveSpecies();
+
+//    for (auto itL = aliveSpecies.begin(); itL != aliveSpecies.end(); ++itL) {
+//      for (auto itR = std::next(itL); itR != aliveSpecies.end(); ++itR) {
+
+//      }
+//    }
+
+// == Genepool diversity
+/* Can cause extinction */
+    GenePool atend;
+    atend.parse(s);
     a.fitnesses[STGN] = -matching(atstart, atend);
 
+// ** Control fitness
+// == Population size (keep in range)
     double p = s.plants().size();
     static constexpr double L = 500, H = 2500;
     a.fitnesses[DENS] = (p < L ? 0 : (p > H ? 0 : 1));
 
   //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
 
+// ** Control fitness
+// == Computation time (minimize)
     a.fitnesses[TIME] = -s.wallTimeDuration();
   }
 
@@ -504,7 +541,6 @@ void controlGroup (const Parameters &parameters) {
   s.setDuration(simu::Environment::DurationSetType::SET,
                 parameters.epochs * parameters.epochDuration);
 
-  auto startpop = s.plants().size();
   genepool.parse(s);
 
   while (!s.finished()) {
@@ -513,7 +549,7 @@ void controlGroup (const Parameters &parameters) {
     s.step();
   }
 
-  computeFitnesses(a, genepool, startpop);
+  computeFitnesses(a, genepool);
 
   std::cout << "Final fitnesses\n";
   for (auto f: EnumUtils<Fitnesses>::iterator())
@@ -617,11 +653,10 @@ void exploreTimelines (Parameters parameters) {
 
   epochHeader();
   genepool.parse(reality->simulation);
-  auto startpop = reality->simulation.plants().size();
 
   while (!reality->simulation.finished()) reality->simulation.step();
 
-  computeFitnesses(*reality, genepool, startpop);  
+  computeFitnesses(*reality, genepool);
   printSummary(parameters, alternatives, ParetoFront(), -1);
   logFitnesses(0, 0);
 
@@ -629,7 +664,6 @@ void exploreTimelines (Parameters parameters) {
   do {
     epochHeader();
     genepool.parse(reality->simulation);
-    startpop = reality->simulation.plants().size();
 
     // Populate next epoch from current best alternative
     if (winner != 0)  alternatives[0].simulation.clone(reality->simulation);
@@ -654,7 +688,7 @@ void exploreTimelines (Parameters parameters) {
 
       while (!s.finished()) s.step();
 
-      computeFitnesses(alternatives[a], genepool, startpop);
+      computeFitnesses(alternatives[a], genepool);
     }
 
     // Find 'best' alternative
@@ -754,7 +788,6 @@ int main(int argc, char *argv[]) {
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
-  config::Simulation::updateTopologyEvery.ref() = parameters.epochDuration;
   config::Simulation::setupConfig(configFile, verbosity);
   config::Simulation::verbosity.ref() = 0;
   if (configFile.empty()) config::Simulation::printConfig("");
@@ -803,6 +836,9 @@ int main(int argc, char *argv[]) {
 
   // ===========================================================================
   // == Test area
+
+#warning autoremoving datafolder
+  stdfs::remove_all(parameters.subfolder);
 
 #if !defined(NDEBUG) && TEST == 1
   // Test cloning

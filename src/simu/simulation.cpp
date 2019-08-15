@@ -736,7 +736,7 @@ void Simulation::logGlobalStats(void) {
     _statsFile << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
                   " Derivations Organs Flowers Fruits Matings"
                   " Reproductions dSeeds Births Deaths AvgDist AvgCompat"
-                  " Species MinX MaxX\n";
+                  " ASpecies CSpecies MinX MaxX\n";
 
   using decimal = Plant::decimal;
   decimal biomass = 0;
@@ -779,7 +779,7 @@ void Simulation::logGlobalStats(void) {
              << " " << _stats.sumDistances / float(_stats.matings)
              << " " << _stats.sumCompatibilities / float(_stats.matings)
 
-             << " " << _ptree.width()
+             << " " << _ptree.width() << " " << _ptree.aliveSpecies().size()
 
              << " " << minx << " " << maxx
              << std::endl;
