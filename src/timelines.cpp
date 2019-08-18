@@ -319,7 +319,49 @@ struct Parameters {
 };
 
 DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
-using Fitnesses_t = std::array<double, EnumUtils<Fitnesses>::size()>;
+using FUtils = EnumUtils<Fitnesses>;
+using Fitnesses_t = std::array<double, FUtils::size()>;
+
+struct Format {
+  int width, precision;
+
+  using Flags = std::ios_base::fmtflags;
+  Flags flags;
+
+  Format (int w, int p, Flags f = Flags())
+    : width(w), precision(p), flags(f) {}
+
+  static Format integer (int width) {
+    return Format (width, 0);
+  }
+
+  static Format decimal (int precision, bool neg = false) {
+    return Format (5+precision+neg, precision, std::ios_base::showpoint);
+  }
+
+  template <typename T>
+  std::ostream& operator() (std::ostream &os, T v) const {
+    auto f = os.flags();
+    auto p = os.precision();
+    os << *this << v;
+    os.flags(f);
+    os.precision(p);
+    return os;
+  }
+
+  friend std::ostream& operator<< (std::ostream &os, const Format &f) {
+    os.setf(f.flags);
+    return os << std::setprecision(f.precision) << std::setw(f.width);
+  }
+};
+
+const std::map<Fitnesses, Format> formatters {
+  { CMPT, Format::decimal(6) },
+  { STGN, Format::decimal(6) },
+  { DENS, Format::integer(4) },
+  { TIME, Format::decimal(4) },
+};
+
 struct Alternative {
   static constexpr double MAGNITUDE = 1;
 
@@ -330,7 +372,7 @@ struct Alternative {
 
   /// Compare with a margin
   friend bool operator< (const Alternative &lhs, const Alternative &rhs) {
-    for (Fitnesses f: EnumUtils<Fitnesses>::iterator()) {
+    for (Fitnesses f: FUtils::iterator()) {
       double lhsF = lhs.fitnesses[f],
              rhsF = rhs.fitnesses[f];
       bool invert = lhsF < 0 && rhsF < 0;
@@ -428,7 +470,7 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 // == Population size (keep in range)
     double p = s.plants().size();
     static constexpr double L = 500, H = 2500;
-    a.fitnesses[DENS] = (p < L ? 0 : (p > H ? 0 : 1));
+    a.fitnesses[DENS] = (p < L ? -1 : (p > H ? 0 : 1));
 
   //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
 
@@ -439,10 +481,10 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 
   // log to local file
   std::ofstream ofs (a.simulation.dataFolder() / "fitnesses.dat");
-  for (auto f: EnumUtils<Fitnesses>::iterator())
-    ofs << " " << EnumUtils<Fitnesses>::getName(f);
+  for (auto f: FUtils::iterator())
+    ofs << " " << FUtils::getName(f);
   ofs << "\n";
-  for (auto f: EnumUtils<Fitnesses>::iterator())
+  for (auto f: FUtils::iterator())
     ofs << " " << a.fitnesses[f];
   ofs << "\n";
 }
@@ -486,43 +528,50 @@ void printSummary (const Parameters &parameters,
                    const Population &alternatives,
                    const ParetoFront &pFront,
                    uint winner) {
-  static const auto iwidth = std::ceil(std::log10(parameters.branching));
-  static constexpr auto pwidth = 10;
+
+  static const auto iformatter =
+    Format::integer(std::ceil(std::log10(parameters.branching)));
 
   static const auto fitnessHeader = [] {
-    for (auto f: EnumUtils<Fitnesses>::iterator())
-      std::cout << " " << std::setw(pwidth) << EnumUtils<Fitnesses>::getName(f);
+    for (auto f: FUtils::iterator()) {
+      std::cout << "   ";
+      formatters.at(f)(std::cout, FUtils::getName(f));
+    }
     std::cout << "\n";
+  };
+
+  static const auto printFitnesses = [] (const Alternative &a) {
+    for (Fitnesses f: FUtils::iterator()) {
+      std::cout << "   ";
+      formatters.at(f)(std::cout, a.fitnesses[f]);
+    }
   };
 
   if (parameters.epoch == 0) {
     std::cout << "# Seed epoch:\n"
-                 "# " << std::setw(iwidth) << " ";
+                 "# " << iformatter << " ";
     fitnessHeader();
-    std::cout << "# " << std::setw(iwidth) << 0;
-    for (double f: alternatives[0].fitnesses)
-      std::cout << " " << std::setw(pwidth) << f;
+    std::cout << "# " << iformatter << 0;
+    printFitnesses(alternatives[0]);
     std::cout << "\n";
 
   } else {
     std::cout << "# Alternatives:\n"
-                 "# " << std::setw(iwidth) << " ";
+                 "# " << iformatter << " ";
     fitnessHeader();
     uint i=0;
     for (const Alternative &a: alternatives) {
-      std::cout << "# " << std::setw(iwidth) << i++;
-      for (double f: a.fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
+      std::cout << "# " << iformatter << i++;
+      printFitnesses(a);
       std::cout << "\n";
     }
 
     std::cout << "#\n# " << pFront.size() << " alternatives in pareto front"
-                 "\n#  " << std::setw(iwidth);
+                 "\n#  " << iformatter;
     fitnessHeader();
     for (uint i: pFront) {
       std::cout << "# " << ((i == winner) ? '*' : ' ');
-      for (double f: alternatives[i].fitnesses)
-        std::cout << " " << std::setw(pwidth) << f;
+      printFitnesses(alternatives[i]);
       std::cout << "\n";
     }
     std::cout << "#" << std::endl;
@@ -552,8 +601,8 @@ void controlGroup (const Parameters &parameters) {
   computeFitnesses(a, genepool);
 
   std::cout << "Final fitnesses\n";
-  for (auto f: EnumUtils<Fitnesses>::iterator())
-    std::cout << "\t" << EnumUtils<Fitnesses>::getName(f)
+  for (auto f: FUtils::iterator())
+    std::cout << "\t" << FUtils::getName(f)
               << ": " << a.fitnesses[f] << "\n";
 
   if (s.extinct())
@@ -612,8 +661,8 @@ void exploreTimelines (Parameters parameters) {
       if (epoch == 0) {
         N = 1;
         ofs << "E A W";
-        for (auto f: EnumUtils<Fitnesses>::iterator())
-          ofs << " " << EnumUtils<Fitnesses>::getName(f);
+        for (auto f: FUtils::iterator())
+          ofs << " " << FUtils::getName(f);
         ofs << "\n";
       }
 

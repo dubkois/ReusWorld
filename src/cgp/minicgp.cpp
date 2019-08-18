@@ -56,11 +56,11 @@ DEFINE_CONTAINER_PARAMETER(CGP::FunctionSet, functionSet, {
 
   // unary
   FID("id"),   FID("abs"),  FID("sq"),   FID("sqrt"), FID("exp"),
-  FID("sin"),  FID("cos"),  FID("tan"),  FID("tanh"), FID("asin"), FID("acos"),
+  FID("sin"),  FID("cos"),  FID("tanh"), FID("asin"), FID("acos"),
   FID("step"), FID("inv"),  FID("rond"), FID("flor"), FID("ceil"),
 
   // binary
-  FID("del"),  FID("div"),  FID("gt"),   FID("lt"),   FID("eq"),   FID("hgss"),
+  FID("del"),  FID("gt"),   FID("lt"),   FID("eq"),   FID("hgss"),
 
   // n-ary
   FID("add"),  FID("mult"), FID("min"),  FID("max")

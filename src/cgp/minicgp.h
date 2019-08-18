@@ -232,7 +232,7 @@ public:
           persistentData[i]);
     }
     
-    for (uint o=0; o<O; o++)  outputs[o] = data(I+N+o);
+    for (uint o=0; o<O; o++)  outputs[o] = utils::clip(-1., data(I+N+o), 1.);
 
 #ifndef NDEBUG
     for (double d: persistentData)  assert(!isnan(d));
@@ -731,7 +731,7 @@ double cos (const Inputs<S> &inputs) {
 
 template <uint S>
 double tan (const Inputs<S> &inputs) {
-  return std::tan(inputs[0]);
+  return 2. * std::tan(inputs[0]) / M_PI;
 }
 
 template <uint S>
@@ -781,13 +781,6 @@ namespace binary {
 template <uint S>
 double del (const Inputs<S> &inputs) {
   return (inputs[0] - inputs[1]) / 2.;
-}
-
-template <uint S>
-double div (const Inputs<S> &inputs) {
-  if (inputs[1] != 0)
-    return inputs[0] / inputs[1];
-  return 0;
 }
 
 template <uint S>
@@ -861,7 +854,7 @@ CGP<IE,N,OE,A>::functionsMap {
 #undef ARITY
 
 #define ARITY binary
-  FUNC(del),  FUNC(div),  FUNC(gt),   FUNC(lt),   FUNC(eq),    FUNC(hgss),
+  FUNC(del),  FUNC(gt),   FUNC(lt),   FUNC(eq),    FUNC(hgss),
 #undef ARITY
 
 #define ARITY nary
@@ -883,7 +876,7 @@ const std::map<FuncID, uint> CGP<IE,N,OE,A>::arities {
   AR(step), AR(inv),  AR(rond), AR(flor), AR(ceil),
 #undef ARITY
 #define ARITY 2
-  AR(del),  AR(div),  AR(gt),   AR(lt),   AR(eq),    AR(hgss),
+  AR(del),  AR(gt),   AR(lt),   AR(eq),    AR(hgss),
 #undef ARITY
 #define ARITY -1
   AR(add),  AR(mult), AR(min),  AR(max)
@@ -917,14 +910,15 @@ CGP<IE,N,OE,A>::latexFormatters {
   FMT( abs,          PRINT("|"),         NOOP, PRINT("|")),
   FMT(  sq,          PRINT("("),         NOOP, PRINT(")^2")),
   FMT(sqrt,    PRINT("\\sqrt{"),         NOOP, PRINT("}")),
-  FMT( exp,        PRINT("e^{"),         NOOP, PRINT("}")),
+  FMT( exp, PRINT("\\frac{e^{"),         NOOP, PRINT("}-1}{e-1}")),
   FMT( inv, PRINT("\\frac{1}{"),         NOOP, PRINT("}")),
+  FMT(rond,     PRINT("round("),         NOOP, PRINT(")")),
+  FMT(flor,     PRINT("floor("),         NOOP, PRINT(")")),
 
   FMT( del,          PRINT("("), PRINT(" - "), PRINT(")")),
-  FMT( div,    PRINT("\\frac{"),  PRINT("}{"), PRINT("}")),
   FMT(  gt,          PRINT("("),   PRINT(">"), PRINT(")")),
   FMT(  lt,          PRINT("("),   PRINT("<"), PRINT(")")),
-  FMT(  lt,          PRINT("("),  PRINT("=="), PRINT(")")),
+  FMT(  eq,          PRINT("("),  PRINT("=="), PRINT(")")),
 
   FMT( add,          PRINT("("), PRINT(" + "), PRINT(")")),
   FMT(mult,          PRINT("("), PRINT(" * "), PRINT(")")),

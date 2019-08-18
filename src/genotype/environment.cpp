@@ -11,6 +11,8 @@ DEFINE_GENOME_FIELD_WITH_BOUNDS(float, minT, "", -20, -20)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, maxT, "", 40, 40)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, voxels, "", 100, 100)
 
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, inertia, "", 0.f, 0.f, 0.f, 1.f)
+
 auto cgpFunctor = [] {
   GENOME_FIELD_FUNCTOR(CGP, controller) functor;
   functor.random = [] (auto &dice) { return CGP::null(dice); };
@@ -29,7 +31,8 @@ DEFINE_GENOME_MUTATION_RATES({
   EDNA_PAIR(      minT, 0),
   EDNA_PAIR(      maxT, 0),
   EDNA_PAIR(    voxels, 0),
-  EDNA_PAIR(controller, 1.f)
+  EDNA_PAIR(   inertia, .1f),
+  EDNA_PAIR(controller, .9f)
 })
 
 template <>

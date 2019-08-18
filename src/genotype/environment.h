@@ -32,6 +32,8 @@ public:
   float minT, maxT;
   uint voxels;
 
+  float inertia;
+
   using CGP = cgp::CGP<env_controller::Inputs, 100, env_controller::Outputs>;
   CGP controller;
 
@@ -46,6 +48,7 @@ DECLARE_GENOME_FIELD(Environment, float, depth)
 DECLARE_GENOME_FIELD(Environment, float, minT)
 DECLARE_GENOME_FIELD(Environment, float, maxT)
 DECLARE_GENOME_FIELD(Environment, uint, voxels)
+DECLARE_GENOME_FIELD(Environment, float, inertia)
 DECLARE_GENOME_FIELD(Environment, Environment::CGP, controller)
 
 } // end of namespace genotype
@@ -63,6 +66,7 @@ struct EDNA_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bf, maxTBounds)
   DECLARE_PARAMETER(Bui, voxelsBounds)
 
+  DECLARE_PARAMETER(Bf, inertiaBounds)
   DECLARE_SUBCONFIG(config::CGP, genotypeEnvCtrlConfig)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)

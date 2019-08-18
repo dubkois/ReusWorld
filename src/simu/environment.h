@@ -140,7 +140,7 @@ public:
 
   void setDuration (DurationSetType type, uint duration);
   void mutateController (rng::AbstractDice &dice) {
-    _genome.controller.mutate(dice);
+    _genome.mutate(dice);
   }
 
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
@@ -183,6 +183,8 @@ public:
                            bool deepcopy);
 
 private:
+  void updateVoxel (float &voxel, float newValue);
+
   float interpolate (const Voxels &voxels, float x) const;
 
   void cgpStep (void);

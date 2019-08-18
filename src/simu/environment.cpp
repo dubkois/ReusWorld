@@ -79,6 +79,9 @@ void Environment::cgpStep (void) {
   using Outputs = CGP::Outputs;
   Outputs outputs;
 
+  const auto rangeT = _genome.maxT - _genome.minT;
+  const auto baselineWater = config::Simulation::baselineShallowWater();
+
   _updatedTopology =
     (_currTime.toTimestamp() % config::Simulation::updateTopologyEvery()) == 0;
 
@@ -86,6 +89,9 @@ void Environment::cgpStep (void) {
 
   const auto S = _startTime.toTimestamp(), E = _endTime.toTimestamp();
   inputs[I::Y] = sin(2 * M_PI * (1. - (E - _currTime.toTimestamp()) / (E - S)));
+
+  for (I i: {I::D, I::Y})
+    utils::iclip(-1., inputs[i], 1.);
 
   for (uint i=0; i<=_genome.voxels; i++) {
     float &A = _topology[i];
@@ -97,14 +103,18 @@ void Environment::cgpStep (void) {
     inputs[I::H] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
     inputs[I::W] = H / config::Simulation::baselineShallowWater() - 1;
 
+    for (I i: {I::X, I::T, I::H, I::W})
+      utils::iclip(-1., inputs[i], 1.);
+
     _genome.controller.evaluate(inputs, outputs);
 
     // Keep 10% of space
     if (_updatedTopology)
-      A = .9 * outputs[O::T_] * _genome.depth;
+      updateVoxel(A, .9 * outputs[O::T_] * _genome.depth);
 
-    T = .5 * (outputs[O::H_] + 1) * (_genome.maxT - _genome.minT) + _genome.minT;
-    H = (1 + outputs[O::W_]) * config::Simulation::baselineShallowWater();
+    updateVoxel(T, .5 * (outputs[O::H_] + 1) * rangeT + _genome.minT);
+
+    updateVoxel(H, (1 + outputs[O::W_]) * baselineWater);
   }
 
   if (debugEnvCTRL) showVoxelsContents();
@@ -134,6 +144,10 @@ float Environment::waterAt(const Point &p) const {
 
 float Environment::lightAt(float) const {
   return config::Simulation::baselineLight();
+}
+
+void Environment::updateVoxel (float &voxel, float newValue) {
+  voxel = _genome.inertia * voxel + (1.f - _genome.inertia) * newValue;
 }
 
 float Environment::interpolate(const Voxels &voxels, float x) const {
