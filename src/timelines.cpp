@@ -361,9 +361,9 @@ struct Format {
 
 const std::map<Fitnesses, Format> formatters {
   { CMPT, Format::decimal(6) },
-  { STGN, Format::decimal(6) },
+  { STGN, Format::decimal(6, true) },
   { DENS, Format::integer(4) },
-  { TIME, Format::decimal(4) },
+  { TIME, Format::decimal(4, true) },
 };
 
 struct Alternative {
