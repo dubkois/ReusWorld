@@ -893,8 +893,8 @@ int main(int argc, char *argv[]) {
   // ===========================================================================
   // == Test area
 
-#warning autoremoving datafolder
-  stdfs::remove_all(parameters.subfolder);
+//#warning autoremoving datafolder
+//  stdfs::remove_all(parameters.subfolder);
 
 #if !defined(NDEBUG) && TEST == 1
   // Test cloning
