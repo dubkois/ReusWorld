@@ -21,14 +21,15 @@ samples=1
 [ $# -eq 2 ] && samples=$2
 
 agg=""
-if [ -d $1/results/e00_r ]
+firstFolder=$(ls -d $1/results/e*_r | grep "e[0]*_r")
+if [ -d $firstFolder ]
 then
   # run folder > Agreggate first
   agg="yes"
   echo "Running in aggregate mode"
 
   for t in global topology temperature hygrometry; do rm -fv $1/$t.dat; done
-  head -1 $1/results/e00_r/global.dat > $1/global.dat
+  head -1 $firstFolder/global.dat > $1/global.dat
   for e in $1/results/e*_r
   do
     for t in global topology temperature hygrometry; do awk -v s=$samples 'NR%s == 1' $e/$t.dat >> $1/$t.dat; done
@@ -50,7 +51,7 @@ fi
 for t in topology temperature hygrometry
 do
   echo "Plotting $1/$t.dat"
-  ./scripts/plot_voxels.sh $1/$t.dat 3
+  ./scripts/plot_voxels.sh -f $1/$t.dat -d 3
 done
 
 echo "Collating summaries"

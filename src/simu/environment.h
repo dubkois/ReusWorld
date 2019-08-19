@@ -140,7 +140,7 @@ public:
 
   void setDuration (DurationSetType type, uint duration);
   void mutateController (rng::AbstractDice &dice) {
-    _genome.mutate(dice);
+    _genome.controller.mutate(dice);
   }
 
   const physics::UpperLayer::Items& canopy(const Plant *p) const;

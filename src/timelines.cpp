@@ -339,6 +339,10 @@ struct Format {
     return Format (5+precision+neg, precision, std::ios_base::showpoint);
   }
 
+  static Format save (std::ostream &os) {
+    return Format (0, os.precision(), os.flags());
+  }
+
   template <typename T>
   std::ostream& operator() (std::ostream &os, T v) const {
     auto f = os.flags();
@@ -529,6 +533,7 @@ void printSummary (const Parameters &parameters,
                    const ParetoFront &pFront,
                    uint winner) {
 
+  const auto oldFormat = Format::save(std::cout);
   static const auto iformatter =
     Format::integer(std::ceil(std::log10(parameters.branching)));
 
@@ -576,6 +581,8 @@ void printSummary (const Parameters &parameters,
     }
     std::cout << "#" << std::endl;
   }
+
+  std::cout << oldFormat;
 }
 
 void controlGroup (const Parameters &parameters) {
