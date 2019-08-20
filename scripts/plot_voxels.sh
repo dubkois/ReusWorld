@@ -46,7 +46,7 @@ if [ -z "$persist" ]
 then
   output="
   set term pngcairo size 1680,1050;
-  set output '$(dirname $file)/$(basename $file .dat).png';"
+  set output '$(dirname $file)/$(basename $file .dat)_${dim}D.png';"
 fi
 
 rows=$(wc -l $file | cut -d ' ' -f 1)
