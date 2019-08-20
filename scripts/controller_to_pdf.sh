@@ -6,13 +6,13 @@ usage(){
 
 if [ $# -ne 1 ]
 then
-  usage()
+  usage
   exit 10
 fi
 
 if [ ! -f "$1" ]
 then
-  usage()
+  usage
   exit 1
 fi
 
