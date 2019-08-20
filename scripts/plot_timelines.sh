@@ -1,0 +1,43 @@
+#!/bin/bash
+
+usage(){
+  echo "Usage: $0 <timelines data>"
+}
+
+if [ $# -ne 1 ]
+then
+  usage
+  exit 10
+fi
+
+timelinesFile=$1
+if [ ! -f "$timelinesFile" ]
+then
+  usage
+  exit 1
+fi
+
+epochs=$(cut -d ' ' -f 1 $timelinesFile | tail -n +2 | uniq)
+last=$(echo $epochs | tr " " "\n" | tail -1)
+
+folder=$(dirname $timelinesFile)
+
+for i in $epochs
+do
+  vdata=$folder/.vectordata.$i.dat
+  [ ! -f $vdata ] && \
+  awk -v i=$i '$1 == (i-1) && $3 == 1 { org[0]=$4; org[1]=$5; org[2]=$1; } $1 == i { print org[0], org[1], org[2], $4 - org[0], $5 - org[1], $1 - org[2], $3 }' $timelinesFile > $vdata
+done
+
+gnuplot -p -e "
+  F='$timelinesFile';
+  rgb(r,g,b) = int(r)*65536 + int(g)*256 + int(b);
+  color(a) = ((a == 1)? rgb(0,0,0) : rgb(196,196,196));
+  unset xtics;
+  unset ytics;
+  set xyplane 0;
+  set zlabel 'Time' rotate parallel;
+  splot for [i=1:$last] '$folder/.vectordata.'.i.'.dat' using 1:2:3:4:5:6:(color(\$7)) with vectors \
+                                                    lc rgbcolor variable nohead notitle" -
+                                                    
+rm $folder/.vectordata.*.dat
