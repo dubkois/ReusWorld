@@ -30,6 +30,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_PARAMETER(float, baselineLight)
   DECLARE_PARAMETER(float, saturationRate)
   DECLARE_PARAMETER(float, lifeCost)
+  DECLARE_PARAMETER(float, photosynthesisCost)
   DECLARE_PARAMETER(float, resourceCost)
   DECLARE_PARAMETER(float, floweringCost) // Relative to base mass
   DECLARE_PARAMETER(float, temperatureMaxRange)

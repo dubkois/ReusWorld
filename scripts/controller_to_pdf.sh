@@ -22,8 +22,10 @@ base=$(basename "$file" .tex)
 pdf=$base.pdf
 png=${base}_tex
 
-pdflatex -interaction batchmode "$file"
-pdftocairo $pdf $png -png
-mv -v $pdf $dir
-mv -v $png-1.png $dir/$png.png
-rm $base.aux $base.log 
+cd $dir
+pdflatex -interaction batchmode "$base"
+[ ! -f "$pdf" ] && exit 2
+
+pdftocairo $pdf $png -png -scale-to 1680
+mv $png-1.png $png.png
+# rm $base.aux $base.log 

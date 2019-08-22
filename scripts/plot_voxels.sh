@@ -1,18 +1,22 @@
 #!/bin/sh
 
 usage(){
-  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-p]"
-  echo "       second argument is for whether to plot as 3d of projected map (2d)"
+  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-l v] [-u v] [-p]"
+  echo "       -d for whether to plot as 3d of projected map (2d)"
+  echo "       -p for whether to keep the graph interactive"
+  echo "       -l,-u set the lower and upper bounds of the graph, respectively"
 }
 
 file=""
 dim=2
 persist=""
+lower="*"
+upper="*"
 
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?f:d:p" opt; do
+while getopts "h?f:d:l:u:p" opt; do
   case "$opt" in
   h|\?)
       show_help
@@ -21,6 +25,10 @@ while getopts "h?f:d:p" opt; do
   f)  file=$OPTARG
       ;;
   d)  dim=$OPTARG
+      ;;
+  l)  lower=$OPTARG
+      ;;
+  u)  upper=$OPTARG
       ;;
   p)  persist="-"
   esac
@@ -58,6 +66,8 @@ gnuplot -e "
   set ylabel 'Time';
   set ytics ($ytics);
   set title '$(basename $file .dat)';
+  set zrange [$lower:$upper];
+  set cbrange [$lower:$upper];
   $output
   $map
   splot '< cut -d \" \" -f2- $file' matrix with pm3d notitle " -p $persist

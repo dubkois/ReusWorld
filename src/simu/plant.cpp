@@ -630,6 +630,7 @@ void Plant::metabolicStep(Environment &env) {
 
   const auto &k_E = SConfig::assimilationRate();
   const auto &J_E = SConfig::saturationRate();
+  const auto &f_p = SConfig::photosynthesisCost();
   const auto &f_E = SConfig::resourceCost();
 
   float T = env.temperatureAt(_pos.x);
@@ -745,12 +746,12 @@ void Plant::metabolicStep(Environment &env) {
 
   if (debugMetabolism)
     std::cerr << PlantID(this) << " Total glucose production of " << U_g;
-  utils::iclip_max(U_g, _reserves[Layer::SHOOT][Element::WATER]);
+  utils::iclip_max(U_g, f_p * _reserves[Layer::SHOOT][Element::WATER]);
   utils::iclip_max(U_g, _biomasses[Layer::SHOOT] - _reserves[Layer::SHOOT][Element::GLUCOSE]);
   if (debugMetabolism)
     std::cerr << " clipped to " << U_g << std::endl;
   assert(U_g >= 0);
-  _reserves[Layer::SHOOT][Element::WATER] -= U_g;
+  _reserves[Layer::SHOOT][Element::WATER] -= f_p * U_g;
   _reserves[Layer::SHOOT][Element::GLUCOSE] += U_g;
   assert(_reserves[Layer::SHOOT][Element::GLUCOSE] <= _biomasses[Layer::SHOOT]);
 

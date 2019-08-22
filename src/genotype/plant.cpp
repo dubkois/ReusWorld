@@ -412,7 +412,7 @@ DEFINE_PARAMETER(Config::NonTerminal, ls_axiom, 'S')
 DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("[-l]f"))
 DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("h"))
 DEFINE_PARAMETER(Config::NonTerminal, ls_maxNonTerminal, 'F')
-DEFINE_PARAMETER(uint, ls_maxRuleSize, 10)
+DEFINE_PARAMETER(uint, ls_maxRuleSize, 4)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
 DEFINE_PARAMETER(float, ls_nonTerminalCost, .1)
 

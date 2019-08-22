@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 usage(){
   echo "Usage: $0 -f result-folder [OPTIONS]"
@@ -34,7 +34,7 @@ while getopts "h?f:s:d:" opt; do
   esac
 done
 
-if [ ! -d $folder ]
+if [ ! -d "$folder" ]
 then
   echo "'$folder' is not a folder"
   usage
@@ -55,6 +55,12 @@ then
   exit 3
 fi
 
+if [ -f $folder/summary.png ]
+then
+  echo "Skipping previously processed folder '$folder'"
+  exit 0
+fi
+
 agg=""
 firstFolder=$(find $folder/ -path "*results/e*_r" | grep "e[0]*_r")
 if [ -d "$firstFolder" ]
@@ -69,32 +75,42 @@ then
   head -1 $firstFolder/global.dat > $folder/global.dat
   for e in $folder/results/e*_r
   do
-    for t in global topology temperature hygrometry; do awk -v s=$samples 'NR%s == 1' $e/$t.dat >> $folder/$t.dat; done
+    for t in global topology temperature hygrometry; do awk -v s=$samples 'NR%s == 2' $e/$t.dat >> $folder/$t.dat; done
     printf "Aggregated data for $e\r"
   done
   echo
 fi
 
-./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Plants;Plants-Seeds;Seeds;Time:y2" -o $folder/pt_dynamics_summary.png
-./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Organs/Plants;Time:y2" -o $folder/ot_dynamics_summary.png
-./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "ASpecies;CSpecies;Time:y2" -o $folder/st_dynamics_summary.png
+pfdsFile=$folder/pt_dynamics_summary.png
+[ ! -f $pfdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Plants;Plants-Seeds;Seeds;Time:y2" -o $pfdsFile
 
-if [ -z "$agg" ]
+otdsFile=$folder/ot_dynamics_summary.png
+[ ! -f $otdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Organs/Plants;Time:y2" -o $otdsFile
+
+stdsFile=$folder/st_dynamics_summary.png
+[ ! -f $stdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "ASpecies;CSpecies;Time:y2" -o $stdsFile
+
+if [ -z "$agg" -a ! -f $folder/controller_tex.png ]
 then
   ./scripts/controller_to_pdf.sh $folder/controller.tex
-  dot -Tpng $folder/controller.dot -o $folder/controller_dot.png
+#   dot -Tpng $folder/controller.dot -o $folder/controller_dot.png
 fi
 
+declare -A lranges=( [topology]=-25 [temperature]=-20 [hygrometry]=0 )
+declare -A uranges=( [topology]=25 [temperature]=40 [hygrometry]=1 )
 for t in topology temperature hygrometry
 do
-  echo "Plotting $folder/$t.dat"
-  ./scripts/plot_voxels.sh -f $folder/$t.dat -d $dim
+  if [ ! -f $folder/${t}_${dim}D.png ]
+  then
+    echo "Plotting $folder/$t.dat"
+    ./scripts/plot_voxels.sh -f $folder/$t.dat -d $dim -l ${lranges[$t]} -u ${uranges[$t]}
+  fi
 done
 
 echo "Collating summaries"
 if [ -z "$agg" ]
 then
-  montage -tile 3x3 $folder/controller_tex.png null: null: \
+  montage -tile 3x3 'null:[1680x10!]' $folder/controller_tex.png null: \
                     $folder/pt_dynamics_summary.png $folder/ot_dynamics_summary.png $folder/st_dynamics_summary.png \
                     $folder/topology_${dim}D.png $folder/temperature_${dim}D.png $folder/hygrometry_${dim}D.png \
           -geometry '+2+2' $folder/summary.png
@@ -106,5 +122,3 @@ else
           -geometry '1680x1050+2+2<' $folder/summary.png
   echo "Generated summary for $folder from $firstFolder to $lastFolder"
 fi
-# xdg-open $folder/summary.png
-
