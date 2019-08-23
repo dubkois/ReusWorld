@@ -18,7 +18,7 @@ using GConfig = config::PlantGenome;
 
 static constexpr bool drawOrganID = false;
 static constexpr bool drawPlantID = false;
-static constexpr bool drawOrganContour = false;
+static constexpr bool drawOrganBoundingBox = false;
 static constexpr bool drawOrganCorners = false;
 static constexpr bool drawQtBoundingBox = false;
 
@@ -310,6 +310,13 @@ void Plant::paint (QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*)
         box.append(toQPoint(p));
       painter->drawPolygon(box);
     }
+  }
+
+  if (drawOrganBoundingBox) {
+    pen.setColor(Qt::blue);
+    painter->setPen(pen);
+    for (const simu::Organ *o: _plant.organs())
+      painter->drawPolygon(toQRect(o->inPlantCoordinates().boundingRect));
   }
 
   if (isSelected()) {

@@ -96,6 +96,9 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   QAction *fullscreen = buildAction(QIcon::fromTheme("view-fullscreen"),
                                     "Fullscreen", QKeySequence("F11"));
 
+  QAction *snapshot = buildAction(QIcon::fromTheme("camera-photo"),
+                                  "Snapshot", QKeySequence("Ctrl+P"));
+
   QAction *zoomOut = buildAction(QIcon::fromTheme("zoom-out"), "Zoom out",
                                  QKeySequence("-"));
 
@@ -132,6 +135,7 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   menuSimulation->addAction(nextPlant);
 
   menuVisualisation->addAction(fullscreen);
+  menuVisualisation->addAction(snapshot);
   menuVisualisation->addAction(zoomOut);
   menuVisualisation->addAction(zoomIn);
 
@@ -195,6 +199,16 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
       _window.showFullScreen();
     else
       _window.showNormal();
+  });
+  connect(snapshot, &QAction::triggered, [this] {
+    QString filename =
+      QFileDialog::getSaveFileName(_view, "Select filename", ".", "(*.png)");
+
+    if (!filename.isEmpty()) {
+      QPixmap p = _view->screenshot();
+      p.save(filename);
+      qDebug() << "Saved screenshot to " << filename;
+    }
   });
   connect(zoomIn, &QAction::triggered, _view, &gui::MainView::zoomIn);
   connect(zoomOut, &QAction::triggered, _view, &gui::MainView::zoomOut);

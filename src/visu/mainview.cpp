@@ -200,15 +200,17 @@ void MainView::paintEvent(QPaintEvent *e) {
 }
 
 QPixmap MainView::screenshot(QSize size) {
-  if (!size.isValid() || size.isNull())
-    utils::doThrow<std::invalid_argument>(
-      "Invalid screenshots size: ", size.width(), "x", size.height());
-
   QRect src = viewport()->rect();
-  if (size.width() > size.height())
-    size.setHeight(size.width() * src.height() / src.width());
-  else
-    size.setWidth(size.height() * src.width() / src.height());
+
+  if (!size.isValid() || size.isNull())
+    size = src.size();
+
+  else {
+    if (size.width() > size.height())
+      size.setHeight(size.width() * src.height() / src.width());
+    else
+      size.setWidth(size.height() * src.width() / src.height());
+  }
 
   QPixmap pixmap (size);
   QPainter painter (&pixmap);

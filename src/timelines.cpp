@@ -309,6 +309,7 @@ struct Parameters {
   genotype::Plant plantGenome;
 
   stdfs::path subfolder = "tmp/test_timelines/";
+  Simulation::Overwrite overwrite = Simulation::ABORT;
 
   uint epoch = 0;
   uint epochs = 100;
@@ -593,7 +594,7 @@ void controlGroup (const Parameters &parameters) {
   GenePool genepool;
 
   s.init(parameters.envGenome, parameters.plantGenome);
-  s.setDataFolder(parameters.subfolder / "results");
+  s.setDataFolder(parameters.subfolder / "results", parameters.overwrite);
   s.setDuration(simu::Environment::DurationSetType::SET,
                 parameters.epochs * parameters.epochDuration);
 
@@ -703,7 +704,8 @@ void exploreTimelines (Parameters parameters) {
   uint winner = 0;
 
   reality->simulation.init(parameters.envGenome, parameters.plantGenome);
-  reality->simulation.setDataFolder(championDataFolder(parameters.epoch));
+  reality->simulation.setDataFolder(championDataFolder(parameters.epoch),
+                                    parameters.overwrite);
   reality->simulation.setDuration(DT, parameters.epochDuration);
   logEnvController(reality->simulation);
 
@@ -733,7 +735,8 @@ void exploreTimelines (Parameters parameters) {
     for (uint a=0; a<parameters.branching; a++) {
       Simulation &s = alternatives[a].simulation;
       s.setDuration(DT, parameters.epochDuration);
-      s.setDataFolder(alternativeDataFolder(parameters.epoch, a));
+      s.setDataFolder(alternativeDataFolder(parameters.epoch, a),
+                      parameters.overwrite);
       logEnvController(s);
     }
 
@@ -790,6 +793,7 @@ int main(int argc, char *argv[]) {
   decltype(genotype::Environment::rngSeed) envOverrideSeed;
 
   Parameters parameters;
+  char overwrite;
 
   cxxopts::Options options("ReusWorld (timelines explorer)",
                            "Continuous 1 + lambda of a 2D simulation of plants"
@@ -803,6 +807,9 @@ int main(int argc, char *argv[]) {
      cxxopts::value(verbosity))
     ("f,folder", "Folder under which to store the results",
      cxxopts::value(parameters.subfolder))
+    ("overwrite", "Action to take if the data folder is not empty: either "
+                  "[a]bort or [p]urge",
+     cxxopts::value(overwrite))
     ("e,environment", "Environment's genome or a random seed",
      cxxopts::value(envGenomeArg))
     ("p,plant", "Plant genome to start from or a random seed",
@@ -875,6 +882,9 @@ int main(int argc, char *argv[]) {
   }
 
   parameters.plantGenome.toFile("inital", 2);
+
+  if (result.count("overwrite"))
+    parameters.overwrite = simu::Simulation::Overwrite(overwrite);
 
   std::cout << "Environment:\n" << parameters.envGenome
             << "\nPlant:\n" << parameters.plantGenome

@@ -51,7 +51,12 @@ public:
     _env.setDuration(t, years);
   }
 
-  void setDataFolder (const stdfs::path &path);
+  enum Overwrite : char {
+    UNSPECIFIED = '\0',
+    ABORT = 'a',
+    PURGE = 'p'
+  };
+  void setDataFolder (const stdfs::path &path, Overwrite o = UNSPECIFIED);
 
   const stdfs::path dataFolder (void) const {
     return _dataFolder;

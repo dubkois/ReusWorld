@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
 
   std::string duration = "=100";
   std::string outputFolder = "";
+  char overwrite = simu::Simulation::UNSPECIFIED;
 
   cxxopts::Options options("ReusWorld (headless)",
                            "2D simulation of plants in a changing environment (no gui output)");
@@ -64,6 +65,9 @@ int main(int argc, char *argv[]) {
      cxxopts::value(duration))
     ("f,data-folder", "Folder under which to store the computational outputs",
      cxxopts::value(outputFolder))
+    ("overwrite", "Action to take if the data folder is not empty: either "
+                  "[a]bort or [p]urge",
+     cxxopts::value(overwrite))
     ("e,environment", "Environment's genome or a random seed",
      cxxopts::value(envGenomeArg))
     ("p,plant", "Plant genome to start from or a random seed",
@@ -160,7 +164,8 @@ int main(int argc, char *argv[]) {
   // == Core setup
 
   simu::Simulation s;
-  if (!outputFolder.empty()) s.setDataFolder(outputFolder);
+  if (!outputFolder.empty())
+    s.setDataFolder(outputFolder, simu::Simulation::Overwrite(overwrite));
 
   if (loadSaveFile.empty()) {
     s.init(envGenome, plantGenome);

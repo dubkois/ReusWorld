@@ -74,7 +74,7 @@ public slots:
     focusOnSelection();
   }
 
-  QPixmap screenshot (QSize size);
+  QPixmap screenshot (QSize size = QSize());
 
   void saveMorphologiesAs (void);
   void saveMorphologies (const QString &dir, int width = 200);

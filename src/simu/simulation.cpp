@@ -22,7 +22,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-//#define CUSTOM_PLANTS 3
+//#define CUSTOM_PLANTS -1
 //#define DISTANCE_TEST
 #endif
 
@@ -122,15 +122,11 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   genomes[i].root = genomes[0].root;
   i++;
 
-#elif CUSTOM_PLANTS == 2
-  N = 6; // 12
+#elif CUSTOM_PLANTS == 2  // Collisions detection
   dx = .5;
 
   modifiedPrimordialPlant.shoot.recursivity = 10;
-  for (uint i=0; i<N; i++)
-    genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
-
-  uint i=0;
+  modifiedPrimordialPlant.root.rules = { RRULE("S -> A") };
 
 //  // Left border
 //  genomes[i++].shoot.rules = {
@@ -138,46 +134,53 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 //    SRULE("A -> sss")
 //  };
 
-  // Overlap
-  genomes[i++].shoot.rules = {
-    SRULE("S -> A[-l][-l]"),
-    SRULE("A -> s")
+  // (C1) Overlap
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+    SRULE("S -> s[l][l]")
   };
 
-  // Two step overlap
-  genomes[i++].shoot.rules = {
-    SRULE("S -> [Al][-l]"),
-    SRULE("A -> -"),
-  };
-
-  // Two step without overlap
-  genomes[i++].shoot.rules = {
-    SRULE("S -> [Al][-Al]"),
-    SRULE("A -> -"),
-  };
-
-  // Diamond overlap (single rule)
-  genomes[i++].shoot.rules = {
+  // (C1) Diamond overlap
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
     SRULE("S -> Af"),
     SRULE("A -> [-l++l][+l--l]"),
   };
 
-  // Diamond overlap (branch end)
-  genomes[i++].shoot.rules = {
+  // (C2) Two step overlap
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+    SRULE("S -> [Al][-l]"),
+    SRULE("A -> -"),
+  };
+
+  // (C3) Diamond overlap (branch end)
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
     SRULE("S -> A-l++l"),
     SRULE("A -> [+l--l]"),
   };
 
-  // Diamond overlap (two rules)
-  genomes[i++].shoot.rules = {
+  // (C3) Diamond overlap (two rules)
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
     SRULE("S -> [-Al][+Bl]"),
     SRULE("A -> l++"),
     SRULE("B -> l--"),
   };
 
+
+  // Two step without overlap
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+    SRULE("S -> [Al][-Al]"),
+    SRULE("A -> -"),
+  };
+
 //  // Multi-layered flower
-//  genomes[i].shoot.recursivity = 5;
-//  genomes[i].shoot.rules = {
+//  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+//  genomes.back().shoot.rules = {
+//  genomes.back().shoot.recursivity = 5;
 //    SRULE("S -> [f][A][B]"),
 //    SRULE("A -> A-[l]"),
 //    SRULE("B -> B+[l]"),
@@ -233,23 +236,57 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 //  };
 //  i++;
 
-#elif CUSTOM_PLANTS == 3
-  N = 2;
+  N = genomes.size();
+
+#elif CUSTOM_PLANTS == 3  // Canopy exemple
+  N = 3;
+  uint m = N/2;
+  dx = .1;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
 
   genomes[0].shoot.rules = {
-    SRULE("S -> [-l[l]]A"),
-    SRULE("A -> AAAA")
+    SRULE("S -> -l")
   };
   genomes[0].root.rules = {
-    RRULE("S -> [hAAA]"),
-    RRULE("A -> AAAA")
+    RRULE("S -> h")
   };
   genomes[0].dethklok = -1;
 
-  genomes[1] = genomes[0];
+  for (uint i=1; i<N; i++) {
+    if (i != m) {
+      genomes[i].shoot.rules = genomes[0].shoot.rules;
+      genomes[i].root.rules = genomes[0].root.rules;
+      genomes[i].dethklok = genomes[0].dethklok;
+    }
+  }
 
-#elif CUSTOM_PLANTS == 4
+  genomes[m].shoot.rules = {
+    SRULE("S -> s[-Al][+Bl]"),
+    SRULE("A -> s[+++f]"),
+    SRULE("B -> s[---f]")
+  };
+  genomes[m].root.rules = {
+    RRULE("S -> h")
+  };
+  genomes[m].dethklok = -1;
+
+#elif CUSTOM_PLANTS == 4  // Pistils detection
+  N = 9;
+  for (uint i=0; i<N; i++)
+    genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+
+  rng::FastDice dice (1);
+  for (uint i=0; i<N; i++) {
+    PGenome &g = genomes[i];
+    g.cdata.sex = genotype::BOCData::Sex(i%2);
+
+    std::string r = "S -> " + std::string(dice(0, 5), 's') + "f";
+    g.shoot.rules = { SRULE(r) };
+    g.root.rules = { RRULE("S -> A") };
+  }
+
+
+#else
   N = 1;
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
   genomes[0].dethklok = -1;
@@ -681,20 +718,27 @@ void Simulation::updatePlantAltitude(Plant &p, float h) {
   p.updateAltitude(_env, h);
 }
 
-void Simulation::setDataFolder (const stdfs::path &path) {
+void Simulation::setDataFolder (const stdfs::path &path, Overwrite o) {
   _dataFolder = path;
 
   if (stdfs::exists(_dataFolder) && !stdfs::is_empty(_dataFolder)) {
-    std::cerr << "WARNING: data folder '" << _dataFolder << "' is not empty."
-                 " What do you want to do ([a]bort, [p]urge, [i]gnore)?"
-              << std::flush;
-    auto r = std::cin.get();
-    switch (r) {
-    case 'p': stdfs::remove_all(_dataFolder); break;
-    case 'i': break;
-    case 'a': _aborted = true;  break;
+    if (o == UNSPECIFIED) {
+      std::cerr << "WARNING: data folder '" << _dataFolder << "' is not empty."
+                   " What do you want to do ([a]bort, [p]urge)?"
+                << std::flush;
+      o = Overwrite(std::cin.get());
+    }
+
+    switch (o) {
+    case PURGE: stdfs::remove_all(_dataFolder); break;
+    case ABORT: _aborted = true;  break;
+    default:  std::cerr << "Invalid overwrite option '" << o
+                        << "' defaulting to abort." << std::endl;
+              _aborted = true;
     }
   }
+  if (_aborted) return;
+
   if (!stdfs::exists(_dataFolder))  stdfs::create_directories(_dataFolder);
 
   stdfs::path statsPath = path / "global.dat";
