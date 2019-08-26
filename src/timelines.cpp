@@ -901,7 +901,8 @@ int main(int argc, char *argv[]) {
   if (result.count("overwrite"))
     parameters.overwrite = simu::Simulation::Overwrite(overwrite);
 
-  if (!stdfs::is_empty(parameters.subfolder / "results")) {
+  stdfs::path rfolder = parameters.subfolder / "results";
+  if (stdfs::exists(rfolder) && !stdfs::is_empty(rfolder)) {
     std::cerr << "Base forlder is not empty!\n";
     switch (parameters.overwrite) {
     case simu::Simulation::Overwrite::PURGE:
