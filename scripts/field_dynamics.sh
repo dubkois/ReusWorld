@@ -14,7 +14,7 @@ show_help(){
   echo
   echo "Post-processing examples:"
   echo
-  echo "  -e \".morphology\" -a \"grep shoot | cut -d ':' -f 2 | awk '{ print \$0, gsub(/f/, \"\") }'\""
+  echo "  -e \".morphology\" -a \"grep shoot | cut -d ':' -f 2 | awk '{ print gsub(/f/, \"\") }'\""
   echo "  Plots the evolution of the number of flowers in the phenotypes"
 }
 
@@ -133,7 +133,8 @@ do
   [ "$clean" == "yes" ] && rm $v $localworkfile
 done
 
-cmd="set style fill solid 1 noborder;" 
+cmd="set style fill solid 1 noborder;
+set autoscale fix;" 
 
 if [ "$outfile" ]
 then
@@ -150,7 +151,7 @@ fi
 cmd="$cmd
 icolor(r) = int((1-r)*255);
 color(r) = icolor(r) * 65536 + icolor(r) * 256 + 255;
-plot '$globalworkfile' using 1:2:(1):(color(\$3)) with boxes lc rgb variable notitle;"
+plot '$globalworkfile' using 1:2:(1):(color(\$3)) with boxes lc rgb variable fs solid 1 noborder notitle;"
 
 if [ -z "$verbose" ]
 then
