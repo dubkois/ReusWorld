@@ -25,8 +25,17 @@ DEFINE_PARAMETER(float, assimilationRate, .01)
 DEFINE_PARAMETER(float, baselineShallowWater, .5)
 DEFINE_PARAMETER(float, baselineLight, .5)
 DEFINE_PARAMETER(float, saturationRate, 1)
-DEFINE_PARAMETER(float, lifeCost, .05)
-DEFINE_PARAMETER(float, photosynthesisCost, 1.5)
+
+DEFINE_CONTAINER_PARAMETER(Simulation::LifeCosts, lifeCosts, {
+  { 'l', .05  },
+  { 'f', .05 },
+  { 'g', .05 },
+  { 'h', .025 },
+  { 's', .01 },
+  { 't', .01 }
+})
+
+DEFINE_PARAMETER(float, photosynthesisCost, 1.1)
 DEFINE_PARAMETER(float, resourceCost, .5)
 DEFINE_PARAMETER(float, floweringCost, 3)
 DEFINE_PARAMETER(float, temperatureMaxRange, 10)

@@ -1,12 +1,13 @@
 #!/bin/bash
 
 show_help(){
-  echo "Usage: $0 -f <file> -c <columns> -p"
+  echo "Usage: $0 -f <file> -c <columns> [-p] [-l] [-o <file>] [-q]"
   echo "       -f <file> the datafile to use"
   echo "       -c <columns> columns specifiation (see below)"
   echo "       -p persist"
   echo "       -l <n> redraw graph every n seconds"
   echo "       -o <file> output file (implies no loop and no persist)"
+  echo "       -q Print a minimum of information"
   echo 
   echo "Columns specifiation:"
   echo "  N, a column name"
@@ -24,8 +25,7 @@ columns=""
 persist=""
 loop=""
 outfile=""
-quiet=""
-commands=""
+verbose=""
 while getopts "h?c:f:pl:o:q" opt; do
     case "$opt" in
     h|\?)
@@ -47,7 +47,7 @@ while getopts "h?c:f:pl:o:q" opt; do
 set output '$outfile';
 "
         ;;
-    q)  quiet=true
+    q)  verbose=no
         ;;
     esac
 done
@@ -60,9 +60,9 @@ fi
 
 if [ "$file" = "$files" ]
 then
-  [ -z "$quiet" ] && echo "   file: '$file'"
+  [ -z "$verbose" ] && echo "   file: '$file'"
 else
-  [ -z "$quiet" ] && echo "  files: " $(echo $files | sed -e "s/ /' '/g" -e "s/^/'/" -e "s/$/'/")
+  [ -z "$verbose" ] && echo "  files: " $(echo $files | sed -e "s/ /' '/g" -e "s/^/'/" -e "s/$/'/")
   index=$(head -n 1 $file | awk -v header=$columns '{ for(i=1;i<=NF;i++) if ($i == header) print i}')
   echo "index: $index"
   
@@ -97,7 +97,7 @@ else
 #   columns="$columns; ${columns}_lci; ${columns}_uci"
 fi
 
-[ -z "$quiet" ] && echo "columns: '$columns'"
+[ -z "$verbose" ] && echo "columns: '$columns'"
 
 lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
 tics=8
@@ -123,7 +123,7 @@ ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
 linesPerTic=ticsEvery(0);
 plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
 
-[ -z "$quiet" ] && echo "reading columns specifications"
+[ -z "$verbose" ] && echo "reading columns specifications"
 IFS=';' read -r -a columnsArray <<< $columns
 for elt in "${columnsArray[@]}"
 do
@@ -132,7 +132,7 @@ do
     [ "$y" == "" ] && y="y1"
     colname=$(cut -d: -f 1 <<< $elt)
     gp_elt=$(sed "s/\([^$W]*\)\([$W]\+\)\([^$W]*\)/\1column(\"\2\")\3/g" <<< $colname)
-    [ -z "$quiet" ] && printf "$elt >> $gp_elt : $y\n"
+    [ -z "$verbose" ] && printf "$elt >> $gp_elt : $y\n"
     
     if [ "$file" != "$files" ]
     then
@@ -151,7 +151,7 @@ then
   $loop"
 fi
 
-if [ -z "$quiet" ]
+if [ -z "$verbose" ]
 then
   printf "%s\n" "$cmd"
 else

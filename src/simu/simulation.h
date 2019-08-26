@@ -11,10 +11,11 @@
 namespace simu {
 
 class Simulation {
-protected:
+public:
   using EGenome = genotype::Environment;
   using PGenome = genotype::Plant;
-public:
+  using PTree = phylogeny::PhylogeneticTree<PGenome, PStats>;
+
   using clock = std::chrono::high_resolution_clock;
   using duration_t = std::chrono::milliseconds;
   static constexpr auto duration = [] (clock::time_point start) {
@@ -131,7 +132,6 @@ protected:
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
 
-  using PTree = phylogeny::PhylogeneticTree<PGenome, PStats>;
   PTree _ptree;
 
   clock::time_point _start;

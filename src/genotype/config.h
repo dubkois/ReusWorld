@@ -13,9 +13,10 @@ struct Plant;
 
 namespace grammar {
 
-using NonTerminal = char;
+using Symbol = char;
+using NonTerminal = Symbol;
 using Successor = std::string;
-using Symbols = std::set<char>;
+using Symbols = std::set<Symbol>;
 
 } // end of namespace grammar
 } // end of namespace genotype
@@ -53,6 +54,7 @@ struct EDNA_CONFIG_FILE(Plant) {
 
   DECLARE_PARAMETER(Bf, temperatureOptimalBounds)
   DECLARE_PARAMETER(Bf, temperatureRangeBounds)
+  DECLARE_PARAMETER(Bf, structuralLengthBounds)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)
   DECLARE_PARAMETER(DW, distanceWeights)

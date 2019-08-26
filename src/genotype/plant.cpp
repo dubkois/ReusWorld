@@ -280,6 +280,48 @@ auto lsystemFunctor (void) {
   return functor;
 }
 
+void printLSystemMutationRates(std::ostream &os, uint width, uint depth,
+                               float ratio) {
+#define F(M,X) M.at(X), X
+  const auto &lsMR = Config::ls_mutationRates();
+  const auto &lsrsMR = Config::ls_ruleSetMutationRates();
+
+#define F_(X) F(lsMR,X)
+  prettyPrintMutationRate(os, width, depth, ratio, F_("recursivity"), false);
+  prettyPrintMutationRate(os, width, depth, ratio, F_("rules"), true);
+
+#undef F_
+#define F_(X) F(lsrsMR,X)
+  ratio *= lsMR.at("rules");
+  depth++;
+  prettyPrintMutationRate(os, width, depth, ratio, F_("addRule"), false);
+  prettyPrintMutationRate(os, width, depth, ratio, F_("delRule"), false);
+  prettyPrintMutationRate(os, width, depth, ratio, F_("mutRule"), true);
+
+#undef F_
+  ratio *= lsrsMR.at("mutRule");
+  depth++;
+  for (const auto &p: Config::ls_ruleMutationRates())
+    prettyPrintMutationRate(os, width, depth, ratio, p.second, p.first, false);
+#undef F
+}
+
+template <>
+struct genotype::MutationRatesPrinter<LSystem<SHOOT>, Plant, &Plant::shoot> {
+  static constexpr bool recursive = true;
+  static void print (std::ostream &os, uint width, uint depth, float ratio) {
+    printLSystemMutationRates(os, width, depth, ratio);
+  }
+};
+template <>
+struct genotype::MutationRatesPrinter<LSystem<ROOT>, Plant, &Plant::root> {
+  static constexpr bool recursive = true;
+  static void print (std::ostream &os, uint width, uint depth, float ratio) {
+    printLSystemMutationRates(os, width, depth, ratio);
+  }
+};
+
+
 template <LSystemType L>
 struct Extractor<LSystem<L>> {
   std::string operator() (const LSystem<L> &ls, const std::string &field) {
@@ -399,7 +441,7 @@ DEFINE_GENOME_DISTANCE_WEIGHTS({
 
 #define GENOME Plant
 
-#define LSYSTEM_FIELD_FUNCTOR(NAME)           \
+#define LSYSTEM_FIELD_FUNCTOR(NAME)     \
   lsystemFunctor<decltype(Plant::NAME), \
                  GENOME_FIELD_FUNCTOR(decltype(Plant::NAME), NAME)>()
 
@@ -409,10 +451,10 @@ auto initRule = [] (const std::string &rhs) {
   return grammar::toSuccessor(Config::ls_axiom()) + " -> " + rhs;
 };
 DEFINE_PARAMETER(Config::NonTerminal, ls_axiom, 'S')
-DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("[-l]f"))
+DEFINE_PARAMETER(Config::Successor, ls_shootInitRule, initRule("s[-l][+l]f"))
 DEFINE_PARAMETER(Config::Successor, ls_rootInitRule, initRule("h"))
 DEFINE_PARAMETER(Config::NonTerminal, ls_maxNonTerminal, 'F')
-DEFINE_PARAMETER(uint, ls_maxRuleSize, 4)
+DEFINE_PARAMETER(uint, ls_maxRuleSize, 5)
 DEFINE_PARAMETER(float, ls_rotationAngle, M_PI/6.)
 DEFINE_PARAMETER(float, ls_nonTerminalCost, .1)
 
@@ -420,12 +462,12 @@ static const auto tsize = [] (float wr = 1, float lr = 1) {
   return Config::OrganSize{ .01f * wr, .1f * lr };
 };
 DEFINE_CONTAINER_PARAMETER(Config::OrgansSizes, ls_terminalsSizes, {
-  { 's', tsize() },
+  { 's', tsize(1, .1) },
   { 'l', tsize() },
   { 'f', tsize(1, .5) },
   { 'g', tsize(2, .2) },
 
-  { 't', tsize() },
+  { 't', tsize(1, .1) },
   { 'h', tsize() }
 })
 const Config::OrganSize& Config::sizeOf (char symbol) {
@@ -440,21 +482,24 @@ const Config::OrganSize& Config::sizeOf (char symbol) {
 
 
 DEFINE_PARAMETER(Config::Bui, ls_recursivityBounds, 1u, 2u, 2u, 5u)
-DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_mutationRates, {
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_mutationRates,
+                           utils::normalizeRates({
   { "recursivity", 1.f }, { "rules", maxRuleCount() }
-})
-DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates, {
-  { "addRule", 2.f },
-  { "delRule", 1.f },
-  { "mutRule", 7.f },
-})
-DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleMutationRates, {
-  { "dupSymb", 1.f },
-  { "mutSymb", 4.f },
+}))
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleSetMutationRates,
+                           utils::normalizeRates({
+  { "addRule",  .5f },
+  { "delRule",  .25f },
+  { "mutRule", 9.25f },
+}))
+DEFINE_CONTAINER_PARAMETER(Config::MutationRates, ls_ruleMutationRates,
+                           utils::normalizeRates({
+  { "dupSymb", 1.5f },
+  { "mutSymb", 3.5f },
   { "swpSymb", 3.f },
-  { "brkSymb", .5f },
-  { "delSymb", .5f },
-})
+  { "brkSymb", 1.f },
+  { "delSymb", 1.f },
+}))
 
 
 /// Config file hierarchy
@@ -470,11 +515,12 @@ DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<SHOOT>, shoot, "", LSYSTEM_FIELD_FUNCTO
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(LSystem<ROOT>, root, "", LSYSTEM_FIELD_FUNCTOR(root))
 
 DEFINE_GENOME_FIELD_AS_SUBGENOME(Metabolism, metabolism, "")
-DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 10u, 10u, 10u, 1000u)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, dethklok, "", 2u, 10u, 10u, 500u)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, fruitOvershoot, "", 1.f, 1.1f, 1.1f, 2.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(uint, seedsPerFruit, "", 1u, 3u, 3u, 100u)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureOptimal, "", -20.f, 10.f, 10.f, 40.f)
 DEFINE_GENOME_FIELD_WITH_BOUNDS(float, temperatureRange, "", 1e-3f, 10.f, 10.f, 30.f)
+DEFINE_GENOME_FIELD_WITH_BOUNDS(float, structuralLength, "", 1.f, 1.f, 1.f, 10.f)
 
 
 DEFINE_GENOME_MUTATION_RATES({
@@ -487,6 +533,7 @@ DEFINE_GENOME_MUTATION_RATES({
   EDNA_PAIR(      seedsPerFruit, .5f),
   EDNA_PAIR( temperatureOptimal, .5f),
   EDNA_PAIR(   temperatureRange, .5f),
+  EDNA_PAIR(   structuralLength, .5f),
 })
 DEFINE_GENOME_DISTANCE_WEIGHTS({
   EDNA_PAIR(              cdata, 0.f),
@@ -498,6 +545,7 @@ DEFINE_GENOME_DISTANCE_WEIGHTS({
   EDNA_PAIR(      seedsPerFruit, .5f),
   EDNA_PAIR( temperatureOptimal, .5f),
   EDNA_PAIR(   temperatureRange, .5f),
+  EDNA_PAIR(   structuralLength, .5f),
 })
 
 namespace config {

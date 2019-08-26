@@ -730,8 +730,13 @@ void Simulation::setDataFolder (const stdfs::path &path, Overwrite o) {
     }
 
     switch (o) {
-    case PURGE: stdfs::remove_all(_dataFolder); break;
+    case PURGE: std::cerr << "Purging contents from " << _dataFolder
+                          << std::endl;
+                stdfs::remove_all(_dataFolder);
+                break;
+
     case ABORT: _aborted = true;  break;
+
     default:  std::cerr << "Invalid overwrite option '" << o
                         << "' defaulting to abort." << std::endl;
               _aborted = true;

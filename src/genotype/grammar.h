@@ -27,7 +27,7 @@ template <> struct TerminalSymbolSet<SHOOT> { using enum_t = ShootTerminalSymbol
 template <> struct TerminalSymbolSet<ROOT> { using enum_t = RootTerminalSymbols; };
 
 struct Checkers {
-  using Checker_f = bool (*) (char c);
+  using Checker_f = bool (*) (Symbol s);
   Checker_f nonTerminal, terminal, control;
 };
 
@@ -44,8 +44,8 @@ struct Rule_base {
   NonTerminal lhs;
   Successor rhs;
 
-  static bool isBracket (char c) {
-    return c == '[' || c == ']';
+  static bool isBracket (Symbol s) {
+    return s == '[' || s == ']';
   }
 
   std::string toString (void) const {
@@ -60,8 +60,8 @@ struct Rule_base {
 
   static auto sizeWithoutControlChars (const std::string &rhs) {
     size_t size = 0;
-    for (char c: rhs)
-      size += !isValidControl(c);
+    for (Symbol s: rhs)
+      size += !isValidControl(s);
     return size;
   }
 
@@ -69,16 +69,20 @@ struct Rule_base {
     return sizeWithoutControlChars(rhs);
   }
 
-  static bool isValidNonTerminal (char c) {
-    return nonTerminals().find(c) != nonTerminals().end();
+  static bool isValidNonTerminal (Symbol s) {
+    return nonTerminals().find(s) != nonTerminals().end();
   }
 
-  static bool isValidControl (char c) {
-    return controls.find(c) != controls.end();
+  static bool isValidControl (Symbol s) {
+    return controls.find(s) != controls.end();
   }
 
-  static bool isTerminal (char c) {
-    return std::islower(c);
+  static bool isTerminal (Symbol s) {
+    return std::islower(s);
+  }
+
+  static bool isStructural (Symbol s) {
+    return s == 's' || s == 't';
   }
 
   static auto fruitSymbol (void) {
@@ -93,8 +97,8 @@ private:
   static const Symbols& nonTerminals (void) {
     static const Symbols symbols = [] {
       Symbols symbols;
-      for (char c = 'A'; c <= config::PlantGenome::ls_maxNonTerminal(); c++)
-        symbols.insert(c);
+      for (Symbol s = 'A'; s <= config::PlantGenome::ls_maxNonTerminal(); s++)
+        symbols.insert(s);
       symbols.insert(config::PlantGenome::ls_axiom());
       return symbols;
     }();
@@ -111,8 +115,8 @@ struct Rule_t : public Rule_base {
     return std::make_pair(lhs, *this);
   }
 
-  static bool isValidTerminal (char c) {
-    return terminals.find(c) != terminals.end();
+  static bool isValidTerminal (Symbol s) {
+    return terminals.find(s) != terminals.end();
   }
 
   template <typename Dice>
@@ -120,9 +124,9 @@ struct Rule_t : public Rule_base {
                                 Dice &dice, bool controlOnly) {
     static const Symbols nonBracketsControl = [] {
       Symbols symbols;
-      for (char c: controls)
-        if (!isBracket(c))
-          symbols.insert(c);
+      for (Symbol s: controls)
+        if (!isBracket(s))
+          symbols.insert(s);
       return symbols;
     }();
     Symbols candidates = nonBracketsControl;

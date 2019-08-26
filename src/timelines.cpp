@@ -319,7 +319,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, EDST, STGN, DENS, TIME)
 using FUtils = EnumUtils<Fitnesses>;
 using Fitnesses_t = std::array<double, FUtils::size()>;
 
@@ -361,7 +361,8 @@ struct Format {
 };
 
 const std::map<Fitnesses, Format> formatters {
-  { CMPT, Format::decimal(6) },
+//  { CMPT, Format::decimal(6) },
+  { EDST, Format::integer(4) },
   { STGN, Format::decimal(6, true) },
   { DENS, Format::integer(4) },
   { TIME, Format::decimal(4, true) },
@@ -395,6 +396,108 @@ using Population = std::vector<Alternative>;
 
 using ParetoFront = std::vector<uint>;
 
+// == Inter-species compatibility
+/* Exploited by plants through massive divergence in the compatibility function
+   Induced insanely huge phylogenetic trees and computation times
+ */
+double interspeciesCompatibility (const Simulation &s) {
+  float compat = 0;
+  float ccount = 0;
+  for (const auto &lhs_p: s.plants()) {
+    const Plant &lhs = *lhs_p.second;
+    if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+
+    for (const auto &rhs_p: s.plants()) {
+      const Plant &rhs = *rhs_p.second;
+      if (rhs.sex() != Plant::Sex::MALE)  continue;
+      if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+
+      compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
+      ccount ++;
+    }
+  }
+  return (ccount > 0) ? -compat / ccount : -1;
+}
+
+// == Inter-species compatibility (std-dev)
+/* ?
+ */
+double interspeciesCompatibilitySTD(const Simulation &s) {
+  std::vector<float> compats;
+  float avgCompat = 0, stdCompat = 0;
+
+  for (const auto &lhs_p: s.plants()) {
+    const Plant &lhs = *lhs_p.second;
+    if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+
+    for (const auto &rhs_p: s.plants()) {
+      const Plant &rhs = *rhs_p.second;
+      if (rhs.sex() != Plant::Sex::MALE)  continue;
+      if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+
+      float compat = lhs.genome().compatibility(distance(lhs.genome(),
+                                                         rhs.genome()));
+      avgCompat += compat;
+      compats.push_back(avgCompat);
+    }
+  }
+
+  if (!compats.empty()) {
+    avgCompat /= compats.size();
+    for (float c: compats)  stdCompat += std::pow(avgCompat - c, 2);
+    stdCompat = std::sqrt(stdCompat / compats.size());
+  }
+
+  return stdCompat;
+}
+
+/// TODO put this back to its place in APOGeT@Node.hpp
+double fullness (const Simulation::PTree::Node *n) {
+  static const auto &K = config::PTree::rsetSize();
+  return n->rset.size() / float(K);
+}
+
+// == Inter-species evolutionary distance
+/* Not Tested */
+double interspeciesDistance (const Simulation &s, uint index) {
+  using N = Simulation::PTree::Node const*;
+  const auto &phylogeny = s.phylogeny();
+  const auto &aliveSpecies = phylogeny.aliveSpecies();
+
+  uint maxD = 0;
+  for (auto itL = aliveSpecies.begin(); itL != aliveSpecies.end(); ++itL) {
+    N lhsN = phylogeny.nodeAt(*itL).get();
+    if (fullness(lhsN) < 1) continue;
+
+    std::vector<N> lineage;
+    N itN = lhsN;
+    while (itN) {
+      lineage.push_back(itN);
+      itN = itN->parent();
+    }
+
+    for (auto itR = std::next(itL); itR != aliveSpecies.end(); ++itR) {
+      N rhsN = phylogeny.nodeAt(*itR).get();
+      if (fullness(rhsN) < 1) continue;
+
+      uint d = 0;
+      itN = rhsN;
+
+      auto ca = std::find(lineage.begin(), lineage.end(), itN);
+      while (ca == lineage.end()) {
+        itN = itN->parent();
+        ca = std::find(lineage.begin(), lineage.end(), itN);
+        d++;
+      }
+
+      d += std::distance(lineage.begin(), ca);
+      if (maxD < d) maxD = d;
+    }
+  }
+
+  return maxD;
+}
+
 void computeFitnesses(Alternative &a, const GenePool &atstart) {
   static constexpr auto M_INF = -std::numeric_limits<double>::infinity();
 
@@ -402,68 +505,10 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
   a.fitnesses.fill(M_INF);
 
   if (s.plants().size() >= config::Simulation::initSeeds()) {
-// == Inter-species compatibility
-/* Exploited by plants through massive divergence in the compatibility function
-   Induced insanely huge phylogenetic trees and computation times
- */
-// ==
-//    float compat = 0;
-//    float ccount = 0;
-//    for (const auto &lhs_p: s.plants()) {
-//      const Plant &lhs = *lhs_p.second;
-//      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+//    a.fitnesses[CMPT] = interspeciesCompatibility(s);
+//    a.fitnesses[CMPT] = interspeciesCompatibilitySTD(s);
 
-//      for (const auto &rhs_p: s.plants()) {
-//        const Plant &rhs = *rhs_p.second;
-//        if (rhs.sex() != Plant::Sex::MALE)  continue;
-//        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
-
-//        compat += lhs.genome().compatibility(distance(lhs.genome(), rhs.genome()));
-//        ccount ++;
-//      }
-//    }
-//    a.fitnesses[CMPT] = (ccount > 0) ? -compat / ccount : -1;
-
-// == Inter-species compatibility (std-dev)
-/* ?
- */
-
-    std::vector<float> compats;
-    float avgCompat = 0, stdCompat = 0;
-
-    for (const auto &lhs_p: s.plants()) {
-      const Plant &lhs = *lhs_p.second;
-      if (lhs.sex() != Plant::Sex::FEMALE)  continue;
-
-      for (const auto &rhs_p: s.plants()) {
-        const Plant &rhs = *rhs_p.second;
-        if (rhs.sex() != Plant::Sex::MALE)  continue;
-        if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
-
-        float compat = lhs.genome().compatibility(distance(lhs.genome(),
-                                                           rhs.genome()));
-        avgCompat += compat;
-        compats.push_back(avgCompat);
-      }
-    }
-
-    if (!compats.empty()) {
-      avgCompat /= compats.size();
-      for (float c: compats)  stdCompat += std::pow(avgCompat - c, 2);
-      stdCompat = std::sqrt(stdCompat / compats.size());
-    }
-
-    a.fitnesses[CMPT] = stdCompat;
-
-// == Inter-species evolutionary distance
-/* Not completed */
-//    const auto &aliveSpecies = a.simulation.phylogeny().aliveSpecies();
-
-//    for (auto itL = aliveSpecies.begin(); itL != aliveSpecies.end(); ++itL) {
-//      for (auto itR = std::next(itL); itR != aliveSpecies.end(); ++itR) {
-
-//      }
-//    }
+    a.fitnesses[EDST] = interspeciesDistance(s, a.index);
 
 // == Genepool diversity
 /* Can cause extinction */
@@ -477,7 +522,9 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
     static constexpr double L = 500, H = 2500;
     a.fitnesses[DENS] = (p < L ? -1 : (p > H ? 0 : 1));
 
-  //  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
+// ** Control fitness
+// == Population size (keep ~constant)
+//  a.fitnesses[CNST] = -std::fabs(startpop - int(s.plants().size()));
 
 // ** Control fitness
 // == Computation time (minimize)
@@ -655,7 +702,10 @@ void exploreTimelines (Parameters parameters) {
   auto start = Simulation::clock::now();
 
   Population alternatives;
-  for (uint a=0; a<parameters.branching; a++)  alternatives.emplace_back();
+  for (uint a=0; a<parameters.branching; a++) {
+    alternatives.emplace_back();
+    alternatives.back().index = a;
+  }
 
   GenePool genepool;
 
@@ -848,12 +898,33 @@ int main(int argc, char *argv[]) {
       utils::doThrow<std::invalid_argument>("No value provided for the environment's genome");
   }
 
+  if (result.count("overwrite"))
+    parameters.overwrite = simu::Simulation::Overwrite(overwrite);
+
+  if (!stdfs::is_empty(parameters.subfolder)) {
+    std::cerr << "Base forlder is not empty!\n";
+    switch (parameters.overwrite) {
+    case simu::Simulation::Overwrite::PURGE:
+      std::cerr << "Purging" << std::endl;
+      stdfs::remove_all(parameters.subfolder);
+      break;
+
+    case simu::Simulation::Overwrite::ABORT:
+    default:
+      std::cerr << "Aborting" << std::endl;
+      exit(1);
+      break;
+    }
+  }
+
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
 
   config::Simulation::setupConfig(configFile, verbosity);
   config::Simulation::verbosity.ref() = 0;
   if (configFile.empty()) config::Simulation::printConfig("");
+
+  genotype::Plant::printMutationRates(std::cout, 2);
 
   if (!isValidSeed(envGenomeArg)) {
     std::cout << "Reading environment genome from input file '"
@@ -882,9 +953,6 @@ int main(int argc, char *argv[]) {
   }
 
   parameters.plantGenome.toFile("inital", 2);
-
-  if (result.count("overwrite"))
-    parameters.overwrite = simu::Simulation::Overwrite(overwrite);
 
   std::cout << "Environment:\n" << parameters.envGenome
             << "\nPlant:\n" << parameters.plantGenome

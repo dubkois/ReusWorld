@@ -422,7 +422,7 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
 
 
 Organ* Plant::makeOrgan(Organ *parent, float angle, char symbol, Layer type) {
-  auto size = GConfig::sizeOf(symbol);
+  auto size = _genome.sizeOf(symbol);
   Organ *o = new Organ(this, size.width, size.length, angle,
                        symbol, type, parent);
 
@@ -541,8 +541,8 @@ float Plant::sinkRequirement (Organ *o) const {
       required += seedBiomassRequirements(_genome, g);
 
   } else if (o->isStructural()) {
-    const auto &size = GConfig::sizeOf(o->symbol());
-    required = size.length * size.width
+    const auto &size = _genome.sizeOf(o->symbol());
+    required = size.area()
         * std::pow(1 + _genome.metabolism.deltaWidth,
                    std::max(0, int(o->depth()) -1));
   }
@@ -565,10 +565,10 @@ float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
   const std::string &succ = g.successor(l, symbol);
   float cost = 0;
   for (char c: succ) {
-    if (Rule_base::isTerminal(c)) {
-      const auto &size = GConfig::sizeOf(c);
-      cost += size.area();
-    } else if (Rule_base::isValidNonTerminal(c))
+    if (Rule_base::isTerminal(c))
+      cost += g.sizeOf(c).area();
+
+    else if (Rule_base::isValidNonTerminal(c))
       cost += ntcost;
 //  else no cost
   }
@@ -576,8 +576,18 @@ float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
 }
 
 void Plant::biomassRequirements (Masses &wastes, Masses &growth) {
-  for (Layer l: EnumUtils<Layer>::iterator())
-    wastes[l] = SConfig::lifeCost() * _biomasses[l];
+  static const auto &lifeCosts = SConfig::lifeCosts();
+
+  wastes.fill(0);
+
+  // New, per-organ, wastes production
+  for (Organ *o: _organs)
+    if (!o->isNonTerminal())
+      wastes[o->layer()] += lifeCosts.at(o->symbol()) * o->biomass();
+
+//  Old, single-value, wastes production
+//  for (Layer l: EnumUtils<Layer>::iterator())
+//    wastes[l] = SConfig::lifeCost() * _biomasses[l];
 
   growth.fill(0);
   for (Organ *o: _sinks)

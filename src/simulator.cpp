@@ -177,6 +177,8 @@ int main(int argc, char *argv[]) {
     config::Simulation::printConfig();
   }
 
+  genotype::Plant::printMutationRates(std::cout, 2);
+
   std::ofstream ofs (s.dataFolder() / "controller.last.tex");
   ofs << "\\documentclass[preview]{standalone}\n"
          "\\usepackage{amsmath}\n"

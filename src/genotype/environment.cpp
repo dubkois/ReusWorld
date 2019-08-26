@@ -22,6 +22,11 @@ auto cgpFunctor = [] {
   functor.distance = [] (auto&, auto&) { assert(false); return NAN; };
   return functor;
 };
+template <>
+struct genotype::MutationRatesPrinter<CGP, Environment, &Environment::controller> {
+  static constexpr bool recursive = false;
+  static void print (std::ostream&, uint, uint, float) {}
+};
 DEFINE_GENOME_FIELD_WITH_FUNCTOR(CGP, controller, "cgp", cgpFunctor())
 
 DEFINE_GENOME_MUTATION_RATES({

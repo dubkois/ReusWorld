@@ -94,6 +94,8 @@ public:
   float temperatureOptimal;
   float temperatureRange;
 
+  float structuralLength;
+
   auto id (void) const {  return gdata.self.gid;  }
   auto species (void) const { return gdata.self.sid;  }
 
@@ -114,7 +116,8 @@ public:
     return cdata;
   }
 
-  const grammar::Successor& successor (LSystemType t, grammar::NonTerminal nt) const {
+  const grammar::Successor&
+  successor (LSystemType t, grammar::NonTerminal nt) const {
     switch (t) {
     case SHOOT:  return shoot.successor(nt);
     case ROOT:   return root.successor(nt);
@@ -130,6 +133,13 @@ public:
     }
     utils::doThrow<std::invalid_argument>("Invalid lsystem type ", t);
     __builtin_unreachable();
+  }
+
+  auto sizeOf (grammar::Symbol s) const {
+    auto size = config_t::sizeOf(s);
+    if (grammar::Rule_base::isStructural(s))
+      size.length *= structuralLength;
+    return size;
   }
 
   auto compatibility (float dist) const {
@@ -179,6 +189,7 @@ DECLARE_GENOME_FIELD(Plant, float, fruitOvershoot)
 DECLARE_GENOME_FIELD(Plant, uint, seedsPerFruit)
 DECLARE_GENOME_FIELD(Plant, float, temperatureOptimal)
 DECLARE_GENOME_FIELD(Plant, float, temperatureRange)
+DECLARE_GENOME_FIELD(Plant, float, structuralLength)
 
 
 } // end of namespace genotype

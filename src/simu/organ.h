@@ -11,6 +11,7 @@ struct Plant;
 
 class Organ {
 public:
+  using Symbol = genotype::grammar::Symbol;
   using Layer = genotype::LSystemType;
   enum OID : uint { INVALID = uint(-1) };
 
@@ -64,8 +65,8 @@ private:
   GlobalCoordinates _globalCoordinates;
 
   float _width;
-  float _length;  // Constant for now
-  char _symbol;   // To choose color and shape
+  float _length;  // Variable (for structurals)
+  Symbol _symbol; // To choose color and shape (and now length)
   Layer _layer;   // To check altitude and symbol
 
   bool _cloned; ///< Whether there exists another organ with the same id
@@ -167,11 +168,15 @@ public:
   bool isHair (void) const {    return _symbol == 'h';  }
   bool isFlower (void) const {  return _symbol == 'f';  }
   bool isStructural (void) const {
-    return _symbol == 's' || _symbol == 't';
+    return isStructural(_symbol);
   }
 
   bool isFruit (void) const {
     return _symbol == genotype::grammar::Rule_base::fruitSymbol();
+  }
+
+  static bool isStructural (Symbol s) {
+    return genotype::grammar::Rule_base::isStructural(s);
   }
 
   friend std::ostream& operator<< (std::ostream &os, const Organ &o);

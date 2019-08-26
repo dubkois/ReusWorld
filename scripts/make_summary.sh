@@ -10,6 +10,7 @@ usage(){
   echo "OPTIONS"
   echo "       -s S, only use 1 in every S lines (in aggregate mode, defaults to 100)"
   echo "       -d D, Plot voxels in D dimensions (2 or 3, defaults to 2)"
+  echo "       -p, purge result-folder from summary images (useful for clean-up or to reevaluate a folder)"
 }
 
 folder=""
@@ -19,7 +20,7 @@ dim=2
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?f:s:d:" opt; do
+while getopts "h?f:s:d:p" opt; do
   case "$opt" in
   h|\?)
       show_help
@@ -30,6 +31,8 @@ while getopts "h?f:s:d:" opt; do
   s)  samples=$OPTARG
       ;;
   d)  dim=$OPTARG
+      ;;
+  p)  rm -v $folder/*summary.png $folder/*[23]D.png
       ;;
   esac
 done
