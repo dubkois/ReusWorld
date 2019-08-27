@@ -22,6 +22,15 @@ datafile(){
   echo "$folder/field_dynamics$field.$1"
 }
 
+[ -z "$BUILD_DIR" ] && BUILD_DIR=./build_release
+analyzer=$BUILD_DIR/analyzer
+if [ ! -f $analyzer ]
+then
+  echo "Unable to find analyzer program at '$analyzer'."
+  echo "Make sure you specified BUILD_DIR correctly and retry"
+  exit 1
+fi
+
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
@@ -88,7 +97,6 @@ then
 fi
 
 globalworkfile=$(datafile global)
-  
 for savefile in $files
 do
   [ -z "$verbose" ] && printf "Processing $savefile\r"
@@ -102,7 +110,7 @@ do
     [ -z "$verbose" ] && printf "Skipping alreay processed $savefile\r"
   
   else
-    ./build_release/analyzer -l $savefile --load-constraints none --extract-field $field | grep "^$field" > $rawlocalworkfile
+    $analyzer -l $savefile --load-constraints none --extract-field $field | grep "^$field" > $rawlocalworkfile
 
     cat $rawlocalworkfile | eval "$postprocessing" > $localworkfile
    
@@ -115,16 +123,39 @@ do
       stats=$(awk -v bins=$bins \
                   'NR==1 { min=$1; max=$1 }
                   NR>1 { if ($1 < min) min=$1; if (max < $1) max = $1 }
-                  END { if (min == max) { bsize=.1; hbins=int(.5*bins); min=min-hbins*bsize; max=max+hbins*bsize } else { bsize=(max - min) / bins }; print min, bsize, max }' $localworkfile)
+                  END { bsize=(max - min) / bins; print min, bsize, max }' $localworkfile)
       
       read min bsize max <<< "$stats"
       
+#       echo
 #       echo "$min, $bsize, $max"
-#       awk -vmin=$min -v bsize=$bsize -v nbins=$bins 'END { for (i=0; i<nbins; i++) { print (i-.5)*bsize+min, i*bsize+min, (i+.5)*bsize+min } }' <<< ""
+#       awk -vmin=$min -v bsize=$bsize -v nbins=$bins 'BEGIN { for (i=0; i<nbins; i++) { print i*bsize+min, (i+.5)*bsize+min, (i+1)*bsize+min } }'
+#       awk -vmin=$min -v bsize=$bsize -vmax=$max -v nbins=$bins -vyear=$year \
+#              '{ b = ($1==max) ? nbins-1 : int(($1-min)/bsize); bins[b]++; }
+#           END { for (i=nbins-1; i>=0; i--) { print year, bsize*(i+1)+min, bins[i] / NR }; print year, min, 0; }' $localworkfile
+#       echo
       
-      awk -vmin=$min -v bsize=$bsize -v nbins=$bins -v year=$year \
-             '{ b = bsize * (int(($1-min)/bsize)+.5) + min; bins[b]++ }
-          END { for (i=nbins-1; i>=0; i--) { b=bsize*(i+.5)+min; print year, b+.5*bsize, bins[b] / NR }; l=min-.5*bsize; if (l > 0) { print year, l, 0; } }' $localworkfile >> $globalworkfile
+      awk -vmin=$min -v bsize=$bsize -vmax=$max -vnbins=$bins -vyear=$year \
+             '{ 
+                if (min == max)   b = 0;
+                else if ($1==max) b = nbins-1;
+                else              b= int(($1-min)/bsize);
+                bins[b]++;
+              }
+          END {
+                if (min==max) {
+                  minwidth=.1;
+                  min -= .5*minwidth;
+                  max += .5*minwidth;
+                  print year, max, 1;
+                  
+                } else {
+                  for (i=nbins-1; i>=0; i--) {
+                    print year, bsize*(i+1)+min, bins[i] / NR
+                  }
+                }
+                print year, min, 0;
+              }' $localworkfile >> $globalworkfile
           
       [ -z "$verbose" ] && printf "Processed $savefile\r"
     fi
@@ -133,8 +164,56 @@ do
   [ "$clean" == "yes" ] && rm $v $localworkfile
 done
 
+[ -z "$verbose" ] && echo
+
+globalmin=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -g | head -1)
+[ -z "$verbose" ] && echo "global min: $globalmin"
+
+globalmax=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -gr | head -1)
+[ -z "$verbose" ] && echo "global max: $globalmax"
+
+offset=0
+if awk "BEGIN {exit !($globalmin < 0)}"
+then
+  offset=$(awk "BEGIN { print -1*$globalmin }" )
+  [ -z "$verbose" ] && echo "Offsetting by $offset"
+fi
+
 cmd="set style fill solid 1 noborder;
 set autoscale fix;" 
+
+# Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
+ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
+  function floor (x) { return int(x); }
+  function ceil (x) { return int(x+1); }
+  BEGIN {
+    r=max-min;
+    power=10**floor(log(r)/log(10));
+    xnorm = r / power;
+    posns = 20 / xnorm;
+    
+    if (posns > 40)       tics=.05;
+    else if (posns > 20)  tics=.1;
+    else if (posns > 10)  tics=.2;
+    else if (posns > 4)   tics=.5;
+    else if (posns > 2)   tics=1;
+    else if (posns > .5)  tics=2;
+    else                  tics=ceil(xnorm);
+    
+    ticstep = tics * power;
+    
+    start=ticstep * floor(min / ticstep);
+    end=ticstep * ceil(max / ticstep);
+    
+    for (s=start; s<=end; s+=ticstep) {
+      printf "\"%g\" %g\n", s, s-min
+    }
+  }' | paste -sd,)
+echo "ytics: $ytics"
+  
+cmd="$cmd
+set format y \"%5.2g\";
+set ytics ($ytics);"
 
 if [ "$outfile" ]
 then
@@ -151,7 +230,7 @@ fi
 cmd="$cmd
 icolor(r) = int((1-r)*255);
 color(r) = icolor(r) * 65536 + icolor(r) * 256 + 255;
-plot '$globalworkfile' using 1:2:(1):(color(\$3)) with boxes lc rgb variable fs solid 1 noborder notitle;"
+plot '$globalworkfile' using 1:(\$2+$offset):(1):(color(\$3)) with boxes lc rgb variable notitle;"
 
 if [ -z "$verbose" ]
 then

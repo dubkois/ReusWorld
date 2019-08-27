@@ -903,11 +903,11 @@ int main(int argc, char *argv[]) {
 
   stdfs::path rfolder = parameters.subfolder / "results";
   if (stdfs::exists(rfolder) && !stdfs::is_empty(rfolder)) {
-    std::cerr << "Base forlder is not empty!\n";
+    std::cerr << "Base folder is not empty!\n";
     switch (parameters.overwrite) {
     case simu::Simulation::Overwrite::PURGE:
       std::cerr << "Purging" << std::endl;
-      stdfs::remove_all(parameters.subfolder);
+      stdfs::remove_all(rfolder);
       break;
 
     case simu::Simulation::Overwrite::ABORT:
