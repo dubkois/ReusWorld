@@ -89,8 +89,10 @@ void GraphicSimulation::doScreenshot(const QSize &size, stdfs::path path) const 
 }
 
 void GraphicSimulation::load (const std::string &file, GraphicSimulation &s,
-                              const std::string &constraints) {
-  Simulation::load(file, s, constraints);
+                              const std::string &constraints,
+                              const std::string &fields) {
+
+  Simulation::load(file, s, constraints, fields);
   s._controller->view()->updateEnvironment();
   for (const auto &p: s._plants)
     s._controller->view()->addPlantItem(*p.second,

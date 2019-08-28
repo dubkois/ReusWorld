@@ -325,12 +325,14 @@ private:
   bool destroyDeadSubtree(Organ *o, Environment &env);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float &angle,
-                      Layer type, Organs &newOrgans);
+                      Layer type, Organs &newOrgans, Environment &env,
+                      bool checkMedium);
 
   Organ* turtleParse (Organ *parent, const std::string &successor, float angle,
-                      Layer type) {
+                      Layer type, Environment &env, bool checkMedium) {
     Organs newOrgansDecoy;
-    return turtleParse(parent, successor, angle, type, newOrgansDecoy);
+    return turtleParse(parent, successor, angle, type, newOrgansDecoy,
+                       env, checkMedium);
   }
 
   void updateSubtree(Organ *oldParent, Organ *newParent, float angle_delta);

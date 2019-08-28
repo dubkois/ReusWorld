@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
 
-  std::string loadSaveFile, loadConstraints;
+  std::string loadSaveFile, loadConstraints, loadFields;
 
   std::string morphologiesSaveFolder;
 
@@ -64,6 +64,8 @@ int main(int argc, char *argv[]) {
      cxxopts::value(loadSaveFile))
     ("load-constraints", "Constraints to apply on dependencies check",
      cxxopts::value(loadConstraints))
+    ("load-fields", "Individual fields to load",
+     cxxopts::value(loadFields))
     ("r,run", "Immediatly start running. Optionnally specify at which speed",
       cxxopts::value(speed))
     ("q,auto-quit", "Quit as soon as the simulation ends",
@@ -82,6 +84,7 @@ int main(int argc, char *argv[]) {
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
               << "\n\n" << config::Dependencies::Help{}
+              << "\n\n" << simu::Simulation::LoadHelp{}
               << std::endl;
     return 0;
   }
@@ -162,7 +165,7 @@ int main(int argc, char *argv[]) {
     s.init(envGenome, plantGenome);
 
   } else
-    visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints);
+    visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints, loadFields);
 
   if (!duration.empty()) {
     if (duration.size() < 2)

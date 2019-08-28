@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
 
-  std::string loadSaveFile, loadConstraints = "all";
+  std::string loadSaveFile, loadConstraints = "all", loadFields = "all";
 
   decltype(genotype::Environment::rngSeed) envOverrideSeed;
 
@@ -78,6 +78,8 @@ int main(int argc, char *argv[]) {
      cxxopts::value(loadSaveFile))
     ("load-constraints", "Constraints to apply on dependencies check",
      cxxopts::value(loadConstraints))
+    ("load-fields", "Individual fields to load",
+     cxxopts::value(loadFields))
     ;
 
   auto result = options.parse(argc, argv);
@@ -90,6 +92,7 @@ int main(int argc, char *argv[]) {
                  "a valid file is to be provided to 'load' (the former has "
                  "precedance in case all three options are specified)"
               << "\n\n" << config::Dependencies::Help{}
+              << "\n\n" << simu::Simulation::LoadHelp{}
               << std::endl;
     return 0;
   }
@@ -173,7 +176,7 @@ int main(int argc, char *argv[]) {
     /// not be all that initialized
 
   } else {
-    simu::Simulation::load(loadSaveFile, s, loadConstraints);
+    simu::Simulation::load(loadSaveFile, s, loadConstraints, loadFields);
     config::Simulation::printConfig();
   }
 

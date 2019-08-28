@@ -289,7 +289,7 @@ int main (int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::QUIET;
 
-  std::string loadSaveFile, loadConstraints;
+  std::string loadSaveFile, loadConstraints, loadFields;
 
   bool doFinalCounts = false;
   std::string viewField;
@@ -310,6 +310,8 @@ int main (int argc, char *argv[]) {
      cxxopts::value(loadSaveFile))
     ("load-constraints", "Constraints to apply on dependencies check",
      cxxopts::value(loadConstraints))
+    ("load-fields", "Individual fields to load",
+     cxxopts::value(loadFields))
 
     ("final-counts", "Extracts number of generated plants (GID) and species (SID)",
      cxxopts::value(doFinalCounts))
@@ -329,6 +331,7 @@ int main (int argc, char *argv[]) {
   if (result.count("help")) {
     std::cout << options.help()
               << "\n\n" << config::Dependencies::Help{}
+              << "\n\n" << simu::Simulation::LoadHelp{}
               << std::endl;
     return 0;
   }
@@ -347,7 +350,7 @@ int main (int argc, char *argv[]) {
 
   Simulation s;
 
-  Simulation::load(loadSaveFile, s, loadConstraints);
+  Simulation::load(loadSaveFile, s, loadConstraints, loadFields);
 
 //  uint i=0;
 //  std::vector<genotype::Plant> testgenomes;

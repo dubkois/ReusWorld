@@ -64,7 +64,7 @@ Plant::~Plant (void) {
 void Plant::init (Environment &env, float biomass, const PData &pdata) {
   auto A = genotype::grammar::toSuccessor(GConfig::ls_axiom());
   for (Layer l: {Layer::SHOOT, Layer::ROOT})
-    addOrgan(turtleParse(nullptr, A, initialAngle(l), l), env);
+    addOrgan(turtleParse(nullptr, A, initialAngle(l), l, env, false), env);
 
 
   // Distribute initial resources to producer modules
@@ -116,7 +116,7 @@ void Plant::replaceWithFruit (Organ *o, const std::vector<Genome> &litter,
   assert(p.second);
 
   Organ *fruit = turtleParse(parent, toSuccessor(Rule::fruitSymbol()), rotation,
-                             l);
+                             l, env, false);
 
   addOrgan(fruit, env);
 
@@ -227,7 +227,8 @@ uint Plant::deriveRules(Environment &env) {
     Organs newOrgans; // Collection of all newly created organs
     Organ *newApex;   // Last organ of the new subtree
     float angle = apex->localRotation();  // Remaining rotation after the last
-    newApex = turtleParse(apex->parent(), succ, angle, layer, newOrgans);
+    newApex = turtleParse(apex->parent(), succ, angle, layer, newOrgans,
+                          env, true);
 
     Organs stBases; // Roots of the new subtree
     for (Organ *o: newOrgans) if (o->parent() == apex->parent())  stBases.insert(o);
@@ -385,7 +386,8 @@ void Plant::updateGeometry(void) {
 }
 
 Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
-                           float &angle, Layer type, Organs &newOrgans) {
+                           float &angle, Layer type, Organs &newOrgans,
+                           Environment &env, bool checkMedium) {
 
   using R = Rule_base;
 
@@ -402,15 +404,31 @@ Organ* Plant::turtleParse (Organ *parent, const std::string &successor,
       case '[':
         float a = angle;
         turtleParse(parent, genotype::grammar::extractBranch(successor, i, i),
-                    a, type, newOrgans);
+                    a, type, newOrgans, env, checkMedium);
         break;
       }
     } else if (R::isValidNonTerminal(c) || R::isTerminal(c)
                || c == genotype::grammar::Rule_base::fruitSymbol()) {
       Organ *o = makeOrgan(parent, angle, c, type);
-      newOrgans.insert(o);
-      parent = o;
-      angle = 0;
+
+      bool correctMedium = false;
+      if (checkMedium) {
+        Point pos = o->globalCoordinates().center;
+        float h = env.heightAt(pos.x);
+        if (type == Layer::SHOOT) correctMedium = (pos.y >= h);
+        if (type == Layer::ROOT)  correctMedium = (pos.y <= h);
+
+      } else
+        correctMedium = true;
+
+      if (!correctMedium)
+        delOrgan(o, env);
+
+      else {
+        newOrgans.insert(o);
+        parent = o;
+        angle = 0;
+      }
 
     } else
       utils::doThrow<std::logic_error>(
@@ -926,6 +944,8 @@ float Plant::initialBiomassFor (const Genome &g) {
 }
 
 void Plant::collectSeedsFrom(Organ *fruit) {
+  if (fruit->isUncommitted()) return;
+
   FruitData fd = utils::take(_fruits, fruit->id());
   uint S = fd.genomes.size();
   float biomass = fruit->biomass();

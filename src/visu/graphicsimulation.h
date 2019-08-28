@@ -37,7 +37,7 @@ public:
   void savePhylogeny (void) const;
 
   static void load (const std::string &file, GraphicSimulation &s,
-                    const std::string &constraints);
+                    const std::string &constraints, const std::string &fields);
 
 private:
   simu::Plant* addPlant (const PGenome &p, float x, float biomass) override;

@@ -8,6 +8,8 @@
 #include "environment.h"
 #include "plant.h"
 
+DEFINE_PRETTY_ENUMERATION(SimuFields, ENV, PLANTS, PTREE)
+
 namespace simu {
 
 class Simulation {
@@ -101,7 +103,11 @@ public:
 
   void save (stdfs::path file) const;
   static void load (const stdfs::path &file, Simulation &s,
-                    const std::string &constraints);
+                    const std::string &constraints, const std::string &fields);
+
+  struct LoadHelp {
+    friend std::ostream& operator<< (std::ostream &os, const LoadHelp&);
+  };
 
   friend void assertEqual (const Simulation &lhs, const Simulation &rhs,
                            bool deepcopy);

@@ -986,6 +986,12 @@ void Simulation::clone(const Simulation &s) {
   _dataFolder = s._dataFolder;
 }
 
+std::string field (SimuFields f) {
+  auto name = EnumUtils<SimuFields>::getName(f);
+  transform(name.begin(), name.end(), name.begin(), ::tolower);
+  return name;
+}
+
 void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
 
@@ -999,7 +1005,12 @@ void Simulation::save (stdfs::path file) const {
   }
   PTree::toJson(jt, _ptree);
 
-  json j = { jc, je, jp, jt, Plant::ID(_gidManager) };
+  json j;
+  j["config"] = jc;
+  j[field(SimuFields::ENV)] = je;
+  j[field(SimuFields::PLANTS)] = jp;
+  j[field(SimuFields::PTREE)] = jt;
+  j["nextID"] = Plant::ID(_gidManager);
 
   if (debugSerialization)
     std::cerr << "Serializing took " << duration(startTime) << " ms" << std::endl;
@@ -1034,8 +1045,47 @@ void Simulation::save (stdfs::path file) const {
 #endif
 }
 
+std::ostream& operator<< (std::ostream &os, const Simulation::LoadHelp&) {
+  return os << "Not implemented yet\n";
+}
+
 void Simulation::load (const stdfs::path &file, Simulation &s,
-                       const std::string &constraints) {
+                       const std::string &constraints,
+                       const std::string &fields) {
+
+  std::set<std::string> requestedFields;  // Default to all
+  for (auto f: EnumUtils<SimuFields>::iterator())
+    requestedFields.insert(field(f));
+
+  for (std::string strf: utils::split(fields, ',')) {
+    strf = utils::trim(strf);
+    if (strf != "none") requestedFields.clear();
+    else if (strf.empty() || strf == "all")
+      continue;
+
+    else if (strf.at(0) != '!')
+      continue; // Ignore non removal requests
+
+    else {
+      strf = strf.substr(1);
+      SimuFields f;
+      std::istringstream (strf) >> f;
+
+      if (!EnumUtils<SimuFields>::isValid(f)) {
+        std::cerr << "'" << strf << "' is not a valid simulation field. "
+                     "Ignoring." << std::endl;
+        continue;
+      }
+
+      requestedFields.erase(field(f));
+    }
+  }
+
+  if (!fields.empty())
+    std::cout << "Requested fields: "
+              << utils::join(requestedFields.begin(), requestedFields.end(), ",")
+              << std::endl;
+
   std::cout << "Loading " << file << "...\r" << std::flush;
 
   s._start = clock::now();
@@ -1076,38 +1126,37 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
   std::cout << "Deserializing " << file << "...\r" << std::flush;
 
   auto dependencies = config::Dependencies::saveState();
-  config::Simulation::deserialize(j[0]);
+  config::Simulation::deserialize(j["config"]);
   if (!config::Dependencies::compareStates(dependencies, constraints))
     utils::doThrow<std::invalid_argument>(
       "Provided save has different build parameters than this one.\n"
       "See above for more details... (aborting)");
 
-  Environment::load(j[1], s._env);
-  PTree::fromJson(j[3], s._ptree);
-  Plant::ID lastID = Plant::ID(0);
-  for (const auto &jp: j[2]) {
-    Plant *p = Plant::load(jp);
+  if (requestedFields.find(field(SimuFields::ENV)) != requestedFields.end())
+    Environment::load(j[field(SimuFields::ENV)], s._env);
 
-    // Find biggest GID
-    if (lastID < p->id()) lastID = p->id();
-    for (const auto &fd: p->fruits())
-      for (const genotype::Plant &g: fd.second.genomes)
-        if (lastID < g.id()) lastID = g.id();
+  if (requestedFields.find(field(SimuFields::PTREE)) != requestedFields.end())
+    PTree::fromJson(j[field(SimuFields::PTREE)], s._ptree);
 
-    s._plants.insert({p->pos().x, Plant_ptr(p)});
+  if (requestedFields.find(field(SimuFields::PLANTS)) != requestedFields.end()) {
+    for (const auto &jp: j[field(SimuFields::PLANTS)]) {
+      Plant *p = Plant::load(jp);
 
-    s._env.addCollisionData(p);
+      s._plants.insert({p->pos().x, Plant_ptr(p)});
 
-    PStats *pstats = s._ptree.getUserData(p->genealogy().self);
-    p->setPStatsPointer(pstats);
+      s._env.addCollisionData(p);
 
-    s._env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
-    if (p->sex() == Plant::Sex::FEMALE)
-      for (Organ *o: p->pistils())
-        s._env.disseminateGeneticMaterial(o);
+      PStats *pstats = s._ptree.getUserData(p->genealogy().self);
+      p->setPStatsPointer(pstats);
+
+      s._env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
+      if (p->sex() == Plant::Sex::FEMALE)
+        for (Organ *o: p->pistils())
+          s._env.disseminateGeneticMaterial(o);
+    }
   }
 
-  s._gidManager.setNext(j[4]);
+  s._gidManager.setNext(j["nextID"]);
   s._env.postLoad();  /// FIXME Should not be required
 
   if (debugSerialization)
