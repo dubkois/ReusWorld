@@ -25,13 +25,17 @@ void finalCounts (const Simulation &simu) {
 void extractField (const Simulation &simu, const std::string &field) {
   std::cout << "Extracting field '" << field << "'..." << std::endl;
   for (const auto &pair: simu.plants()) {
-    if (field == ".morphology") {
+    if (field == ".morphology")
       std::cout << field << ".shoot: "
                 << pair.second->toString(simu::Plant::Layer::SHOOT) << "\n"
                 << field << ".root: "
                 << pair.second->toString(simu::Plant::Layer::ROOT) << "\n";
 
-    } else
+    else if (field == ".boundingBox")
+      std::cout << field << ": " << pair.second->translatedBoundingRect()
+                << "\n";
+
+    else
       std::cout << field << ": " << pair.second->genome().getField(field)
                 << "\n";
   }

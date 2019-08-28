@@ -14,8 +14,11 @@ show_help(){
   echo
   echo "Post-processing examples:"
   echo
-  echo "  -e \".morphology\" -a \"grep shoot | cut -d ':' -f 2 | awk '{ print gsub(/f/, \"\") }'\""
-  echo "  Plots the evolution of the number of flowers in the phenotypes"
+  echo "  -e \".morphology\" -a \"grep shoot | cut -d ':' -f 2 | grep -v S | awk '{ print gsub(/f/, \"\") }'\""
+  echo "  Plots the evolution of the number of flowers in the germinated phenotypes"
+  echo
+  echo "  -e \".boundingBox\" -a \"grep \"^.boundingBox\" | cut -d ':' -f 2 | sed 's/ { {\(.*\),\(.*\)}, {\(.*\),\(.*\)} }/\1 \2 \3 \4/' | awk '{ print (\$2 - \$4) }'"
+  echo "  Plots the evolution of height in the phenotypes"
 }
 
 datafile(){
@@ -74,6 +77,12 @@ while getopts "h?e:f:b:po:a:t:qcn" opt; do
         ;;
     esac
 done
+
+if [ -z "$verbose" ]
+then
+  echo "Using following analyzer:"
+  ls -l $analyzer
+fi
 
 if [ "$outfile" ]
 then
@@ -206,6 +215,7 @@ ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
     end=ticstep * ceil(max / ticstep);
     
     for (s=start; s<=end; s+=ticstep) {
+      if (s == 0) s = 0;  # To make sure zero is zero (remove negative zero)
       printf "\"%g\" %g\n", s, s-min
     }
   }' | paste -sd,)
