@@ -48,10 +48,10 @@ while getopts "h?c:f:pl:o:qg:" opt; do
         
         case $outfile in
           *.png)
-          output="set term pngcairo size 1680,1050;"
+          output="  set term pngcairo size 1680,1050;"
           ;;
           *.pdf)
-          output="set term pdf size 11.2,7;"
+          output="  set term pdf size 11.2,7;"
           ;;
           *)
           echo "Unkown extension for output file '$outfile'. Aborting"
@@ -59,7 +59,7 @@ while getopts "h?c:f:pl:o:qg:" opt; do
         esac
         
         output="$output
-set output '$outfile';
+  set output '$outfile';
 "
         ;;
     q)  verbose=no
@@ -119,17 +119,16 @@ fi
 lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
 tics=8
 
-cmd="set datafile separator ' ';
-set ytics nomirror;
-set y2tics nomirror;
-set key autotitle columnhead;
-set style fill solid .25;" 
+cmd="  set datafile separator ' ';
+  set ytics nomirror;
+  set y2tics nomirror;
+  set key autotitle columnhead;
+  set style fill solid .25;" 
 
 if [ "$gnuplotplus" ]
 then
   cmd="$cmd
   
-# Custom commands
 $gnuplotplus;  
 "
 fi
@@ -140,16 +139,16 @@ then
 $output"
 else
   cmd="$cmd
-loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';"
+  loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';"
 fi
 
 cmd="$cmd
-xticsCount=$tics;
-ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
-linesPerTic=ticsEvery(0);
-plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
+  xticsCount=$tics;
+  ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
+  linesPerTic=ticsEvery(0);
+  plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
 
-[ -z "$verbose" ] && echo "reading columns specifications"
+[ -z "$verbose" ] && printf "\nreading columns specifications\n"
 IFS=';' read -r -a columnsArray <<< $columns
 for elt in "${columnsArray[@]}"
 do
@@ -163,11 +162,11 @@ do
     if [ "$file" != "$files" ]
     then
       cmd="$cmd,
-    '' using 0:(column(\"${colname}_lci\")):(column(\"${colname}_uci\")) with filledcurves title '$colname confidence interval (95%)'"
+       '' using 0:(column(\"${colname}_lci\")):(column(\"${colname}_uci\")) with filledcurves title '$colname confidence interval (95%)'"
     fi
     
     cmd="$cmd,
-     '' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)'"
+       '' using ($gp_elt) axes x1$y with lines title '$(cut -d: -f1 <<< $elt)'"
 done
 
 cmd="$cmd;"
@@ -179,7 +178,7 @@ fi
 
 if [ -z "$verbose" ]
 then
-  printf "%s\n" "$cmd"
+  printf "\nGnuplot script:\n%s\n" "$cmd"
 else
   printf "Plotting from '$file' using '$columns'"
   [ ! -z "$outfile" ] && printf " into '$outfile'"

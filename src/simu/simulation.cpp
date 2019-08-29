@@ -396,7 +396,7 @@ void Simulation::delPlant(Plant &p, Plant::Seeds &seeds) {
   if (debugPlantManagement) p.autopsy();
   _env.removeCollisionData(&p);
 
-  _ptree.delGenome(p.genome());
+  if (_ptree.root())  _ptree.delGenome(p.genome());
 
   _plants.erase(p.pos().x);
 }

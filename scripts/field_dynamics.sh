@@ -263,6 +263,7 @@ then
   [ -z "$verbose" ] && echo "Offsetting by $offset"
   
   # Compute un-offsetted ytics
+  # Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
   ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
     function floor (x) { return int(x); }
     function ceil (x) { return int(x+1); }
@@ -302,8 +303,6 @@ echo "  boxwidth: $boxwidth"
 cmd="set style fill solid 1 noborder;
 set autoscale fix;" 
 
-# Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
-  
 cmd="$cmd
 set format y \"%5.2g\";
 set ytics ($ytics);
@@ -328,7 +327,7 @@ plot '$globalworkfile' using 1:(\$2+$offset):($boxwidth):(color(\$3)) with boxes
 
 if [ -z "$verbose" ]
 then
-  printf "\n%s\n\n" "$cmd"
+  printf "\nGnuplot script:\n%s\n\n" "$cmd"
 else
   printf "Plotting timeseries histogram from '$folder' for '$field'"
   [ ! -z "$outfile" ] && printf " into '$outfile'"
