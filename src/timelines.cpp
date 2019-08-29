@@ -333,7 +333,7 @@ struct Format {
     : width(w), precision(p), flags(f) {}
 
   static Format integer (int width) {
-    return Format (width, 0);
+    return Format (width, 0, std::ios_base::fixed);
   }
 
   static Format decimal (int precision, bool neg = false) {

@@ -1,5 +1,21 @@
 #!/bin/bash
 
+extractorgans(){
+  field=".morphology"
+  layer="shoot"
+  postprocessing="grep \"$1\" | cut -d ':' -f 2 | grep -v S | awk '{ print gsub(/$2/, \"\") }'"
+}
+
+extractheight(){
+  field=".boundingBox"
+  postprocessing="grep \"^.boundingBox\" | cut -d ':' -f 2 | sed 's/ { {.*,\(.*\)}, {.*,\(.*\)} }/\1 \2/' | awk '{ print (\$1 - \$2) }'"
+}
+
+extractwidth(){
+  field=".boundingBox"
+  postprocessing="grep \"^.boundingBox\" | cut -d ':' -f 2 | sed 's/ { {\(.*\),.*}, {\(.*\),.*} }/\1 \2/' | awk '{ print (\$2 - \$1) }'"
+}
+  
 show_help(){
   echo "Usage: $0 -f <base-folder> -e <field-expression> [-b <bins>] [-p] [-a <cmd>]"
   echo "       -f <base-folder> the folder under which to search for *.save.ubjson"
@@ -14,11 +30,24 @@ show_help(){
   echo
   echo "Post-processing examples:"
   echo
-  echo "  -e \".morphology\" -a \"grep shoot | cut -d ':' -f 2 | grep -v S | awk '{ print gsub(/f/, \"\") }'\""
+  
+  extractorgans 'shoot' 'f'
+  echo "  -e '$field' --layer '$layer' --postprocessing '$postprocessing'" 
   echo "  Plots the evolution of the number of flowers in the germinated phenotypes"
+  echo "  Shortcut: --layer 'shoot' --organ 'f' (order is important)"
   echo
-  echo "  -e \".boundingBox\" -a \"grep \"^.boundingBox\" | cut -d ':' -f 2 | sed 's/ { {\(.*\),\(.*\)}, {\(.*\),\(.*\)} }/\1 \2 \3 \4/' | awk '{ print (\$2 - \$4) }'"
+
+  extractheight 
+  echo "  -e '$field' --postprocessing '$postprocessing'" 
   echo "  Plots the evolution of height in the phenotypes"
+  echo "  Shortcut: --height"
+  echo
+
+  extractwidth
+  echo "  -e '$field' --postprocessing '$postprocessing'" 
+  echo "  Plots the evolution of width in the phenotypes"
+  echo "  Shortcut: --width"
+  echo
 }
 
 datafile(){
@@ -34,52 +63,92 @@ then
   exit 1
 fi
 
-# A POSIX variable
-OPTIND=1         # Reset in case getopts has been used previously in the shell.
-
 folder=""
 field=""
 bins="15"
 persist=""
-loop=""
 outfile=""
 verbose=""
 v="" #"-v"
 postprocessing="cut -d ':' -f 2"
 clean="yes"
 title=""
-while getopts "h?e:f:b:po:a:t:qcn" opt; do
-    case "$opt" in
-    h|\?)
-        show_help
-        exit 0
-        ;;
-    e)  field=$OPTARG
-        ;;
-    f)  folder=$OPTARG
-        ;;
-    b)  bins=$OPTARG
-        ;;
-    p)  persist="-"
-        ;;
-    a)  postprocessing=$OPTARG
-        ;;
-    o)  outfile=$OPTARG
-        ;;
-    t)  title=$OPTARG
-        ;;
-    q)  verbose=no
-        v=""
-        ;;
-    c)  clean="yes"
-        ;;
-    n)  clean="no"
-        ;;
-    esac
+
+args=$(getopt --options "h?e:f:b:po:t:qcn" --longoptions "postprocessing:,layer:,organ:,width,height" -- "$@")
+eval set --$args
+
+while [[ $# -gt 0 ]]
+do
+  case "$1" in
+  -h|[-]\?)
+      show_help
+      exit 0
+      ;;
+  -e) field=$2; shift;
+      ;;
+  -f) folder=$2; shift;
+      ;;
+  -b)  bins=$2; shift;
+      ;;
+  -p) persist="-"
+      ;;
+  --postprocessing)
+      postprocessing=$2; shift;
+      ;;
+  -o) outfile=$2; shift;
+      ;;
+  -t) title=$2; shift;
+      ;;
+  -q) verbose=no
+      v=""
+      ;;
+  -c) clean="yes"
+      ;;
+  -n) clean="no"
+      ;;
+      
+  --layer)
+      layer=$2; shift
+      ;;
+      
+  --organ)
+      extractorgans $layer $2; shift
+      ;;
+      
+  --height)
+      extractheight
+      ;;
+      
+  --width)
+      extractwidth
+      ;;
+      
+  --) # Finished working
+      ;;
+  *)  echo "Unrecognized option '$1'"
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
 done
 
 if [ -z "$verbose" ]
 then
+  printf "Arguments:\n"
+  printf "%20s: %s\n" folder "$folder"
+  printf "%20s: %s\n" field "$field"
+  printf "%20s: %s\n" bins "$bins"
+  printf "%20s: %s\n" persist "$persist"
+  printf "%20s: %s\n" outfile "$outfile"
+  printf "%20s: %s\n" verbose "$verbose"
+  printf "%20s: %s\n" v "$v"
+  printf "%20s: %s\n" postprocessing "$postprocessing"
+  printf "%20s: %s\n" layer "$layer"
+  printf "%20s: %s\n" clean "$clean"
+  printf "%20s: %s\n" title "$title"
+  printf "\n"
+
   echo "Using following analyzer:"
   ls -l $analyzer
 fi
@@ -88,8 +157,7 @@ if [ "$outfile" ]
 then
   [ "$outfile" == "auto" ] && outfile=$(datafile "png")
   output="set term pngcairo size 1680,1050;
-set output '$outfile';
-"
+set output '$outfile';"
   persist=""
   loop=""
 fi
@@ -105,12 +173,19 @@ then
   echo "Found $(wc -l <<< "$files") save files"
 fi
 
+lastyear=0
+yeardiff=""
+
 globalworkfile=$(datafile global)
 for savefile in $files
 do
   [ -z "$verbose" ] && printf "Processing $savefile\r"
   
   year=$(sed 's|.*y\([0-9][0-9]*\).save.ubjson|\1|' <<< $savefile)
+  [ ! -z "$yeardiff" ] && yeardiff="$yeardiff\n"
+  yeardiff="$yeardiff$(($year - $lastyear))"
+  lastyear=$year
+  
   rawlocalworkfile=$(datafile "$year.raw")
   localworkfile=$(datafile "$year.local")
   
@@ -119,7 +194,7 @@ do
     [ -z "$verbose" ] && printf "Skipping alreay processed $savefile\r"
   
   else
-    $analyzer -l $savefile --load-constraints none --extract-field $field | grep "^$field" > $rawlocalworkfile
+    $analyzer -l $savefile --load-constraints none --load-fields '!ptree' --extract-field $field | grep "^$field" > $rawlocalworkfile
 
     cat $rawlocalworkfile | eval "$postprocessing" > $localworkfile
    
@@ -186,49 +261,58 @@ if awk "BEGIN {exit !($globalmin < 0)}"
 then
   offset=$(awk "BEGIN { print -1*$globalmin }" )
   [ -z "$verbose" ] && echo "Offsetting by $offset"
+  
+  # Compute un-offsetted ytics
+  ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
+    function floor (x) { return int(x); }
+    function ceil (x) { return int(x+1); }
+    BEGIN {
+      r=max-min;
+      power=10**floor(log(r)/log(10));
+      xnorm = r / power;
+      posns = 20 / xnorm;
+      
+      if (posns > 40)       tics=.05;
+      else if (posns > 20)  tics=.1;
+      else if (posns > 10)  tics=.2;
+      else if (posns > 4)   tics=.5;
+      else if (posns > 2)   tics=1;
+      else if (posns > .5)  tics=2;
+      else                  tics=ceil(xnorm);
+      
+      ticstep = tics * power;
+      
+      start=ticstep * floor(min / ticstep);
+      end=ticstep * ceil(max / ticstep);
+      
+      for (s=start; s<=end; s+=ticstep) {
+        if (s == 0) s = 0;  # To make sure zero is zero (remove negative zero)
+        printf "\"%g\" %g\n", s, s-min
+      }
+    }' | paste -sd,)
+  echo "     ytics: $ytics"
 fi
+
+# Use the most frequent year difference as the boxwidth
+wcounts=$(echo -e "$yeardiff" | sort | uniq -c)
+[ $(echo $wcounts | wc -l) -ne 1 ] && echo "Timestep is not uniform. Using most frequent value."
+boxwidth=$(echo $wcounts | sort -g | tail -n 1 | cut -d ' ' -f 2)
+echo "  boxwidth: $boxwidth"
 
 cmd="set style fill solid 1 noborder;
 set autoscale fix;" 
 
 # Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
-ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
-  function floor (x) { return int(x); }
-  function ceil (x) { return int(x+1); }
-  BEGIN {
-    r=max-min;
-    power=10**floor(log(r)/log(10));
-    xnorm = r / power;
-    posns = 20 / xnorm;
-    
-    if (posns > 40)       tics=.05;
-    else if (posns > 20)  tics=.1;
-    else if (posns > 10)  tics=.2;
-    else if (posns > 4)   tics=.5;
-    else if (posns > 2)   tics=1;
-    else if (posns > .5)  tics=2;
-    else                  tics=ceil(xnorm);
-    
-    ticstep = tics * power;
-    
-    start=ticstep * floor(min / ticstep);
-    end=ticstep * ceil(max / ticstep);
-    
-    for (s=start; s<=end; s+=ticstep) {
-      if (s == 0) s = 0;  # To make sure zero is zero (remove negative zero)
-      printf "\"%g\" %g\n", s, s-min
-    }
-  }' | paste -sd,)
-echo "ytics: $ytics"
   
 cmd="$cmd
 set format y \"%5.2g\";
-set ytics ($ytics);"
+set ytics ($ytics);
+set xlabel 'Years';
+set ylabel '$field';"
 
 if [ "$outfile" ]
 then
-  cmd="$cmd
-$output"
+  cmd="$cmd$output"
 fi
 
 if [ "$title" ]
@@ -240,11 +324,11 @@ fi
 cmd="$cmd
 icolor(r) = int((1-r)*255);
 color(r) = icolor(r) * 65536 + icolor(r) * 256 + 255;
-plot '$globalworkfile' using 1:(\$2+$offset):(1):(color(\$3)) with boxes lc rgb variable notitle;"
+plot '$globalworkfile' using 1:(\$2+$offset):($boxwidth):(color(\$3)) with boxes lc rgb variable notitle;"
 
 if [ -z "$verbose" ]
 then
-  printf "%s\n" "$cmd"
+  printf "\n%s\n\n" "$cmd"
 else
   printf "Plotting timeseries histogram from '$folder' for '$field'"
   [ ! -z "$outfile" ] && printf " into '$outfile'"

@@ -1,13 +1,14 @@
 #!/bin/bash
 
 show_help(){
-  echo "Usage: $0 -f <file> -c <columns> [-p] [-l] [-o <file>] [-q]"
+  echo "Usage: $0 -f <file> -c <columns> [-p] [-l] [-o <file>] [-q] [-g]"
   echo "       -f <file> the datafile to use"
   echo "       -c <columns> columns specifiation (see below)"
   echo "       -p persist"
   echo "       -l <n> redraw graph every n seconds"
   echo "       -o <file> output file (implies no loop and no persist)"
   echo "       -q Print a minimum of information"
+  echo "       -g Additional gnuplot commands"
   echo 
   echo "Columns specifiation:"
   echo "  N, a column name"
@@ -26,7 +27,8 @@ persist=""
 loop=""
 outfile=""
 verbose=""
-while getopts "h?c:f:pl:o:q" opt; do
+gnuplotplus=""
+while getopts "h?c:f:pl:o:qg:" opt; do
     case "$opt" in
     h|\?)
         show_help
@@ -43,11 +45,26 @@ while getopts "h?c:f:pl:o:q" opt; do
     l)  loop="eval(loop($OPTARG))"
         ;;
     o)  outfile=$OPTARG
-        output="set term pngcairo size 1680,1050;
+        
+        case $outfile in
+          *.png)
+          output="set term pngcairo size 1680,1050;"
+          ;;
+          *.pdf)
+          output="set term pdf size 11.2,7;"
+          ;;
+          *)
+          echo "Unkown extension for output file '$outfile'. Aborting"
+          exit 1
+        esac
+        
+        output="$output
 set output '$outfile';
 "
         ;;
     q)  verbose=no
+        ;;
+    g)  gnuplotplus=$OPTARG
         ;;
     esac
 done
@@ -107,6 +124,15 @@ set ytics nomirror;
 set y2tics nomirror;
 set key autotitle columnhead;
 set style fill solid .25;" 
+
+if [ "$gnuplotplus" ]
+then
+  cmd="$cmd
+  
+# Custom commands
+$gnuplotplus;  
+"
+fi
 
 if [ "$outfile" ]
 then

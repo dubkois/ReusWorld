@@ -1059,7 +1059,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
   for (std::string strf: utils::split(fields, ',')) {
     strf = utils::trim(strf);
-    if (strf != "none") requestedFields.clear();
+    if (strf == "none") requestedFields.clear();
     else if (strf.empty() || strf == "all")
       continue;
 
@@ -1132,13 +1132,18 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
       "Provided save has different build parameters than this one.\n"
       "See above for more details... (aborting)");
 
-  if (requestedFields.find(field(SimuFields::ENV)) != requestedFields.end())
-    Environment::load(j[field(SimuFields::ENV)], s._env);
+  auto loadf = [&requestedFields] (SimuFields f) {
+    return requestedFields.find(field(f)) != requestedFields.end();
+  };
 
-  if (requestedFields.find(field(SimuFields::PTREE)) != requestedFields.end())
-    PTree::fromJson(j[field(SimuFields::PTREE)], s._ptree);
+  bool loadEnv = loadf(SimuFields::ENV);
+  if (loadEnv)  Environment::load(j[field(SimuFields::ENV)], s._env);
 
-  if (requestedFields.find(field(SimuFields::PLANTS)) != requestedFields.end()) {
+  bool loadTree = loadf(SimuFields::PTREE);
+  if (loadTree) PTree::fromJson(j[field(SimuFields::PTREE)], s._ptree);
+
+  bool loadPlants = loadf(SimuFields::PLANTS);
+  if (loadPlants) {
     for (const auto &jp: j[field(SimuFields::PLANTS)]) {
       Plant *p = Plant::load(jp);
 
@@ -1146,8 +1151,10 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
       s._env.addCollisionData(p);
 
-      PStats *pstats = s._ptree.getUserData(p->genealogy().self);
-      p->setPStatsPointer(pstats);
+      if (loadTree) {
+        PStats *pstats = s._ptree.getUserData(p->genealogy().self);
+        p->setPStatsPointer(pstats);
+      }
 
       s._env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
       if (p->sex() == Plant::Sex::FEMALE)
