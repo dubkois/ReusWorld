@@ -14,6 +14,28 @@ void load (const nlohmann::json &j, rng::FastDice &d);
 
 namespace utils {
 
+template<typename E, typename T, size_t S>
+struct enumarray : std::array<T,S> {
+  using EU = EnumUtils<E>;
+  using U = typename EU::underlying_t;
+
+  T& operator[] (E e) {
+    return this->operator [](EU::toUnderlying(e));
+  }
+
+  const T& operator[] (E e) const {
+    return this->operator [](EU::toUnderlying(e));
+  }
+
+  T& operator[] (U i) {
+    return std::array<T,S>::operator [](i);
+  }
+
+  const T& operator[] (U i) const {
+    return std::array<T,S>::operator [](i);
+  }
+};
+
 template <typename T, typename F, size_t... Is>
 static auto make_array (F f, std::index_sequence<Is...>)
   -> std::array<T, sizeof...(Is)> {
@@ -59,6 +81,9 @@ namespace config {
 struct CONFIG_FILE(CGP) {
   using FunctionSet = std::set<cgp::FuncID>;
   DECLARE_PARAMETER(FunctionSet, functionSet)
+
+  static bool isActiveInput (uint i);
+  static bool isActiveOutput (uint i);
 };
 
 } // end of namespace config
@@ -67,13 +92,15 @@ namespace cgp {
 
 static constexpr bool checkBounds = true;
 
-template <typename IEnum, uint N, typename OEnum, uint A = 2>
+template <typename IE, uint N, typename OE, uint A = 2>
 class CGP {
   enum NodeType { IN = 1<<1, INTERNAL = 1<<2, OUT = 1<<3 };
 
+  using IEnum = IE;
   using IUtils = EnumUtils<IEnum>;
   static constexpr uint I = IUtils::size();
 
+  using OEnum = OE;
   using OUtils = EnumUtils<OEnum>;
   static constexpr uint O = OUtils::size();
 
@@ -146,8 +173,8 @@ class CGP {
   rng::FastDice ldice;
 
 public:
-  using Inputs = std::array<double, I>;
-  using Outputs = std::array<double, O>;
+  using Inputs = utils::enumarray<IEnum, double, I>;
+  using Outputs = utils::enumarray<OEnum, double, O>;
 
   CGP (void) {
     for (Node &n: nodes) {
@@ -183,6 +210,7 @@ public:
     std::array<bool, N> toEvaluate {false};
 
     for (uint i=0; i<O; i++) {
+      if (!isActiveOutput(i))  continue;
       Connection c = outputConnections[i];
       if (isNode(c))  toEvaluate[toNodeID(c)] = true;
     }
@@ -232,7 +260,12 @@ public:
           persistentData[i]);
     }
     
-    for (uint o=0; o<O; o++)  outputs[o] = utils::clip(-1., data(I+N+o), 1.);
+    for (uint o=0; o<O; o++) {
+      if (isActiveOutput(o))
+        outputs[o] = utils::clip(-1., data(I+N+o), 1.);
+      else
+        outputs[o] = 0;
+    }
 
 #ifndef NDEBUG
     for (double d: persistentData)  assert(!isnan(d));
@@ -267,7 +300,13 @@ public:
 //          std::cerr << "function from " << old.fid << " to " << n.fid;
 
         } else {  // Change connection
-          n.connections[field-1] = Connection(dice(0u, I+nid-1));
+          auto &c = n.connections[field-1];
+          do {
+            c = validConnection(nid, dice);
+
+            // Ignore deactivated inputs
+          } while (c < I && !isActiveInput(c));
+
 //          std::cerr << field-1 << "th connection from "
 //                    << old.connections[field-1] << " to "
 //                    << n.connections[field-1];
@@ -280,7 +319,10 @@ public:
         auto o = gene - NODE_GENES;
         auto old = outputConnections[o];
         outputConnections[o] = Connection(dice(0u, I+N-1));
-        activeMutated = (outputConnections[o] != old);
+
+        activeMutated = (outputConnections[o] != old
+                      && isActiveOutput(o));
+
 //        std::cerr << "Mutated output " << o << " from " << old << " to "
 //                  << outputConnections[o];
       }
@@ -301,10 +343,15 @@ public:
     const auto pad = [] { return std::setw(4); };
 
     os << "CGP {\n\t" << std::setfill(' ');
-    for (IEnum i: IUtils::iterator()) os << pad() << IUtils::getName(i, false)
+    for (IEnum i: IUtils::iterator())
+      if (isActiveInput(i))
+        os << pad() << IUtils::getName(i, false)
                                          << " ";
     os << "\n\t" << std::setfill('0');
-    for (uint i=0; i<I; i++)  os << pad() << i << " ";
+    for (uint i=0; i<I; i++)
+      if (isActiveInput(i))
+        os << pad() << i << " ";
+
     os << "\n\n\tFunc In...\n";
     for (uint i=0; i<N; i++) {
       os << pad() << I+i << "\t";
@@ -314,12 +361,16 @@ public:
         os << " " << pad() << n.connections[i];
       os << "\n";
     }
+
     os << "\n\t" << std::setfill(' ');
-    for (OEnum o: OUtils::iterator()) os << pad() << OUtils::getName(o, false)
-                                         << " ";
+    for (OEnum o: OUtils::iterator())
+      if (isActiveOutput(o))
+        os << pad() << OUtils::getName(o, false) << " ";
+
     os << "\n\t" << std::setfill('0');
-    for (NodeID nid: cgp.outputConnections)
-      os << pad() << nid << " ";
+    for (uint o=0; o<O; o++)
+      if (isActiveOutput(o))
+        os << pad() << cgp.outputConnections[o] << " ";
     os << "\n}" << std::endl;
 
     os.fill(fill);
@@ -332,6 +383,8 @@ public:
     oss << "\\begin{align*}\n";
 
     for (uint o=0; o<O; o++) {
+      if (!isActiveOutput(o))  continue;
+
       std::set<NodeID> inputs;
       oss << OUtils::getName(o, false) << "{}";
 
@@ -554,7 +607,7 @@ private:
     nodes = make_array<Node, N>([this, &dice] (auto i) {
       Connections connections =
         make_array<Connection, A>([&dice, i] (auto) {
-          return Connection(dice(0u, uint(I+i-1)));
+          return validConnection(i, dice);
         });
 
       FuncID fid = *dice(config::CGP::functionSet());
@@ -566,6 +619,16 @@ private:
     outputConnections = make_array<Connection, O>([&dice] (auto) {
       return Connection(dice(0u, I+N-1));
     });
+  }
+
+  static Connection validConnection (uint i, rng::AbstractDice &dice) {
+    Connection c = Connection(dice(0u, I+i-1));
+    do {
+      c = Connection(dice(0u, I+i-1));
+
+      // Ignore deactivated inputs
+    } while (c < I && !isActiveInput(c));
+    return c;
   }
 
   uint arity (const Node &n) const {
@@ -675,6 +738,22 @@ private:
     if (i < I)  return persistentData[i];
     if (i < I+N)  return persistentData[usedNodes.at(i-I)];
     return data(outputConnections[i-I-N]);
+  }
+
+  static bool isActiveInput (IEnum i) {
+    return isActiveInput(IUtils::toUnderlying(i));
+  }
+
+  static bool isActiveInput (typename IUtils::underlying_t i) {
+    return config::CGP::isActiveInput(i);
+  }
+
+  static bool isActiveOutput (OEnum o) {
+    return isActiveOutput(OUtils::toUnderlying(o));
+  }
+
+  static bool isActiveOutput (typename OUtils::underlying_t o) {
+    return config::CGP::isActiveOutput(o);
   }
 };
 

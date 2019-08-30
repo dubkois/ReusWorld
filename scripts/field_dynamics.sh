@@ -164,22 +164,30 @@ fi
 
 # Explore folder (while following symbolic links) to find relevant saves
 files=$(find -L $folder -path "*_r/*.save.ubjson" | sort -V)
+nfiles=$(wc -l <<< "$files")
 if [ -z "$verbose" ]
 then
   echo "folder: '$folder'"
   echo " field: '$field'"
   echo "  bins: '$bins'"
   echo
-  echo "Found $(wc -l <<< "$files") save files"
+  echo "Found $nfiles save files"
 fi
 
 lastyear=0
 yeardiff=""
 
+i=1
 globalworkfile=$(datafile global)
 for savefile in $files
 do
-  [ -z "$verbose" ] && printf "Processing $savefile\r"
+  if [ -z "$verbose" ]
+  then
+    printf "Processing $savefile\r"
+  else
+    printf "Processing savefile $i / $nfiles\r"
+    i=$(($i + 1))
+  fi
   
   year=$(sed 's|.*y\([0-9][0-9]*\).save.ubjson|\1|' <<< $savefile)
   [ ! -z "$yeardiff" ] && yeardiff="$yeardiff\n"
@@ -298,7 +306,7 @@ fi
 wcounts=$(echo -e "$yeardiff" | sort | uniq -c)
 [ $(echo $wcounts | wc -l) -ne 1 ] && echo "Timestep is not uniform. Using most frequent value."
 boxwidth=$(echo $wcounts | sort -g | tail -n 1 | cut -d ' ' -f 2)
-echo "  boxwidth: $boxwidth"
+[ -z "$verbose" ] && echo "  boxwidth: $boxwidth"
 
 cmd="set style fill solid 1 noborder;
 set autoscale fix;" 

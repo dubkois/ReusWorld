@@ -1,3 +1,5 @@
+#include <bitset>
+
 #include "environment.h"
 
 using namespace genotype;
@@ -55,7 +57,38 @@ struct genotype::Aggregator<CGP, Environment> {
 
 namespace config {
 #define CFILE config::EDNAConfigFile<genotype::Environment>
+
+using I = genotype::cgp::Inputs;
+using IU = EnumUtils<I>;
+DEFINE_CONTAINER_PARAMETER(CFILE::ActiveInputs, cgpActiveInputs,
+                           IU::iterator())
+
+using O = genotype::cgp::Outputs;
+using OU = EnumUtils<O>;
+DEFINE_CONTAINER_PARAMETER(CFILE::ActiveOutputs, cgpActiveOutputs,
+                           OU::iterator())
+
 DEFINE_SUBCONFIG(config::CGP, genotypeEnvCtrlConfig)
+
+template <typename E>
+auto build (const std::set<E> &values) {
+  using U = EnumUtils<E>;
+  std::bitset<U::size()> bs;
+  bs.reset();
+  for (E v: values) bs.set(U::toUnderlying(v), true);
+  return bs;
+}
+
+bool CGP::isActiveInput(uint i) {
+  static const auto active = build(CFILE::cgpActiveInputs());
+  return active.test(i);
+}
+
+bool CGP::isActiveOutput(uint i) {
+  static const auto active = build(CFILE::cgpActiveOutputs());
+  return active.test(i);
+}
+
 #undef CFILE
 }
 

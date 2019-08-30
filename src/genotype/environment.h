@@ -4,21 +4,23 @@
 #include "plant.h"
 #include "../cgp/minicgp.h"
 
-DEFINE_NAMESPACE_PRETTY_ENUMERATION(
-  genotype::env_controller, Inputs,
+DEFINE_NAMESPACE_SCOPED_PRETTY_ENUMERATION(
+  genotype::cgp, Inputs,
     D, // Time of year
     Y, // Time of simulation
     X, // X coordinate
     T, // Topology
     H, // Heat
-    W  // Water
+    W, // Water
+    G  // Grazing
 )
 
-DEFINE_NAMESPACE_PRETTY_ENUMERATION(
-  genotype::env_controller, Outputs,
-    T_, // New topology
-    H_, // New heat
-    W_  // New water
+DEFINE_NAMESPACE_SCOPED_PRETTY_ENUMERATION(
+  genotype::cgp, Outputs,
+    T, // New topology
+    H, // New heat
+    W, // New water
+    G  // New grazing
 )
 
 namespace genotype {
@@ -34,7 +36,7 @@ public:
 
   float inertia;
 
-  using CGP = cgp::CGP<env_controller::Inputs, 100, env_controller::Outputs>;
+  using CGP = ::cgp::CGP<cgp::Inputs, 100, cgp::Outputs>;
   CGP controller;
 
   std::string extension (void) const override {
@@ -67,6 +69,13 @@ struct EDNA_CONFIG_FILE(Environment) {
   DECLARE_PARAMETER(Bui, voxelsBounds)
 
   DECLARE_PARAMETER(Bf, inertiaBounds)
+
+  using ActiveInputs = std::set<genotype::cgp::Inputs>;
+  DECLARE_PARAMETER(ActiveInputs, cgpActiveInputs)
+
+  using ActiveOutputs = std::set<genotype::cgp::Outputs>;
+  DECLARE_PARAMETER(ActiveOutputs, cgpActiveOutputs)
+
   DECLARE_SUBCONFIG(config::CGP, genotypeEnvCtrlConfig)
 
   DECLARE_PARAMETER(MutationRates, mutationRates)

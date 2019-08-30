@@ -31,6 +31,7 @@ class Environment {
   Voxels _topology;
   Voxels _temperature;
   Layers _hygrometry;
+  Voxels _grazing;
 
   bool _updatedTopology;
 
@@ -128,6 +129,10 @@ public:
 
   const auto& hygrometry (void) const {
     return _hygrometry;
+  }
+
+  const auto& grazing (void) const {
+    return _grazing;
   }
 
   void stepStart (void);

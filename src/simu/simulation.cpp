@@ -39,10 +39,11 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 
 static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
 
-std::map<genotype::env_controller::Outputs, stdfs::path> envPaths {
-  { genotype::env_controller::T_, "topology.dat" },
-  { genotype::env_controller::H_, "temperature.dat" },
-  { genotype::env_controller::W_, "hygrometry.dat" }
+std::map<genotype::cgp::Outputs, stdfs::path> envPaths {
+  { genotype::cgp::Outputs::T, "topology.dat" },
+  { genotype::cgp::Outputs::H, "temperature.dat" },
+  { genotype::cgp::Outputs::W, "hygrometry.dat" },
+  { genotype::cgp::Outputs::G, "grazing.dat" },
 };
 
 Simulation::Simulation (void)
@@ -753,14 +754,20 @@ void Simulation::setDataFolder (const stdfs::path &path, Overwrite o) {
     utils::doThrow<std::invalid_argument>(
       "Unable to open stats file ", statsPath);
 
-  using O = genotype::env_controller::Outputs;
-  for (O o: EnumUtils<O>::iterator()) {
+  using O = genotype::cgp::Outputs;
+  using U = EnumUtils<O>;
+  for (O o: U::iterator()) {
     stdfs::path envPath = path / envPaths.at(o);
-    if (_envFiles[o].is_open()) _envFiles[o].close();
-    _envFiles[o].open(envPath, openMode);
-    if (!_envFiles[o].is_open())
+    std::ofstream &ofs = _envFiles[o];
+
+    if (ofs.is_open()) ofs.close();
+    if (!config::CGP::isActiveOutput(U::toUnderlying(o)))  continue;
+
+    ofs.open(envPath, openMode);
+
+    if (!ofs.is_open())
       utils::doThrow<std::invalid_argument>(
-        "Unable to open voxel file ", o, " ", envPath);
+        "Unable to open voxel file ", envPath, " for ", U::getName(o));
   }
 }
 
@@ -844,15 +851,20 @@ void doLog (std::ostream &os, const simu::Time &time,
 }
 
 void Simulation::logEnvState(void) {
-  using O = genotype::env_controller::Outputs;
-  for (O o: EnumUtils<O>::iterator()) {
+  using O = genotype::cgp::Outputs;
+  using U = EnumUtils<O>;
+
+  for (O o: U::iterator()) {
+    if (!config::CGP::isActiveOutput(U::toUnderlying(o)))  continue;
+
     std::ofstream &ofs = _envFiles[o];
     if (!ofs.is_open()) continue;
 
     switch (o) {
-    case O::T_: doLog(ofs, _env.time(), _env.topology());  break;
-    case O::H_: doLog(ofs, _env.time(), _env.temperature());  break;
-    case O::W_: doLog(ofs, _env.time(), _env.hygrometry()[SHALLOW]);  break;
+    case O::T: doLog(ofs, _env.time(), _env.topology());  break;
+    case O::H: doLog(ofs, _env.time(), _env.temperature());  break;
+    case O::W: doLog(ofs, _env.time(), _env.hygrometry()[SHALLOW]);  break;
+    case O::G: doLog(ofs, _env.time(), _env.grazing());  break;
     }
   }
 }

@@ -145,8 +145,8 @@ protected:
 
   stdfs::path _dataFolder;
   std::ofstream _statsFile;
-  std::array<std::ofstream,
-             EnumUtils<genotype::env_controller::Outputs>::size()> _envFiles;
+  utils::enumarray<genotype::cgp::Outputs, std::ofstream,
+                   EnumUtils<genotype::cgp::Outputs>::size()> _envFiles;
 
   virtual Plant* addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (Plant &p, Plant::Seeds &seeds);

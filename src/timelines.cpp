@@ -319,7 +319,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, EDST, STGN, DENS, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
 using FUtils = EnumUtils<Fitnesses>;
 using Fitnesses_t = std::array<double, FUtils::size()>;
 
@@ -337,7 +337,8 @@ struct Format {
   }
 
   static Format decimal (int precision, bool neg = false) {
-    return Format (5+precision+neg, precision, std::ios_base::showpoint);
+    return Format (5+precision+neg, precision,
+                   std::ios_base::showpoint | ~std::ios_base::floatfield);
   }
 
   static Format save (std::ostream &os) {
@@ -361,11 +362,22 @@ struct Format {
 };
 
 const std::map<Fitnesses, Format> formatters {
-//  { CMPT, Format::decimal(6) },
-  { EDST, Format::integer(4) },
+  { CMPT, Format::decimal(6) },
+//  { EDST, Format::integer(4) },
   { STGN, Format::decimal(6, true) },
   { DENS, Format::integer(4) },
   { TIME, Format::decimal(4, true) },
+};
+
+struct CFormat {
+  const char *header, *value;
+};
+
+const std::map<Fitnesses, CFormat> cformatters {
+  { CMPT, { "%7s", "%7.4g" } },
+  { STGN, { "%7s", "% 7.4f" } },
+  { DENS, { "%6s", "% 6.3f" } },
+  { TIME, { "%8s", "%8.2g" } },
 };
 
 struct Alternative {
@@ -458,8 +470,8 @@ double fullness (const Simulation::PTree::Node *n) {
 }
 
 // == Inter-species evolutionary distance
-/* Not Tested */
-double interspeciesDistance (const Simulation &s, uint index) {
+/* Better than raw interspeciesCompatibility but still dangerously slow */
+double interspeciesDistance (const Simulation &s) {
   using N = Simulation::PTree::Node const*;
   const auto &phylogeny = s.phylogeny();
   const auto &aliveSpecies = phylogeny.aliveSpecies();
@@ -506,9 +518,9 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 
   if (s.plants().size() >= config::Simulation::initSeeds()) {
 //    a.fitnesses[CMPT] = interspeciesCompatibility(s);
-//    a.fitnesses[CMPT] = interspeciesCompatibilitySTD(s);
+    a.fitnesses[CMPT] = interspeciesCompatibilitySTD(s);
 
-    a.fitnesses[EDST] = interspeciesDistance(s, a.index);
+//    a.fitnesses[EDST] = interspeciesDistance(s, a.index);
 
 // == Genepool diversity
 /* Can cause extinction */
@@ -517,10 +529,13 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
     a.fitnesses[STGN] = -matching(atstart, atend);
 
 // ** Control fitness
-// == Population size (keep in range)
+// == Population size (keep in range with soft tails)
     double p = s.plants().size();
     static constexpr double L = 500, H = 2500;
-    a.fitnesses[DENS] = (p < L ? -1 : (p > H ? 0 : 1));
+    static constexpr double sL = 120, sH = 800;
+    if (p < L)      a.fitnesses[DENS] = 2*utils::gauss(p, L, sL)-1;
+    else if (p > H) a.fitnesses[DENS] = utils::gauss(p, H, sH);
+    else            a.fitnesses[DENS] = 1;
 
 // ** Control fitness
 // == Population size (keep ~constant)
@@ -588,7 +603,8 @@ void printSummary (const Parameters &parameters,
   static const auto fitnessHeader = [] {
     for (auto f: FUtils::iterator()) {
       std::cout << "   ";
-      formatters.at(f)(std::cout, FUtils::getName(f));
+//      formatters.at(f)(std::cout, FUtils::getName(f));
+      printf(cformatters.at(f).header, FUtils::getName(f).c_str());
     }
     std::cout << "\n";
   };
@@ -596,7 +612,8 @@ void printSummary (const Parameters &parameters,
   static const auto printFitnesses = [] (const Alternative &a) {
     for (Fitnesses f: FUtils::iterator()) {
       std::cout << "   ";
-      formatters.at(f)(std::cout, a.fitnesses[f]);
+//       formatters.at(f)(std::cout, a.fitnesses[f]);
+      printf(cformatters.at(f).value, a.fitnesses[f]);
     }
   };
 
@@ -831,6 +848,22 @@ void exploreTimelines (Parameters parameters) {
 }
 
 int main(int argc, char *argv[]) {
+//  rng::FastDice dice (0);
+
+//  using Config = config::EDNAConfigFile<genotype::Environment>;
+//  Config::setupConfig("auto", config::Verbosity::SHOW);
+//  Config::printConfig("");
+
+//  auto e = genotype::Environment::random(dice);
+//  std::cout << "random env:\n" << e << std::endl;
+
+//  uint n = 10000;
+//  for (uint i=0; i<n; i++)  e.controller.mutate(dice);
+
+//  std::cout << "\nAfter " << n << " mutations:\n" << e << std::endl;
+
+//  exit (255);
+
   // ===========================================================================
   // == Command line arguments parsing
 

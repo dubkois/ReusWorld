@@ -29,6 +29,8 @@ void Environment::init (const Genome &g) {
                                                  config::Simulation::baselineShallowWater());
   _hygrometry[UndergroundLayers::DEEP].resize(_genome.voxels+1, 1.f);
 
+  _grazing.resize(_genome.voxels+1, 0.f);
+
   _dice.reset(_genome.rngSeed);
   _updatedTopology = false;
 
@@ -71,11 +73,11 @@ void Environment::setDuration(DurationSetType type, uint years) {
 void Environment::cgpStep (void) {
   using CGP = Genome::CGP;
 
-  using I = genotype::env_controller::Inputs;
+  using I = genotype::cgp::Inputs;
   using Inputs = CGP::Inputs;
   Inputs inputs;
 
-  using O = genotype::env_controller::Outputs;
+  using O = genotype::cgp::Outputs;
   using Outputs = CGP::Outputs;
   Outputs outputs;
 
@@ -97,6 +99,7 @@ void Environment::cgpStep (void) {
     float &A = _topology[i];
     float &T = _temperature[i];
     float &H = _hygrometry[SHALLOW][i];
+    float &G = _grazing[i];
 
     inputs[I::X] = 2 * float(i) / _genome.voxels - 1;
     inputs[I::T] = A / _genome.depth;
@@ -110,11 +113,13 @@ void Environment::cgpStep (void) {
 
     // Keep 10% of space
     if (_updatedTopology)
-      updateVoxel(A, .9 * outputs[O::T_] * _genome.depth);
+      updateVoxel(A, .9 * outputs[O::T] * _genome.depth);
 
-    updateVoxel(T, .5 * (outputs[O::H_] + 1) * rangeT + _genome.minT);
+    updateVoxel(T, .5 * (outputs[O::H] + 1) * rangeT + _genome.minT);
 
-    updateVoxel(H, (1 + outputs[O::W_]) * baselineWater);
+    updateVoxel(H, (1 + outputs[O::W]) * baselineWater);
+
+    updateVoxel(G, std::fabs(outputs[O::G]));
   }
 
   if (debugEnvCTRL) showVoxelsContents();
@@ -234,6 +239,7 @@ void Environment::clone (const Environment &e,
   _topology = e._topology;
   _temperature = e._temperature;
   _hygrometry = e._hygrometry;
+  _grazing = e._grazing;
 
   _updatedTopology = false;
 
@@ -250,7 +256,7 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
   Genome::CGP::save(jc, e._genome.controller);
   j = {
     e._genome, jd,
-    e._topology, e._temperature, e._hygrometry,
+    e._topology, e._temperature, e._hygrometry, e._grazing,
     e._startTime, e._currTime, e._endTime,
     jc
   };
@@ -265,6 +271,7 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
   e._topology = j[i++].get<Voxels>();
   e._temperature = j[i++].get<Voxels>();
   e._hygrometry = j[i++];
+  e._grazing = j[i++].get<Voxels>();
   e._startTime = j[i++];
   e._currTime = j[i++];
   e._endTime = j[i++];
@@ -285,6 +292,7 @@ void assertEqual (const Environment &lhs, const Environment &rhs,
   assertEqual(lhs._topology, rhs._topology, deepcopy);
   assertEqual(lhs._temperature, rhs._temperature, deepcopy);
   assertEqual(lhs._hygrometry, rhs._hygrometry, deepcopy);
+  assertEqual(lhs._grazing, rhs._grazing, deepcopy);
   assertEqual(*lhs._physics, *rhs._physics, deepcopy);
 }
 
@@ -299,6 +307,9 @@ void Environment::showVoxelsContents(void) const {
   std::cerr << "\n\tHygrometry:";
   for (uint i=0; i<=_genome.voxels; i++)
     std::cerr << " " << _hygrometry[SHALLOW][i];
+  std::cerr << "\n\tGrazing:";
+  for (uint i=0; i<=_genome.voxels; i++)
+    std::cerr << " " << _grazing[i];
   std::cerr << std::endl;
 }
 
