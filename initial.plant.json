@@ -1,0 +1,48 @@
+{
+  "cdata": {
+    "S": 1,
+    "mu": 2.0,
+    "si": 2.0,
+    "so": 2.0
+  },
+  "dethklok": 10,
+  "fruitOvershoot": 1.100000023841858,
+  "gen": {
+    "f": {
+      "g": 4294967295,
+      "s": 4294967295
+    },
+    "m": {
+      "g": 4294967295,
+      "s": 4294967295
+    },
+    "s": {
+      "g": 4294967295,
+      "s": 4294967295
+    }
+  },
+  "metabolism": {
+    "deltaWidth": 0.2,
+    "growthSpeed": 1.0,
+    "resistors": [
+      1.0,
+      1.0
+    ]
+  },
+  "root": {
+    "recursivity": 2,
+    "rules": {
+      "S": "S -> [-h][h][+h]"
+    }
+  },
+  "seedsPerFruit": 3,
+  "shoot": {
+    "recursivity": 2,
+    "rules": {
+      "S": "S -> [-l][+l]f"
+    }
+  },
+  "temperatureOptimal": 10.0,
+  "temperatureRange": 10.0,
+  "structuralLength": 1
+}
