@@ -73,20 +73,28 @@ DEFINE_SUBCONFIG(config::CGP, genotypeEnvCtrlConfig)
 template <typename E>
 auto build (const std::set<E> &values) {
   using U = EnumUtils<E>;
-  std::bitset<U::size()> bs;
+  utils::enumbitset<E> bs;
   bs.reset();
   for (E v: values) bs.set(U::toUnderlying(v), true);
   return bs;
 }
 
+const utils::enumbitset<genotype::cgp::Inputs>& CFILE::activeInputs (void) {
+  static const auto set = build(CFILE::cgpActiveInputs());
+  return set;
+}
+
 bool CGP::isActiveInput(uint i) {
-  static const auto active = build(CFILE::cgpActiveInputs());
-  return active.test(i);
+  return CFILE::activeInputs().test(i);
+}
+
+const utils::enumbitset<genotype::cgp::Outputs>& CFILE::activeOutputs (void) {
+  static const auto set = build(CFILE::cgpActiveOutputs());
+  return set;
 }
 
 bool CGP::isActiveOutput(uint i) {
-  static const auto active = build(CFILE::cgpActiveOutputs());
-  return active.test(i);
+  return CFILE::activeOutputs().test(i);
 }
 
 #undef CFILE

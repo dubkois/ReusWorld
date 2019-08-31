@@ -14,25 +14,71 @@ void load (const nlohmann::json &j, rng::FastDice &d);
 
 namespace utils {
 
-template<typename E, typename T, size_t S>
-struct enumarray : std::array<T,S> {
+template <typename E>
+struct enumbitset : public std::bitset<EnumUtils<E>::size()> {};
+
+template<typename E, typename T>
+class enumarray {
+
+public:
   using EU = EnumUtils<E>;
   using U = typename EU::underlying_t;
+  static constexpr size_t S = EU::size();
+
+private:
+  std::array<T,S> array;
+  const std::bitset<S> &active;
+  const T def;  /// Defaut value to return
+
+  T junk; /// Value to return for inactive fields
+
+  const T& access(U i) const {
+    if (active.test(i))
+      return array[i];
+    else
+      return def;
+  }
+
+  T& access(U i) {
+    if (active.test(i))
+      return array[i];
+    else {
+      junk = def;
+      return junk;
+    }
+  }
+
+public:
+  enumarray (const std::bitset<S> &active, T def = T())
+    : active(active), def(def) {
+    array.fill(def);
+  }
+
+  enumarray (const enumarray &) = default;
+  enumarray (enumarray &&) = default;
 
   T& operator[] (E e) {
-    return this->operator [](EU::toUnderlying(e));
+    return access(EU::toUnderlying(e));
   }
 
   const T& operator[] (E e) const {
-    return this->operator [](EU::toUnderlying(e));
+    return access(EU::toUnderlying(e));
   }
 
   T& operator[] (U i) {
-    return std::array<T,S>::operator [](i);
+    return access(i);
   }
 
   const T& operator[] (U i) const {
-    return std::array<T,S>::operator [](i);
+    return access(i);
+  }
+
+  auto begin (void) const {
+    return array.begin();
+  }
+
+  auto end (void) const {
+    return array.end();
   }
 };
 
@@ -173,8 +219,8 @@ class CGP {
   rng::FastDice ldice;
 
 public:
-  using Inputs = utils::enumarray<IEnum, double, I>;
-  using Outputs = utils::enumarray<OEnum, double, O>;
+  using Inputs = utils::enumarray<IEnum, double>;
+  using Outputs = utils::enumarray<OEnum, double>;
 
   CGP (void) {
     for (Node &n: nodes) {

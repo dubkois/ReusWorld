@@ -27,6 +27,8 @@ public:
 
   Simulation (void);
 
+  /// Just to allow emplace_back to work
+  /// Needs to be overwritten afterwards with real values
   Simulation (Simulation &&) {}
 
   virtual ~Simulation (void) {
@@ -145,8 +147,8 @@ protected:
 
   stdfs::path _dataFolder;
   std::ofstream _statsFile;
-  utils::enumarray<genotype::cgp::Outputs, std::ofstream,
-                   EnumUtils<genotype::cgp::Outputs>::size()> _envFiles;
+  std::array<std::ofstream,
+             EnumUtils<genotype::cgp::Outputs>::size()> _envFiles;
 
   virtual Plant* addPlant(const PGenome &g, float x, float biomass);
   virtual void delPlant (Plant &p, Plant::Seeds &seeds);

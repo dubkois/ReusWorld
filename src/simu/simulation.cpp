@@ -757,11 +757,12 @@ void Simulation::setDataFolder (const stdfs::path &path, Overwrite o) {
   using O = genotype::cgp::Outputs;
   using U = EnumUtils<O>;
   for (O o: U::iterator()) {
+    auto o_t = U::toUnderlying(o);
     stdfs::path envPath = path / envPaths.at(o);
-    std::ofstream &ofs = _envFiles[o];
+    std::ofstream &ofs = _envFiles[o_t];
 
     if (ofs.is_open()) ofs.close();
-    if (!config::CGP::isActiveOutput(U::toUnderlying(o)))  continue;
+    if (!config::CGP::isActiveOutput(o_t))  continue;
 
     ofs.open(envPath, openMode);
 
@@ -855,9 +856,10 @@ void Simulation::logEnvState(void) {
   using U = EnumUtils<O>;
 
   for (O o: U::iterator()) {
-    if (!config::CGP::isActiveOutput(U::toUnderlying(o)))  continue;
+    auto o_t = U::toUnderlying(o);
+    if (!config::CGP::isActiveOutput(o_t))  continue;
 
-    std::ofstream &ofs = _envFiles[o];
+    std::ofstream &ofs = _envFiles[o_t];
     if (!ofs.is_open()) continue;
 
     switch (o) {

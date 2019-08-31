@@ -72,9 +72,11 @@ struct EDNA_CONFIG_FILE(Environment) {
 
   using ActiveInputs = std::set<genotype::cgp::Inputs>;
   DECLARE_PARAMETER(ActiveInputs, cgpActiveInputs)
+  static const utils::enumbitset<genotype::cgp::Inputs>& activeInputs (void);
 
   using ActiveOutputs = std::set<genotype::cgp::Outputs>;
   DECLARE_PARAMETER(ActiveOutputs, cgpActiveOutputs)
+  static const utils::enumbitset<genotype::cgp::Outputs>& activeOutputs (void);
 
   DECLARE_SUBCONFIG(config::CGP, genotypeEnvCtrlConfig)
 

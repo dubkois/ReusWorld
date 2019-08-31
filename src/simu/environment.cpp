@@ -75,11 +75,11 @@ void Environment::cgpStep (void) {
 
   using I = genotype::cgp::Inputs;
   using Inputs = CGP::Inputs;
-  Inputs inputs;
+  Inputs inputs (Genome::config_t::activeInputs(), 0);
 
   using O = genotype::cgp::Outputs;
   using Outputs = CGP::Outputs;
-  Outputs outputs;
+  Outputs outputs (Genome::config_t::activeOutputs(), 0);
 
   const auto rangeT = _genome.maxT - _genome.minT;
   const auto baselineWater = config::Simulation::baselineShallowWater();
@@ -105,8 +105,9 @@ void Environment::cgpStep (void) {
     inputs[I::T] = A / _genome.depth;
     inputs[I::H] = 2 * (T - _genome.minT) / (_genome.maxT - _genome.minT) - 1;
     inputs[I::W] = H / config::Simulation::baselineShallowWater() - 1;
+    inputs[I::G] = G;
 
-    for (I i: {I::X, I::T, I::H, I::W})
+    for (I i: {I::X, I::T, I::H, I::W, I::G})
       utils::iclip(-1., inputs[i], 1.);
 
     _genome.controller.evaluate(inputs, outputs);
