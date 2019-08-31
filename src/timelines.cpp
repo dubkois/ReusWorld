@@ -374,10 +374,10 @@ struct CFormat {
 };
 
 const std::map<Fitnesses, CFormat> cformatters {
-  { CMPT, { "%7s", "%7.4g" } },
-  { STGN, { "%7s", "% 7.4f" } },
+  { CMPT, { "%9s", "%9.3e" } },
+  { STGN, { "%6s", "% 6.3f" } },
   { DENS, { "%6s", "% 6.3f" } },
-  { TIME, { "%8s", "%8.2g" } },
+  { TIME, { "%10s", "%10.3e" } },
 };
 
 struct Alternative {
@@ -389,16 +389,25 @@ struct Alternative {
   Simulation simulation;
 
   /// Compare with a margin
+//  friend bool operator< (const Alternative &lhs, const Alternative &rhs) {
+//    for (Fitnesses f: FUtils::iterator()) {
+//      double lhsF = lhs.fitnesses[f],
+//             rhsF = rhs.fitnesses[f];
+//      bool invert = lhsF < 0 && rhsF < 0;
+//      if (invert) lhsF *= -1, rhsF *= -1;
+//      lhsF = log10(lhsF);
+//      rhsF = log10(rhsF);
+//      if (std::fabs(lhsF - rhsF) >= MAGNITUDE)
+//        return invert ? rhsF < lhsF : lhsF < rhsF;
+//    }
+//    return false;
+//  }
+
+  /// Just compare
   friend bool operator< (const Alternative &lhs, const Alternative &rhs) {
     for (Fitnesses f: FUtils::iterator()) {
-      double lhsF = lhs.fitnesses[f],
-             rhsF = rhs.fitnesses[f];
-      bool invert = lhsF < 0 && rhsF < 0;
-      if (invert) lhsF *= -1, rhsF *= -1;
-      lhsF = log10(lhsF);
-      rhsF = log10(rhsF);
-      if (std::fabs(lhsF - rhsF) >= MAGNITUDE)
-        return invert ? rhsF < lhsF : lhsF < rhsF;
+      auto lhsF = lhs.fitnesses[f], rhsF = rhs.fitnesses[f];
+      if (lhsF != rhsF) return lhsF < rhsF;
     }
     return false;
   }
