@@ -319,7 +319,7 @@ struct Parameters {
   decltype(genotype::Environment::rngSeed) gaseed;
 };
 
-DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, CMPT, STGN, DENS, TIME)
+DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, GDIST, STGN, DENS, TIME)
 using FUtils = EnumUtils<Fitnesses>;
 using Fitnesses_t = std::array<double, FUtils::size()>;
 
@@ -362,7 +362,8 @@ struct Format {
 };
 
 const std::map<Fitnesses, Format> formatters {
-  { CMPT, Format::decimal(6) },
+  { GDIST, Format::decimal(6) },
+//  { CMPT, Format::decimal(6) },
 //  { EDST, Format::integer(4) },
   { STGN, Format::decimal(6, true) },
   { DENS, Format::integer(4) },
@@ -374,9 +375,10 @@ struct CFormat {
 };
 
 const std::map<Fitnesses, CFormat> cformatters {
-  { CMPT, { "%9s", "%9.3e" } },
+//  { CMPT, { "%9s", "%9.3e" } },
+  { GDIST, { "%9s", "%9.3e" } },
   { STGN, { "%6s", "% 6.3f" } },
-  { DENS, { "%6s", "% 6.3f" } },
+  { DENS, { "%6s", "% 5.3f" } },
   { TIME, { "%10s", "%10.3e" } },
 };
 
@@ -472,6 +474,64 @@ double interspeciesCompatibilitySTD(const Simulation &s) {
   return stdCompat;
 }
 
+double interspeciesGeneticDistanceStd (const Simulation &s) {
+  float distAvg = 0, distStd = 0;
+  std::vector<float> dists;
+
+  const auto &p = s.plants();
+
+  for (auto lhs_it = p.begin(); lhs_it != p.end(); ++lhs_it) {
+    const Plant &lhs = *(*lhs_it).second;
+    if (lhs.sex() != Plant::Sex::FEMALE)  continue;
+
+    for (auto rhs_it = std::next(lhs_it); rhs_it != p.end(); ++rhs_it) {
+      const Plant &rhs = *(*rhs_it).second;
+      if (rhs.sex() != Plant::Sex::MALE)  continue;
+
+      if (lhs.genealogy().self.sid == rhs.genealogy().self.sid) continue;
+
+      float d = distance(lhs.genome(), rhs.genome());
+      distAvg += d;
+      dists.push_back(d);
+    }
+  }
+
+  if (!dists.empty()) {
+    distAvg /= float(dists.size());
+    for (float d: dists)  distStd += std::fabs(distAvg - d);
+    distStd /= float(dists.size());
+  }
+
+  return distStd;
+}
+
+double geneticDistanceStd (const Simulation &s) {
+  float distAvg = 0, distStd = 0;
+  std::vector<float> dists;
+
+  const auto &p = s.plants();
+
+  for (auto lhs_it = p.begin(); lhs_it != p.end(); ++lhs_it) {
+    const Plant &lhs = *(*lhs_it).second;
+
+    for (auto rhs_it = std::next(lhs_it); rhs_it != p.end(); ++rhs_it) {
+      const Plant &rhs = *(*rhs_it).second;
+
+      float d = distance(lhs.genome(), rhs.genome());
+      distAvg += d;
+      dists.push_back(d);
+    }
+  }
+
+  if (!dists.empty()) {
+    distAvg /= float(dists.size());
+    for (float d: dists)  distStd += std::fabs(distAvg - d);
+    distStd /= float(dists.size());
+  }
+
+  return distStd;
+}
+
 /// TODO put this back to its place in APOGeT@Node.hpp
 double fullness (const Simulation::PTree::Node *n) {
   static const auto &K = config::PTree::rsetSize();
@@ -527,7 +587,10 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 
   if (s.plants().size() >= config::Simulation::initSeeds()) {
 //    a.fitnesses[CMPT] = interspeciesCompatibility(s);
-    a.fitnesses[CMPT] = interspeciesCompatibilitySTD(s);
+//    a.fitnesses[CMPT] = interspeciesCompatibilitySTD(s);
+
+    a.fitnesses[GDIST] = interspeciesGeneticDistanceStd(s);
+//    a.fitnesses[GDIST] = geneticDistanceStd(s);
 
 //    a.fitnesses[EDST] = interspeciesDistance(s, a.index);
 
