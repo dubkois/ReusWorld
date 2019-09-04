@@ -20,10 +20,16 @@ public:
 
   using clock = std::chrono::high_resolution_clock;
   using duration_t = std::chrono::milliseconds;
-  static constexpr auto duration = [] (clock::time_point start) {
+  static duration_t duration (clock::time_point start) {
     return std::chrono::duration_cast<duration_t>(
           clock::now() - start).count();
-  };
+  }
+
+  static std::string prettyDuration (clock::time_point start) {
+    return prettyDuration(duration(start));
+  }
+
+  static std::string prettyDuration (clock::rep duration);
 
   Simulation (void);
 

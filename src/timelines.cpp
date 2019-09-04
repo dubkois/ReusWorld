@@ -1109,7 +1109,7 @@ void exploreTimelines (Parameters parameters,
 
   if (reality)
     std::cout << "\nTimelines exploration completed in "
-              << (Simulation::duration(start) + previousDuration) / 1000.
+              << (Simulation::prettyDuration(start + previousDuration) / 1000.
               << " seconds" << std::endl;
   else
     std::cout << "\nTimelines exploration failed. Extinction at epoch "

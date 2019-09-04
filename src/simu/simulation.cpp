@@ -9,6 +9,36 @@
 
 namespace simu {
 
+std::string Simulation::prettyDuration(clock::rep duration) {
+  std::string pretty = "";
+  static const auto s = [] (auto v) {
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(2) << v;
+    return oss.str();
+  };
+
+  duration /= 1000; // Don't care about milliseconds
+
+  pretty = s(duration%60) + "s";
+  duration /= 60;
+
+  if (duration > 0) {
+    pretty = s(duration%60) + "m ";
+    duration /= 60;
+  } else  return pretty;
+
+  if (duration > 0) {
+    pretty = s(duration%24) + "h ";
+    duration /= 24;
+  } else  return pretty;
+
+  if (duration > 0)
+    pretty = s(duration) + "d ";
+  else  return pretty;
+
+  return pretty;
+}
+
 using Config = config::Simulation;
 
 static constexpr bool debugPlantManagement = false;

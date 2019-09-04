@@ -22,22 +22,25 @@ void finalCounts (const Simulation &simu) {
             << "SID: " << simu.phylogeny().nextNodeID() << std::endl;
 }
 
-void extractField (const Simulation &simu, const std::string &field) {
-  std::cout << "Extracting field '" << field << "'..." << std::endl;
+void extractField (const Simulation &simu,
+                   const std::vector<std::string> &fields) {
+//  std::cout << "Extracting field '" << field << "'..." << std::endl;
   for (const auto &pair: simu.plants()) {
-    if (field == ".morphology")
-      std::cout << field << ".shoot: "
-                << pair.second->toString(simu::Plant::Layer::SHOOT) << "\n"
-                << field << ".root: "
-                << pair.second->toString(simu::Plant::Layer::ROOT) << "\n";
+    for (const auto &field: fields) {
+      if (field == ".morphology")
+        std::cout << field << ".shoot: "
+                  << pair.second->toString(simu::Plant::Layer::SHOOT) << "\n"
+                  << field << ".root: "
+                  << pair.second->toString(simu::Plant::Layer::ROOT) << "\n";
 
-    else if (field == ".boundingBox")
-      std::cout << field << ": " << pair.second->translatedBoundingRect()
-                << "\n";
+      else if (field == ".boundingBox")
+        std::cout << field << ": " << pair.second->translatedBoundingRect()
+                  << "\n";
 
-    else
-      std::cout << field << ": " << pair.second->genome().getField(field)
-                << "\n";
+      else
+        std::cout << field << ": " << pair.second->genome().getField(field)
+                  << "\n";
+    }
   }
   std::cout << std::endl;
 }
@@ -368,7 +371,7 @@ int main (int argc, char *argv[]) {
 
   if (doFinalCounts)    finalCounts(s);
 
-  for (const auto &field: viewFields) extractField(s, field);
+  if (!viewFields.empty())  extractField(s, viewFields);
 
   if (doSpeciesRanges) plotSpeciesRanges(s, loadSaveFile);
   if (doDensityHistogram) plotDensityHistogram(s, loadSaveFile);
