@@ -187,6 +187,21 @@ public:
   friend void assertEqual (const Environment &lhs, const Environment &rhs,
                            bool deepcopy);
 
+  friend void swap (Environment &lhs, Environment &rhs) {
+    using std::swap;
+    swap(lhs._genome, rhs._genome);
+    swap(lhs._dice, rhs._dice);
+    swap(lhs._topology, rhs._topology);
+    swap(lhs._temperature, rhs._temperature);
+    swap(lhs._hygrometry, rhs._hygrometry);
+    swap(lhs._grazing, rhs._grazing);
+    swap(lhs._updatedTopology, rhs._updatedTopology);
+    swap(lhs._startTime, rhs._startTime);
+    swap(lhs._currTime, rhs._currTime);
+    swap(lhs._endTime, rhs._endTime);
+    swap(lhs._physics, rhs._physics);
+  }
+
 private:
   void updateVoxel (float &voxel, float newValue);
 

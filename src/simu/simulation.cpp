@@ -49,6 +49,10 @@ std::map<genotype::cgp::Outputs, stdfs::path> envPaths {
 Simulation::Simulation (void)
   : _stats(), _aborted(false), _dataFolder(".") {}
 
+Simulation::Simulation (Simulation &&that) : Simulation() {
+  swap(*this, that);
+}
+
 bool Simulation::init (const EGenome &env, PGenome plant) {
   _start = clock::now();
 
@@ -990,9 +994,8 @@ void Simulation::clone(const Simulation &s) {
   _env.clone(s._env, plookup, olookups);
 
   _ptree = s._ptree;
-  for (Plant *p: rsetPlants) {
+  for (Plant *p: rsetPlants)
     p->setPStatsPointer(_ptree.getUserData(p->genealogy().self));
-  }
 
   _start = clock::now();
   _aborted = false;

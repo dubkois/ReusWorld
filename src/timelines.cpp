@@ -10,9 +10,89 @@
 #include "config/dependencies.h"
 
 //#define TEST 1
-#ifdef TEST
+#if TEST == 1
 #warning Test mode activated for timelines executable
 #endif
+void tests (void) {
+#if !defined(NDEBUG) && TEST == 1
+
+  // ===========================================================================
+  // == Test area
+
+//#warning autoremoving datafolder
+//  stdfs::remove_all(parameters.subfolder);
+
+  // Test cloning
+
+  //  uint i = 1;
+  ////  utils::assertEqual(i, i, true);
+
+  //  double d = 0;
+  ////  utils::assertEqual(d, d, true);
+
+  //  std::array<double, 10> a;
+  ////  utils::assertEqual(a, a, true);
+
+  //  std::vector<double*> v0;
+  //  for (uint i=0; i<10; i++) v0.push_back(&a[i]);
+
+  //  std::vector<double*> v1 = v0;
+  //  v1[0] = &d;
+
+  //  utils::assertEqual(v0, v1, true);
+
+  uint D = 1;
+  Simulation clonedSimu;
+  {
+    Simulation baseSimu;
+    baseSimu.init(envGenome, plantGenome);
+    baseSimu.setDuration(simu::Environment::DurationSetType::SET, D);
+    baseSimu.setDataFolder("tmp/test/simulation_cloning/base/");
+    while (!baseSimu.finished())  baseSimu.step();
+    baseSimu.atEnd();
+
+    clonedSimu.clone(baseSimu);
+    assertEqual(baseSimu, clonedSimu, true);
+  }
+
+  clonedSimu.setDuration(simu::Environment::DurationSetType::APPEND, D);
+  clonedSimu.setDataFolder("tmp/test/simulation_cloning/clone/");
+  while (!clonedSimu.finished())  clonedSimu.step();
+  clonedSimu.atEnd();
+
+  return 255;
+
+  #elif !defined(NDEBUG) && TEST == 2
+  // Test pareto
+
+  std::ofstream ofsPop ("pareto_test_population.dat");
+
+  rng::FastDice dice (0);
+  PopFitnesses pfitnesses (1000);
+
+  ofsPop << "A B\n";
+  for (Fitnesses &f: pfitnesses) {
+    for (std::string k: {"A", "B"}) {
+      double v = dice(0., 1.);
+      f[k] = v;
+      ofsPop << v << " ";
+    }
+    ofsPop << "\n";
+  }
+
+  std::ofstream ofsPar ("pareto_test_front.dat");
+  std::vector<uint> front;
+  paretoFront(pfitnesses, front);
+
+  ofsPar << "A B\n";
+  for (uint i: front) {
+    const auto &f = pfitnesses[i];
+    for (std::string k: {"A", "B"})
+      ofsPar << f.at(k) << " ";
+    ofsPar << "\n";
+  }
+#endif
+}
 
 static constexpr bool debugGenepool = false;
 
@@ -309,7 +389,6 @@ struct Parameters {
   genotype::Plant plantGenome;
 
   stdfs::path subfolder = "tmp/test_timelines/";
-  Simulation::Overwrite overwrite = Simulation::ABORT;
 
   uint epoch = 0;
   uint epochs = 100;
@@ -317,6 +396,8 @@ struct Parameters {
   uint branching = 3;
 
   decltype(genotype::Environment::rngSeed) gaseed;
+
+  bool resuming = false;
 };
 
 DEFINE_UNSCOPED_PRETTY_ENUMERATION(Fitnesses, GDIST, STGN, DENS, TIME)
@@ -389,6 +470,8 @@ struct Alternative {
   Fitnesses_t fitnesses;
 
   Simulation simulation;
+
+  Alternative (uint i) : index(i) {}
 
   /// Compare with a margin
 //  friend bool operator< (const Alternative &lhs, const Alternative &rhs) {
@@ -724,13 +807,14 @@ void printSummary (const Parameters &parameters,
 
 void controlGroup (const Parameters &parameters) {
 
-  Alternative a;
+  Alternative a (0);
   Simulation &s = a.simulation;
   auto start = Simulation::clock::now();
   GenePool genepool;
 
   s.init(parameters.envGenome, parameters.plantGenome);
-  s.setDataFolder(parameters.subfolder / "results", parameters.overwrite);
+  s.setDataFolder(parameters.subfolder / "results",
+                  Simulation::Overwrite::ABORT);
   s.setDuration(simu::Environment::DurationSetType::SET,
                 parameters.epochs * parameters.epochDuration);
 
@@ -757,12 +841,90 @@ void controlGroup (const Parameters &parameters) {
               << Simulation::duration(start) / 1000. << " seconds" << std::endl;
 }
 
-void exploreTimelines (Parameters parameters) {
+
+void saveGlobalTimelineState (Parameters parameters) {
+  nlohmann::json j;
+  j["epochs"] = parameters.epochs;
+  j["epochDuration"] = parameters.epochDuration;
+  j["branching"] = parameters.branching;
+  j["baseEnv"] = parameters.envGenome;
+  j["basePlant"] = parameters.plantGenome;
+  j["gaseed"] = parameters.gaseed;
+
+  std::ofstream ofs (parameters.subfolder / "timelines.json");
+  ofs << j;
+  ofs.close();
+}
+
+void saveLastEpochState (Parameters parameters, const rng::FastDice &dice,
+                         const stdfs::path &reality, unsigned long duration) {
+  nlohmann::json j;
+  simu::save(j["dice"], dice);
+  j["epoch"] = parameters.epoch;
+  j["reality"] = reality;
+  j["duration"] = duration;
+
+  std::ofstream ofs (parameters.subfolder / "lastEpoch.json");
+  ofs << j;
+  ofs.close();
+}
+
+void loadTimelinesStates (Alternative &reality, Parameters &parameters,
+                          rng::FastDice &dice,
+                          unsigned long &previousDuration) {
+
+  stdfs::path realitySaveFile;
+
+  {
+    stdfs::path datafile = parameters.subfolder / "timelines.json";
+    std::ifstream ifs (datafile);
+    if (!ifs)
+      utils::doThrow<std::invalid_argument>(
+        "Could not find timelines global data at", datafile);
+
+    std::cout << "Restoring timelines exploration global state from "
+              << datafile << "\r";
+
+    nlohmann::json j = nlohmann::json::parse(utils::readAll(ifs));
+
+    parameters.branching = j["branching"];
+    parameters.epochDuration = j["epochDuration"];
+    parameters.epochs = j["epochs"];
+  }
+
+  {
+    stdfs::path datafile = parameters.subfolder / "lastEpoch.json";
+    std::ifstream ifs (datafile);
+    if (!ifs)
+      utils::doThrow<std::invalid_argument>(
+        "Could not find timelines previous epoch data at", datafile);
+
+    std::cout << "Restoring timelines exploration state from " << datafile << "\r";
+
+    nlohmann::json j = nlohmann::json::parse(utils::readAll(ifs));
+
+    simu::load(j["dice"], dice);
+    parameters.epoch = j["epoch"];
+    realitySaveFile = j["reality"].get<stdfs::path>();
+    previousDuration = j["duration"];
+  }
+
+  std::cout << "Loading last reality at " << realitySaveFile << "\r";
+  Simulation::load(realitySaveFile, reality.simulation, "none", "");
+
+  std::cout << "Restored timelines exploration state from "
+            << parameters.subfolder
+            << ". Resuming at epoch " << parameters.epoch << std::endl;
+}
+
+void exploreTimelines (Parameters parameters,
+                       const cxxopts::ParseResult &arguments) {
 
   static constexpr auto DT = simu::Environment::DurationSetType::APPEND;
 
   uint epoch_digits = std::ceil(std::log10(parameters.epochs)),
        alternatives_digits = std::ceil(std::log10(parameters.branching));
+
   auto alternativeDataFolder =
     [&parameters, epoch_digits, alternatives_digits]
     (uint epoch, uint alternative) {
@@ -789,39 +951,36 @@ void exploreTimelines (Parameters parameters) {
 
   rng::FastDice dice (parameters.gaseed);
   auto start = Simulation::clock::now();
+  unsigned long previousDuration = 0;
 
   Population alternatives;
-  for (uint a=0; a<parameters.branching; a++) {
-    alternatives.emplace_back();
-    alternatives.back().index = a;
-  }
+  alternatives.emplace_back(0);
 
   GenePool genepool;
+  std::ofstream timelinesOFS;
 
-  stdfs::create_directories(parameters.subfolder / "results/");
-  std::ofstream timelinesOFS (parameters.subfolder / "results/timelines.dat");
   const auto logFitnesses =
     [&timelinesOFS, &alternatives] (uint epoch, uint winner) {
-      std::ofstream &ofs = timelinesOFS;
-      auto N = alternatives.size();
+    std::ofstream &ofs = timelinesOFS;
+    auto N = alternatives.size();
 
-      if (epoch == 0) {
-        N = 1;
-        ofs << "E A W";
-        for (auto f: FUtils::iterator())
-          ofs << " " << FUtils::getName(f);
-        ofs << "\n";
-      }
+    if (epoch == 0) {
+      N = 1;
+      ofs << "E A W";
+      for (auto f: FUtils::iterator())
+        ofs << " " << FUtils::getName(f);
+      ofs << "\n";
+    }
 
-      for (uint i=0; i<N; i++) {
-        ofs << epoch << " " << i << " " << (i == winner);
-        for (const auto &f: alternatives[i].fitnesses)
-          ofs << " " << f;
-        ofs << "\n";
-      }
+    for (uint i=0; i<N; i++) {
+      ofs << epoch << " " << i << " " << (i == winner);
+      for (const auto &f: alternatives[i].fitnesses)
+        ofs << " " << f;
+      ofs << "\n";
+    }
 
-      ofs.flush();
-    };
+    ofs.flush();
+  };
 
   const auto logEnvController = [] (const Simulation &s) {
     const genotype::Environment g = s.environment().genome();
@@ -839,25 +998,58 @@ void exploreTimelines (Parameters parameters) {
     g.controller.toDot(s.dataFolder() / "controller.dot", O::FULL | O::NO_ARITY);
   };
 
-  Alternative *reality = &alternatives.front();
+  Alternative *reality = nullptr;
   uint winner = 0;
 
-  reality->simulation.init(parameters.envGenome, parameters.plantGenome);
-  reality->simulation.setDataFolder(championDataFolder(parameters.epoch),
-                                    parameters.overwrite);
-  reality->simulation.setDuration(DT, parameters.epochDuration);
-  logEnvController(reality->simulation);
+  if (parameters.resuming) {
+    loadTimelinesStates(alternatives.front(),
+                        parameters, dice, previousDuration);
 
-  epochHeader();
-  genepool.parse(reality->simulation);
+    /// Maybe update with new arguments
+    if (arguments.count("epochs"))
+      parameters.epochs = arguments["epochs"].as<uint>();
 
-  while (!reality->simulation.finished()) reality->simulation.step();
+    if (arguments.count("epoch-duration"))
+      parameters.epochDuration = arguments["epoch-duration"].as<uint>();
 
-  computeFitnesses(*reality, genepool);
-  printSummary(parameters, alternatives, ParetoFront(), -1);
-  logFitnesses(0, 0);
+    if (arguments.count("alternatives-per-epoch"))
+      parameters.branching = arguments["alternatives-per-epoch"].as<uint>();
 
-  parameters.epoch++;
+    timelinesOFS.open(parameters.subfolder / "results/timelines.dat",
+                      std::ios_base::out | std::ios_base::app);
+
+    reality = &alternatives.front();
+
+  } else {
+    stdfs::create_directories(parameters.subfolder / "results/");
+    saveGlobalTimelineState(parameters);
+    timelinesOFS.open(parameters.subfolder / "results/timelines.dat");
+
+    reality = &alternatives.front();
+
+    reality->simulation.init(parameters.envGenome, parameters.plantGenome);
+    reality->simulation.setDataFolder(championDataFolder(parameters.epoch),
+                                      Simulation::Overwrite::ABORT);
+    reality->simulation.setDuration(DT, parameters.epochDuration);
+    logEnvController(reality->simulation);
+
+    epochHeader();
+    genepool.parse(reality->simulation);
+
+    while (!reality->simulation.finished()) reality->simulation.step();
+
+    computeFitnesses(*reality, genepool);
+    printSummary(parameters, alternatives, ParetoFront(), -1);
+    logFitnesses(0, 0);
+
+    parameters.epoch++;
+  }
+
+  for (uint a=1; a<parameters.branching; a++) alternatives.emplace_back(a);
+
+  // Reality is still the first but the vector has probably been reallocated
+  reality = &alternatives.front();
+
   do {
     epochHeader();
     genepool.parse(reality->simulation);
@@ -875,7 +1067,7 @@ void exploreTimelines (Parameters parameters) {
       Simulation &s = alternatives[a].simulation;
       s.setDuration(DT, parameters.epochDuration);
       s.setDataFolder(alternativeDataFolder(parameters.epoch, a),
-                      parameters.overwrite);
+                      Simulation::Overwrite::ABORT);
       logEnvController(s);
     }
 
@@ -909,11 +1101,16 @@ void exploreTimelines (Parameters parameters) {
     }
 
     parameters.epoch++;
+    saveLastEpochState(parameters, dice,
+                       reality->simulation.periodicSaveName().concat(".ubjson"),
+                       Simulation::duration(start) + previousDuration);
+
   } while (parameters.epoch < parameters.epochs);
 
   if (reality)
     std::cout << "\nTimelines exploration completed in "
-              << Simulation::duration(start) / 1000. << " seconds" << std::endl;
+              << (Simulation::duration(start) + previousDuration) / 1000.
+              << " seconds" << std::endl;
   else
     std::cout << "\nTimelines exploration failed. Extinction at epoch "
               << parameters.epoch << std::endl;
@@ -940,6 +1137,7 @@ int main(int argc, char *argv[]) {
   // == Command line arguments parsing
 
   using Verbosity = config::Verbosity;
+  Simulation::Overwrite overwrite = Simulation::ABORT;
 
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
@@ -948,7 +1146,7 @@ int main(int argc, char *argv[]) {
   decltype(genotype::Environment::rngSeed) envOverrideSeed;
 
   Parameters parameters;
-  char overwrite;
+  char coverwrite;
 
   cxxopts::Options options("ReusWorld (timelines explorer)",
                            "Continuous 1 + lambda of a 2D simulation of plants"
@@ -964,7 +1162,7 @@ int main(int argc, char *argv[]) {
      cxxopts::value(parameters.subfolder))
     ("overwrite", "Action to take if the data folder is not empty: either "
                   "[a]bort or [p]urge",
-     cxxopts::value(overwrite))
+     cxxopts::value(coverwrite))
     ("e,environment", "Environment's genome or a random seed",
      cxxopts::value(envGenomeArg))
     ("p,plant", "Plant genome to start from or a random seed",
@@ -979,6 +1177,9 @@ int main(int argc, char *argv[]) {
      cxxopts::value(parameters.epochDuration))
     ("alternatives-per-epoch", "Number of explored alternatives per epoch",
      cxxopts::value(parameters.branching))
+    ("resume", "Whether to continue from the data in the work folder",
+     cxxopts::value(parameters.resuming)->default_value("false")
+                                        ->implicit_value("true"))
     ;
 
   auto result = options.parse(argc, argv);
@@ -994,7 +1195,8 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  bool missingArgument = !result.count("environment") || !result.count("plant");
+  bool missingArgument = !parameters.resuming
+                    && (!result.count("environment") || !result.count("plant"));
   if (missingArgument) {
     if (result.count("environment"))
       utils::doThrow<std::invalid_argument>("No value provided for the plant's genome");
@@ -1004,12 +1206,13 @@ int main(int argc, char *argv[]) {
   }
 
   if (result.count("overwrite"))
-    parameters.overwrite = simu::Simulation::Overwrite(overwrite);
+    overwrite = simu::Simulation::Overwrite(coverwrite);
 
   stdfs::path rfolder = parameters.subfolder / "results";
-  if (stdfs::exists(rfolder) && !stdfs::is_empty(rfolder)) {
+  if (!parameters.resuming
+   && stdfs::exists(rfolder) && !stdfs::is_empty(rfolder)) {
     std::cerr << "Base folder is not empty!\n";
-    switch (parameters.overwrite) {
+    switch (overwrite) {
     case simu::Simulation::Overwrite::PURGE:
       std::cerr << "Purging" << std::endl;
       stdfs::remove_all(rfolder);
@@ -1032,37 +1235,39 @@ int main(int argc, char *argv[]) {
 
   genotype::Plant::printMutationRates(std::cout, 2);
 
-  if (!isValidSeed(envGenomeArg)) {
-    std::cout << "Reading environment genome from input file '"
-              << envGenomeArg << "'" << std::endl;
-    parameters.envGenome = genotype::Environment::fromFile(envGenomeArg);
+  if (!parameters.resuming) {
+    if (!isValidSeed(envGenomeArg)) {
+      std::cout << "Reading environment genome from input file '"
+                << envGenomeArg << "'" << std::endl;
+      parameters.envGenome = genotype::Environment::fromFile(envGenomeArg);
 
-  } else {
-    rng::FastDice dice (std::stoi(envGenomeArg));
-    std::cout << "Generating environment genome from rng seed "
-              << dice.getSeed() << std::endl;
-    parameters.envGenome = genotype::Environment::random(dice);
+    } else {
+      rng::FastDice dice (std::stoi(envGenomeArg));
+      std::cout << "Generating environment genome from rng seed "
+                << dice.getSeed() << std::endl;
+      parameters.envGenome = genotype::Environment::random(dice);
+    }
+    if (result.count("env-seed")) parameters.envGenome.rngSeed = envOverrideSeed;
+    parameters.envGenome.toFile("initial", 2);
+
+    if (!isValidSeed(plantGenomeArg)) {
+      std::cout << "Reading plant genome from input file '"
+                << plantGenomeArg << "'" << std::endl;
+      parameters.plantGenome = genotype::Plant::fromFile(plantGenomeArg);
+
+    } else {
+      rng::FastDice dice (std::stoi(plantGenomeArg));
+      std::cout << "Generating plant genome from rng seed "
+                << dice.getSeed() << std::endl;
+      parameters.plantGenome = genotype::Plant::random(dice);
+    }
+
+    parameters.plantGenome.toFile("inital", 2);
+
+    std::cout << "Environment:\n" << parameters.envGenome
+              << "\nPlant:\n" << parameters.plantGenome
+              << std::endl;
   }
-  if (result.count("env-seed")) parameters.envGenome.rngSeed = envOverrideSeed;
-  parameters.envGenome.toFile("initial", 2);
-
-  if (!isValidSeed(plantGenomeArg)) {
-    std::cout << "Reading plant genome from input file '"
-              << plantGenomeArg << "'" << std::endl;
-    parameters.plantGenome = genotype::Plant::fromFile(plantGenomeArg);
-
-  } else {
-    rng::FastDice dice (std::stoi(plantGenomeArg));
-    std::cout << "Generating plant genome from rng seed "
-              << dice.getSeed() << std::endl;
-    parameters.plantGenome = genotype::Plant::random(dice);
-  }
-
-  parameters.plantGenome.toFile("inital", 2);
-
-  std::cout << "Environment:\n" << parameters.envGenome
-            << "\nPlant:\n" << parameters.plantGenome
-            << std::endl;
 
 //  // ===========================================================================
 //  // == SIGINT management
@@ -1074,84 +1279,10 @@ int main(int argc, char *argv[]) {
 //  if (0 != sigaction(SIGTERM, &act, nullptr))
 //    utils::doThrow<std::logic_error>("Failed to trap SIGTERM");
 
-  // ===========================================================================
-  // == Test area
-
-//#warning autoremoving datafolder
-//  stdfs::remove_all(parameters.subfolder);
-
-#if !defined(NDEBUG) && TEST == 1
-  // Test cloning
-
-//  uint i = 1;
-////  utils::assertEqual(i, i, true);
-
-//  double d = 0;
-////  utils::assertEqual(d, d, true);
-
-//  std::array<double, 10> a;
-////  utils::assertEqual(a, a, true);
-
-//  std::vector<double*> v0;
-//  for (uint i=0; i<10; i++) v0.push_back(&a[i]);
-
-//  std::vector<double*> v1 = v0;
-//  v1[0] = &d;
-
-//  utils::assertEqual(v0, v1, true);
-
-  uint D = 1;
-  Simulation clonedSimu;
-  {
-    Simulation baseSimu;
-    baseSimu.init(envGenome, plantGenome);
-    baseSimu.setDuration(simu::Environment::DurationSetType::SET, D);
-    baseSimu.setDataFolder("tmp/test/simulation_cloning/base/");
-    while (!baseSimu.finished())  baseSimu.step();
-    baseSimu.atEnd();
-
-    clonedSimu.clone(baseSimu);
-    assertEqual(baseSimu, clonedSimu, true);
-  }
-
-  clonedSimu.setDuration(simu::Environment::DurationSetType::APPEND, D);
-  clonedSimu.setDataFolder("tmp/test/simulation_cloning/clone/");
-  while (!clonedSimu.finished())  clonedSimu.step();
-  clonedSimu.atEnd();
-
+#if !defined(NDEBUG) && TEST
+  tests();
   return 255;
-
-#elif !defined(NDEBUG) && TEST == 2
-  // Test pareto
-
-  std::ofstream ofsPop ("pareto_test_population.dat");
-
-  rng::FastDice dice (0);
-  PopFitnesses pfitnesses (1000);
-
-  ofsPop << "A B\n";
-  for (Fitnesses &f: pfitnesses) {
-    for (std::string k: {"A", "B"}) {
-      double v = dice(0., 1.);
-      f[k] = v;
-      ofsPop << v << " ";
-    }
-    ofsPop << "\n";
-  }
-
-  std::ofstream ofsPar ("pareto_test_front.dat");
-  std::vector<uint> front;
-  paretoFront(pfitnesses, front);
-
-  ofsPar << "A B\n";
-  for (uint i: front) {
-    const auto &f = pfitnesses[i];
-    for (std::string k: {"A", "B"})
-      ofsPar << f.at(k) << " ";
-    ofsPar << "\n";
-  }
-
-#else
+#endif
 
   // ===========================================================================
   // == Core setup
@@ -1160,9 +1291,7 @@ int main(int argc, char *argv[]) {
     controlGroup(parameters);
 
   else
-    exploreTimelines(parameters);
+    exploreTimelines(parameters, result);
 
   return 0;
-
-#endif
 }

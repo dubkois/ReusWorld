@@ -50,5 +50,3 @@ outfile=$analysisFolder/$field.global.extraction
 
 imgfile=$outfile.pdf
 [ ! -f $imgfile ] && gnuplot -c ./scripts/violin_plot.gp $outfile $3 $imgfile "set ylabel '$field (global)';$4"
-
-

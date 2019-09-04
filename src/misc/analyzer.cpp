@@ -296,7 +296,7 @@ int main (int argc, char *argv[]) {
   std::string loadSaveFile, loadConstraints, loadFields;
 
   bool doFinalCounts = false;
-  std::string viewField;
+  std::vector<std::string> viewFields;
   bool doSpeciesRanges = false;
   bool doDensityHistogram = false;
   std::string compatMatrixSIDList;
@@ -319,8 +319,9 @@ int main (int argc, char *argv[]) {
 
     ("final-counts", "Extracts number of generated plants (GID) and species (SID)",
      cxxopts::value(doFinalCounts))
-    ("extract-field", "Extracts field from the plant population",
-     cxxopts::value(viewField))
+    ("extract-field",
+     "Extracts field from the plant population (repeatable option)",
+     cxxopts::value(viewFields))
     ("species-ranges", "Plots the occupied ranges",
      cxxopts::value(doSpeciesRanges))
     ("density-histogram", "Plots the population count per species",
@@ -367,7 +368,7 @@ int main (int argc, char *argv[]) {
 
   if (doFinalCounts)    finalCounts(s);
 
-  if (!viewField.empty()) extractField(s, viewField);
+  for (const auto &field: viewFields) extractField(s, field);
 
   if (doSpeciesRanges) plotSpeciesRanges(s, loadSaveFile);
   if (doDensityHistogram) plotDensityHistogram(s, loadSaveFile);

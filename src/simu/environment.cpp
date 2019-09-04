@@ -297,7 +297,6 @@ void assertEqual (const Environment &lhs, const Environment &rhs,
   assertEqual(*lhs._physics, *rhs._physics, deepcopy);
 }
 
-
 void Environment::showVoxelsContents(void) const {
   std::cerr << "\tTopology:";
   for (uint i=0; i<=_genome.voxels; i++)

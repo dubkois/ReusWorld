@@ -27,9 +27,7 @@ public:
 
   Simulation (void);
 
-  /// Just to allow emplace_back to work
-  /// Needs to be overwritten afterwards with real values
-  Simulation (Simulation &&) {}
+  Simulation (Simulation &&that);
 
   virtual ~Simulation (void) {
     destroy();
@@ -98,9 +96,13 @@ public:
   }
 
   stdfs::path periodicSaveName (void) const {
+    return periodicSaveName(_dataFolder, _env.time().year());
+  }
+
+  static stdfs::path periodicSaveName(const stdfs::path &folder, uint year) {
     std::ostringstream oss;
-    oss << "y" << _env.time().year() << ".save";
-    return _dataFolder / oss.str();
+    oss << "y" << year << ".save";
+    return folder / oss.str();
   }
 
   void save (stdfs::path file) const;
@@ -170,6 +172,19 @@ protected:
   void logEnvState (void);
 
   void debugPrintAll (void) const;
+
+  friend void swap (Simulation &lhs, Simulation &rhs) {
+    using std::swap;
+    swap(lhs._stats, rhs._stats);
+    swap(lhs._env, rhs._env);
+    swap(lhs._gidManager, rhs._gidManager);
+    swap(lhs._plants, rhs._plants);
+    swap(lhs._ptree, rhs._ptree);
+    swap(lhs._start, rhs._start);
+    swap(lhs._aborted, rhs._aborted);
+    swap(lhs._dataFolder, rhs._dataFolder);
+    swap(lhs._statsFile, rhs._statsFile);
+  }
 };
 
 struct PTreeStats {
