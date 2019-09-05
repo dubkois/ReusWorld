@@ -122,6 +122,7 @@ if (OPENMP_FOUND)
   add_executable(
     timelines
     $<TARGET_OBJECTS:SIMU_OBJS>
+    "src/genotype/genepool.cpp"
     "src/timelines.cpp")
   target_link_libraries(timelines ${APOGeT_LIBRARIES} OpenMP::OpenMP_CXX)
 endif()

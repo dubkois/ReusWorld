@@ -93,7 +93,6 @@ struct Rule_base {
     return os << r.lhs << " -> " << r.rhs;
   }
 
-private:
   static const Symbols& nonTerminals (void) {
     static const Symbols symbols = [] {
       Symbols symbols;
@@ -104,6 +103,7 @@ private:
     }();
     return symbols;
   }
+
   static const Symbols controls;
 };
 

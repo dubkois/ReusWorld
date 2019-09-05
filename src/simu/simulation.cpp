@@ -23,17 +23,17 @@ std::string Simulation::prettyDuration(clock::rep duration) {
   duration /= 60;
 
   if (duration > 0) {
-    pretty = s(duration%60) + "m ";
+    pretty = s(duration%60) + "m " + pretty;
     duration /= 60;
   } else  return pretty;
 
   if (duration > 0) {
-    pretty = s(duration%24) + "h ";
+    pretty = s(duration%24) + "h " + pretty;
     duration /= 24;
   } else  return pretty;
 
   if (duration > 0)
-    pretty = s(duration) + "d ";
+    pretty = s(duration) + "d " + pretty;
   else  return pretty;
 
   return pretty;

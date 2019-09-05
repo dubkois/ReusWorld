@@ -20,7 +20,7 @@ public:
 
   using clock = std::chrono::high_resolution_clock;
   using duration_t = std::chrono::milliseconds;
-  static duration_t duration (clock::time_point start) {
+  static clock::rep duration (clock::time_point start) {
     return std::chrono::duration_cast<duration_t>(
           clock::now() - start).count();
   }

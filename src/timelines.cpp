@@ -8,6 +8,7 @@
 
 #include "simu/simulation.h"
 #include "config/dependencies.h"
+#include "genotype/genepool.h"
 
 //#define TEST 1
 #if TEST == 1
@@ -94,8 +95,6 @@ void tests (void) {
 #endif
 }
 
-static constexpr bool debugGenepool = false;
-
 bool isValidSeed(const std::string& s) {
   return !s.empty()
     && std::all_of(s.begin(),
@@ -106,283 +105,7 @@ bool isValidSeed(const std::string& s) {
 
 using Plant = simu::Plant;
 using Simulation = simu::Simulation;
-
-struct GenePool {
-  static constexpr int W = 30;
-  using G = Plant::Genome;
-
-  void parse (const Simulation &s) {
-    auto start = Simulation::clock::now();
-
-    values.clear();
-    svalues.clear();
-    for (const auto &p: s.plants())
-      addGenome(p.second->genome());
-
-    if (debugGenepool)
-      std::cout << *this << "\nParsed in " << Simulation::duration(start)
-                << " ms" << std::endl;
-  }
-
-  friend double matching (const GenePool &lhs, const GenePool &rhs) {
-    auto start = Simulation::clock::now();
-    uint match = 0, miss = 0;
-
-    if (debugGenepool)
-    std::cout << "\n" << std::string(80, '=') << "\n";
-
-    for (auto lhsMIt = lhs.values.begin(), rhsMIt = rhs.values.begin();
-         lhsMIt != lhs.values.end(); ++lhsMIt, ++rhsMIt) {
-      const auto lhsS = lhsMIt->second, rhsS = rhsMIt->second;
-      uint lmatch = 0, lmiss = 0;
-
-      // Debug
-      std::ostringstream lhsOss, rhsOss;
-      //
-
-      auto lhsSIt = lhsS.begin(), rhsSIt = rhsS.begin();
-      while (lhsSIt != lhsS.end() && rhsSIt != rhsS.end()) {
-        auto lhsV = *lhsSIt, rhsV = *rhsSIt;
-        if (lhsV == rhsV) {
-          lmatch++;
-          ++lhsSIt;
-          ++rhsSIt;
-
-          if (debugGenepool) {
-            lhsOss << " " << lhsV;
-            rhsOss << " " << rhsV;
-          }
-
-        } else if (lhsV < rhsV) {
-          lmiss++;
-          ++lhsSIt;
-
-          if (debugGenepool) {
-            lhsOss << " " << lhsV;
-            rhsOss << " " << std::setw(std::ceil(std::log10(lhsV+1))) << ' ';
-          }
-
-        } else {
-          lmiss++;
-          ++rhsSIt;
-
-          if (debugGenepool) {
-            lhsOss << " " << std::setw(std::ceil(std::log10(rhsV+1))) << ' ';
-            rhsOss << " " << rhsV;
-          }
-        }
-      }
-
-      lmiss += std::distance(lhsSIt, lhsS.end());
-      lmiss += std::distance(rhsSIt, rhsS.end());
-
-      if (debugGenepool) {
-        std::cout << " " << lmatch << " lmatches\n";
-        std::cout << " " << lmiss << " lmisses\n";
-      }
-
-      match += lmatch;
-      miss += lmiss;
-
-      // Debug
-      if (debugGenepool) {
-        std::cout << std::setw(W) << lhsMIt->first << ":";
-        std::cout << lhsOss.str();
-        for (auto it = lhsSIt; it!=lhsS.end(); ++it)
-          std::cout << " " << *it;
-        std::cout << "\n";
-        std::cout << std::setw(W) << " " << " ";
-        std::cout << rhsOss.str();
-        for (auto it = rhsSIt; it!=rhsS.end(); ++it)
-          std::cout << " " << *it;
-        std::cout << "\n";
-      }
-      //
-    }
-
-    auto lhsMIt = lhs.svalues.begin(), rhsMIt = rhs.svalues.begin();
-    while (lhsMIt != lhs.svalues.end() && rhsMIt != rhs.svalues.end()) {
-      uint lmatch = 0, lmiss = 0;
-
-      const auto &lhsK = lhsMIt->first, rhsK = rhsMIt->first;
-      if (lhsK == rhsK) { // Same key. Compare contents
-
-        // Debug
-        std::ostringstream lhsOss, rhsOss;
-        //
-
-        const auto lhsS = lhsMIt->second, rhsS = rhsMIt->second;
-        auto lhsSIt = lhsS.begin(), rhsSIt = rhsS.begin();
-        while (lhsSIt != lhsS.end() && rhsSIt != rhsS.end()) {
-          auto lhsV = *lhsSIt, rhsV = *rhsSIt;
-          if (lhsV == rhsV) {
-            lmatch++;
-            ++lhsSIt;
-            ++rhsSIt;
-
-            if (debugGenepool) {
-              lhsOss << " " << lhsV;
-              rhsOss << " " << rhsV;
-            }
-
-          } else if (lhsV < rhsV) {
-            lmiss++;
-            ++lhsSIt;
-
-            if (debugGenepool) {
-              lhsOss << " " << lhsV;
-              rhsOss << " " << std::setw(lhsV.length()) << ' ';
-            }
-
-          } else {
-            lmiss++;
-            ++rhsSIt;
-
-            if (debugGenepool) {
-              lhsOss << " " << std::setw(rhsV.length()) << ' ';
-              rhsOss << " " << rhsV;
-            }
-          }
-        }
-
-        lmiss += std::distance(lhsSIt, lhsS.end());
-        lmiss += std::distance(rhsSIt, rhsS.end());
-
-        // Debug
-        if (debugGenepool) {
-          std::cout << std::setw(W) << lhsMIt->first << ":";
-          std::cout << lhsOss.str();
-          for (auto it = lhsSIt; it!=lhsS.end(); ++it)
-            std::cout << " " << *it;
-          std::cout << "\n";
-          std::cout << std::setw(W) << " " << " ";
-          std::cout << rhsOss.str();
-          for (auto it = rhsSIt; it!=rhsS.end(); ++it)
-            std::cout << " " << *it;
-          std::cout << "\n";
-        }
-        //
-
-        ++lhsMIt;
-        ++rhsMIt;
-
-      } else if (lhsK < rhsK) {
-        if (debugGenepool) {
-          std::cout << std::setw(W) << lhsMIt->first << ":";
-          for (auto v: lhsMIt->second)  std::cout << " " << v;
-          std::cout << "\n";
-          std::cout << std::setw(W) << " " << "   " << "\n";
-        }
-
-        lmiss += lhsMIt->second.size();
-        ++lhsMIt;
-
-      } else {
-        if (debugGenepool) {
-          std::cout << std::setw(W) << rhsMIt->first << ":  \n";
-          std::cout << std::setw(W) << " " << " ";
-          for (auto v: rhsMIt->second)  std::cout << " " << v;
-          std::cout << "\n";
-        }
-
-        lmiss += rhsMIt->second.size();
-        ++rhsMIt;
-      }
-
-      if (debugGenepool) {
-        std::cout << " " << lmatch << " lmatches\n";
-        std::cout << " " << lmiss << " lmisses\n";
-      }
-
-      match += lmatch;
-      miss += lmiss;
-    }
-
-    for (auto it=lhsMIt; it!=lhs.svalues.end(); ++it) {
-      miss += it->second.size();
-
-      if (debugGenepool) {
-        std::cout << std::setw(W) << it->first << ":";
-        for (auto v: it->second)  std::cout << " " << v;
-        std::cout << "\n";
-        std::cout << std::setw(W) << " " << "   " << "\n";
-      }
-    }
-    for (auto it=rhsMIt; it!=rhs.svalues.end(); ++it) {
-      miss += it->second.size();
-
-      if (debugGenepool) {
-        std::cout << std::setw(W) << rhsMIt->first << ":  \n";
-        std::cout << std::setw(W) << " " << " ";
-        for (auto v: it->second)  std::cout << " " << v;
-        std::cout << "\n";
-      }
-    }
-
-    if (debugGenepool) {
-      std::cout << match << " matches\n";
-      std::cout << miss << " misses\n";
-      std::cout << "Matching = " << match / double(match + miss) << "\n";
-      std::cout << " computed in " << Simulation::duration(start) << " ms"
-                << std::endl;
-      std::cout << "\n" << std::string(80, '=') << "\n";
-    }
-
-    return match / double(match + miss);
-  }
-
-  friend std::ostream& operator<< (std::ostream &os, const GenePool &gp) {
-    os << std::setfill(' ');
-    for (const auto &p: gp.values) {
-      os << std::setw(W) << p.first << ":";
-      for (const auto v: p.second)
-        os << " " << v;
-      os << "\n";
-    }
-    for (const auto &p: gp.svalues) {
-      os << std::setw(W) << p.first << ":";
-      for (const auto v: p.second)
-        os << " " << v;
-      os << "\n";
-    }
-    return os;
-  }
-
-private:
-  std::map<std::string, std::set<int>> values;
-  std::map<std::string, std::set<std::string>> svalues;
-
-  void addGenome (const G &g) {
-#define NINSERT(N,X) values[N].insert(X);
-#define INSERT(X) NINSERT(#X, g.X)
-
-    NINSERT("cdata.optimalDistance", 10*g.cdata.getOptimalDistance())
-    NINSERT("cdata.inbreedTolerance", 10*g.cdata.getInbreedTolerance())
-    NINSERT("cdata.outbreedTolerance", 10*g.cdata.getOutbreedTolerance())
-
-    INSERT(shoot.recursivity)
-    for (const auto &p: g.shoot.rules)
-      svalues[std::string("shoot.") + p.second.lhs].insert(p.second.rhs);
-
-    INSERT(root.recursivity)
-    for (const auto &p: g.root.rules)
-      svalues[std::string("root.") + p.second.lhs].insert(p.second.rhs);
-
-    NINSERT("metabolism.resistors.G", 10*g.metabolism.resistors[0])
-    NINSERT("metabolism.resistors.W", 10*g.metabolism.resistors[1])
-    NINSERT("metabolism.growthSpeed", 10*g.metabolism.growthSpeed)
-    NINSERT("metabolism.deltaWidth", 100*g.metabolism.deltaWidth)
-
-    INSERT(dethklok)
-    NINSERT("fruitOvershoot", 10*g.fruitOvershoot)
-    INSERT(seedsPerFruit)
-    NINSERT("temperatureOptimal", 10*g.temperatureOptimal)
-    NINSERT("temperatureRange", 10*g.temperatureRange)
-
-#undef INSERT
-#undef NINSERT
-  }
-};
+using GenePool = misc::GenePool;
 
 struct Parameters {
   genotype::Environment envGenome;
@@ -458,8 +181,8 @@ struct CFormat {
 const std::map<Fitnesses, CFormat> cformatters {
 //  { CMPT, { "%9s", "%9.3e" } },
   { GDIST, { "%9s", "%9.3e" } },
-  { STGN, { "%6s", "% 6.3f" } },
-  { DENS, { "%6s", "% 5.3f" } },
+  { STGN, { "%5s", "%5.3f" } },
+  { DENS, { "%6s", "% 6.3f" } },
   { TIME, { "%10s", "%10.3e" } },
 };
 
@@ -679,9 +402,15 @@ void computeFitnesses(Alternative &a, const GenePool &atstart) {
 
 // == Genepool diversity
 /* Can cause extinction */
+//    GenePool atend;
+//    atend.parse(s);
+//    a.fitnesses[STGN] = matching(atstart, atend);
+
+// == Genepool frequency variation
+/* ? */
     GenePool atend;
     atend.parse(s);
-    a.fitnesses[STGN] = -matching(atstart, atend);
+    a.fitnesses[STGN] = divergence(atstart, atend);
 
 // ** Control fitness
 // == Population size (keep in range with soft tails)
@@ -1109,8 +838,9 @@ void exploreTimelines (Parameters parameters,
 
   if (reality)
     std::cout << "\nTimelines exploration completed in "
-              << (Simulation::prettyDuration(start + previousDuration) / 1000.
-              << " seconds" << std::endl;
+              << Simulation::prettyDuration(Simulation::duration(start)
+                                            + previousDuration)
+              << std::endl;
   else
     std::cout << "\nTimelines exploration failed. Extinction at epoch "
               << parameters.epoch << std::endl;
