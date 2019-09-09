@@ -44,9 +44,9 @@ then
   exit 1
 fi
 
-if [ $samples -lt 2 ]
+if [ $samples -lt 0 ]
 then
-  echo "Invalid sample size '$samples' < 2"
+  echo "Invalid sample size '$samples' < 0"
   usage
   exit 2
 fi
@@ -78,7 +78,15 @@ then
   head -1 $firstFolder/global.dat > $folder/global.dat
   for e in $folder/results/e*_r
   do
-    for t in global topology temperature hygrometry; do awk -v s=$samples 'NR%s == 2' $e/$t.dat >> $folder/$t.dat; done
+    for t in global topology temperature hygrometry
+    do
+      if [ $samples -gt 1 ]
+      then
+        awk -v s=$samples 'NR%s == 2' $e/$t.dat >> $folder/$t.dat
+      else
+      grep "^y" $e/$t.dat >> $folder/$t.dat
+      fi
+    done
     printf "Aggregated data for $e\r"
   done
   echo

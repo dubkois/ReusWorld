@@ -662,6 +662,7 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = std::chrono::high_resolution_clock::now();
 
+  _ptree.resetStats();
   _env.stepStart();
 
   Plant::Seeds seeds;
@@ -827,7 +828,8 @@ void Simulation::logGlobalStats(void) {
     _statsFile << "Date Time MinGen MaxGen Plants Seeds Females Males Biomass"
                   " Derivations Organs Flowers Fruits Matings"
                   " Reproductions dSeeds Births Deaths AvgDist AvgCompat"
-                  " ASpecies CSpecies MinX MaxX\n";
+                  " ASpecies CSpecies MinX MaxX"
+               << PTree::StatsHeader{} << "\n";
 
   using decimal = Plant::decimal;
   decimal biomass = 0;
@@ -873,6 +875,9 @@ void Simulation::logGlobalStats(void) {
              << " " << _ptree.width() << " " << _ptree.aliveSpecies().size()
 
              << " " << minx << " " << maxx
+
+             << _ptree.stats()
+
              << std::endl;
 
 //  debugPrintAll();
