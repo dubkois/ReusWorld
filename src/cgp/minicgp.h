@@ -277,7 +277,7 @@ public:
 
     persistentData.resize(I+usedNodes.size(), 0);
   }
-  
+
   void evaluate (const Inputs &inputs, Outputs &outputs) {
     std::copy(inputs.begin(), inputs.end(), persistentData.begin());
 

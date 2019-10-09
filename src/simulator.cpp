@@ -167,8 +167,6 @@ int main(int argc, char *argv[]) {
   // == Core setup
 
   simu::Simulation s;
-  if (!outputFolder.empty())
-    s.setDataFolder(outputFolder, simu::Simulation::Overwrite(overwrite));
 
   if (loadSaveFile.empty()) {
     s.init(envGenome, plantGenome);
@@ -179,6 +177,9 @@ int main(int argc, char *argv[]) {
     simu::Simulation::load(loadSaveFile, s, loadConstraints, loadFields);
     config::Simulation::printConfig();
   }
+
+  if (!outputFolder.empty())
+    s.setDataFolder(outputFolder, simu::Simulation::Overwrite(overwrite));
 
   genotype::Plant::printMutationRates(std::cout, 2);
 

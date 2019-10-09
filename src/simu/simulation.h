@@ -18,6 +18,8 @@ public:
   using PGenome = genotype::Plant;
   using PTree = phylogeny::PhylogeneticTree<PGenome, PStats>;
 
+  using Plant_ptr = std::unique_ptr<Plant>;
+
   using clock = std::chrono::high_resolution_clock;
   using duration_t = std::chrono::milliseconds;
   static clock::rep duration (clock::time_point start) {
@@ -115,6 +117,10 @@ public:
   static void load (const stdfs::path &file, Simulation &s,
                     const std::string &constraints, const std::string &fields);
 
+  static Simulation* artificialNaturalisation (
+        const stdfs::path &lhsPath, const stdfs::path &rhsPath,
+        const std::string &loadConstraints);
+
   struct LoadHelp {
     friend std::ostream& operator<< (std::ostream &os, const LoadHelp&);
   };
@@ -144,7 +150,6 @@ protected:
 
   phylogeny::GIDManager _gidManager;
 
-  using Plant_ptr = std::unique_ptr<Plant>;
   using Plants = std::map<float, Plant_ptr>;
   Plants _plants;
 

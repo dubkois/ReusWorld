@@ -588,6 +588,7 @@ float Plant::ruleBiomassCost (const Genome &g, Layer l, char symbol) {
 
     else if (Rule_base::isValidNonTerminal(c))
       cost += ntcost;
+
 //  else no cost
   }
   return cost;

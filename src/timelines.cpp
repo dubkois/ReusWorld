@@ -576,7 +576,7 @@ void controlGroup (const Parameters &parameters) {
               << s.environment().time().pretty() << std::endl;
   else
     std::cout << "\nControl group completed in "
-              << Simulation::duration(start) / 1000. << " seconds" << std::endl;
+              << Simulation::prettyDuration(start) << std::endl;
 }
 
 

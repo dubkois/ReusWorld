@@ -127,6 +127,12 @@ if (OPENMP_FOUND)
   target_link_libraries(timelines ${APOGeT_LIBRARIES} OpenMP::OpenMP_CXX)
 endif()
 
+add_executable(
+    naturalisation
+    $<TARGET_OBJECTS:SIMU_OBJS>
+    "src/naturalisation.cpp")
+target_link_libraries(naturalisation ${APOGeT_LIBRARIES})
+
 ################################################################################
 ## Targets (other)
 ################################################################################

@@ -655,12 +655,20 @@ void Simulation::printStepHeader (void) const {
             << std::endl;
 }
 
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+void breakpoint (void) {
+  std::cout << "breakpoint" << std::endl;
+}
+#pragma GCC pop_options
+
+
 void Simulation::step (void) {
   if (Config::verbosity() > 0)
     printStepHeader();
 
   _stats = Stats{};
-  _stats.start = std::chrono::high_resolution_clock::now();
+  _stats.start = clock::now();
 
   _ptree.resetStats();
   _env.stepStart();
@@ -1133,12 +1141,13 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
     }
   }
 
-  if (!fields.empty())
-    std::cout << "Requested fields: "
-              << utils::join(requestedFields.begin(), requestedFields.end(), ",")
-              << std::endl;
-
   std::cout << "Loading " << file << "...\r" << std::flush;
+
+//  if (!fields.empty())
+//    std::cout << "Requested fields: "
+//              << utils::join(requestedFields.begin(), requestedFields.end(),
+//                             ",")
+//              << std::endl;
 
   s._start = clock::now();
   auto startTime = clock::now();
@@ -1226,6 +1235,44 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
   std::cout << "Loaded " << file << "          " << std::endl;
 }
+
+Simulation* Simulation::artificialNaturalisation (
+    const stdfs::path &lhsPath, const stdfs::path &rhsPath,
+    const std::string &loadConstraints) {
+
+  Simulation *s = new Simulation();
+  Simulation &lhs = *s;
+
+  Plant::Seeds newseeds;
+
+  Simulation::load(lhsPath, lhs, loadConstraints, "all");
+  std::map<const Plant*, std::map<const Organ*, Organ*>> olookup;
+
+  { // Preserve all seed existing seeds and collect all pending
+    std::vector<Plant*> lhsPlants;
+    for (const auto &pair: lhs._plants)
+      if (!pair.second->isInSeedState())
+        lhsPlants.push_back(pair.second.get());
+    for (Plant *ptr: lhsPlants)  lhs.delPlant(*ptr, newseeds);
+  }
+
+  {
+    Simulation rhs;
+    Simulation::load(rhsPath, rhs, loadConstraints, "plants");
+    olookup.clear();
+    while (!rhs._plants.empty()) {
+      Plant &p = *rhs._plants.begin()->second;
+      if (p.isInSeedState())
+        lhs._plants[p.pos().x] = std::unique_ptr<Plant>(Plant::clone(p, olookup));
+      rhs.delPlant(p, newseeds);
+    }
+  }
+
+  lhs.plantSeeds(newseeds);
+
+  return s;
+}
+
 
 void assertEqual(const Simulation &lhs, const Simulation &rhs, bool deepcopy) {
   using utils::assertEqual;

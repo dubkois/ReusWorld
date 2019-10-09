@@ -119,8 +119,6 @@ int main(int argc, char *argv[]) {
   setlocale(LC_NUMERIC,"C");
 
   visu::GraphicSimulation s;
-  if (!outputFolder.empty())
-    s.setDataFolder(outputFolder, simu::Simulation::Overwrite(overwrite));
 
   QMainWindow *w = new QMainWindow;
   gui::MainView *v = new gui::MainView(s.environment(), w);
@@ -164,8 +162,13 @@ int main(int argc, char *argv[]) {
 
     s.init(envGenome, plantGenome);
 
-  } else
+  } else {
     visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints, loadFields);
+    config::Simulation::printConfig();
+  }
+
+  if (!outputFolder.empty())
+    s.setDataFolder(outputFolder, simu::Simulation::Overwrite(overwrite));
 
   if (!duration.empty()) {
     if (duration.size() < 2)
