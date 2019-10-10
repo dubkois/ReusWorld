@@ -130,7 +130,10 @@ endif()
 add_executable(
     naturalisation
     $<TARGET_OBJECTS:SIMU_OBJS>
-    "src/naturalisation.cpp")
+    "src/naturalisation/types.hpp"
+    "src/naturalisation/simulation.h"
+    "src/naturalisation/simulation.cpp"
+    "src/naturalisation/main.cpp")
 target_link_libraries(naturalisation ${APOGeT_LIBRARIES})
 
 ################################################################################

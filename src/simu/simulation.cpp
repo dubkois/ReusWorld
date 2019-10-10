@@ -7,6 +7,13 @@
 /// TODO Remove
 #include "kgd/utils/shell.hpp"
 
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+void breakpoint (void) {
+  std::cout << "breakpoint" << std::endl;
+}
+#pragma GCC pop_options
+
 namespace simu {
 
 std::string Simulation::prettyDuration(clock::rep duration) {
@@ -77,7 +84,7 @@ std::map<genotype::cgp::Outputs, stdfs::path> envPaths {
 };
 
 Simulation::Simulation (void)
-  : _stats(), _aborted(false), _dataFolder(".") {}
+  : _stats(), _ptreeActive(true), _aborted(false), _dataFolder(".") {}
 
 Simulation::Simulation (Simulation &&that) : Simulation() {
   swap(*this, that);
@@ -431,7 +438,7 @@ void Simulation::delPlant(Plant &p, Plant::Seeds &seeds) {
   if (debugPlantManagement) p.autopsy();
   _env.removeCollisionData(&p);
 
-  if (_ptree.root())  _ptree.delGenome(p.genome());
+  if (_ptreeActive && _ptree.root())  _ptree.delGenome(p.genome());
 
   _plants.erase(p.pos().x);
 }
@@ -503,6 +510,8 @@ void Simulation::performReproductions(void) {
         for (auto &g: litter) {
           g.genealogy().updateAfterCrossing(mother->genealogy(),
                                             father->genealogy(), _gidManager);
+
+          newSeed(mother, father, g.id());
           _ptree.registerCandidate(g.genealogy());
           if (debugReproduction)  std::cerr << " " << g.id();
         }
@@ -534,7 +543,7 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
   std::vector<Plant::Seed> unplanted;
   std::vector<Plant*> newborns;
 
-  for (const Plant::Seed &seed: seeds) {
+  for (const Plant::Seed &seed: rng::randomIterator(seeds, _env.dice())) {
     if (seed.biomass <= 0) {
       unplanted.push_back(seed);
       continue;
@@ -654,14 +663,6 @@ void Simulation::printStepHeader (void) const {
             << " at " << utils::CurrentTime{} << " ##"
             << std::endl;
 }
-
-#pragma GCC push_options
-#pragma GCC optimize ("O0")
-void breakpoint (void) {
-  std::cout << "breakpoint" << std::endl;
-}
-#pragma GCC pop_options
-
 
 void Simulation::step (void) {
   if (Config::verbosity() > 0)
@@ -788,7 +789,10 @@ void Simulation::setDataFolder (const stdfs::path &path, Overwrite o) {
   }
   if (_aborted) return;
 
-  if (!stdfs::exists(_dataFolder))  stdfs::create_directories(_dataFolder);
+  if (!stdfs::exists(_dataFolder)) {
+    std::cout << "Creating data folder " << _dataFolder << std::endl;
+    stdfs::create_directories(_dataFolder);
+  }
 
   stdfs::path statsPath = path / "global.dat";
   if (_statsFile.is_open()) _statsFile.close();
@@ -1235,44 +1239,6 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
   std::cout << "Loaded " << file << "          " << std::endl;
 }
-
-Simulation* Simulation::artificialNaturalisation (
-    const stdfs::path &lhsPath, const stdfs::path &rhsPath,
-    const std::string &loadConstraints) {
-
-  Simulation *s = new Simulation();
-  Simulation &lhs = *s;
-
-  Plant::Seeds newseeds;
-
-  Simulation::load(lhsPath, lhs, loadConstraints, "all");
-  std::map<const Plant*, std::map<const Organ*, Organ*>> olookup;
-
-  { // Preserve all seed existing seeds and collect all pending
-    std::vector<Plant*> lhsPlants;
-    for (const auto &pair: lhs._plants)
-      if (!pair.second->isInSeedState())
-        lhsPlants.push_back(pair.second.get());
-    for (Plant *ptr: lhsPlants)  lhs.delPlant(*ptr, newseeds);
-  }
-
-  {
-    Simulation rhs;
-    Simulation::load(rhsPath, rhs, loadConstraints, "plants");
-    olookup.clear();
-    while (!rhs._plants.empty()) {
-      Plant &p = *rhs._plants.begin()->second;
-      if (p.isInSeedState())
-        lhs._plants[p.pos().x] = std::unique_ptr<Plant>(Plant::clone(p, olookup));
-      rhs.delPlant(p, newseeds);
-    }
-  }
-
-  lhs.plantSeeds(newseeds);
-
-  return s;
-}
-
 
 void assertEqual(const Simulation &lhs, const Simulation &rhs, bool deepcopy) {
   using utils::assertEqual;
