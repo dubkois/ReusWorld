@@ -101,7 +101,7 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 
   _gidManager.setNext(plant.id());
   plant.gdata.setAsPrimordial(_gidManager);
-  _ptree.addGenome(plant);
+  if (_ptreeActive) _ptree.addGenome(plant);
 
   uint N = Config::initSeeds();
   float dx = .5; // m
@@ -413,7 +413,9 @@ Plant* Simulation::addPlant(const PGenome &g, float x, float biomass) {
   // Is there room left in the environment?
   if (!insertionAborted) {
     if (_env.addCollisionData(plant)) {
-      auto pd = _ptree.addGenome(plant->genome());
+      Plant::PData pd { phylogeny::SID::INVALID, nullptr };
+      if (_ptreeActive) pd = _ptree.addGenome(plant->genome());
+
       plant->init(_env, biomass, pd);
 
       if (debugPlantManagement)
@@ -512,7 +514,7 @@ void Simulation::performReproductions(void) {
                                             father->genealogy(), _gidManager);
 
           newSeed(mother, father, g.id());
-          _ptree.registerCandidate(g.genealogy());
+          if (_ptreeActive) _ptree.registerCandidate(g.genealogy());
           if (debugReproduction)  std::cerr << " " << g.id();
         }
         if (debugReproduction)  std::cerr << std::endl;
@@ -649,7 +651,7 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
   }
 
   for (const Plant::Seed &seed: unplanted)
-    _ptree.unregisterCandidate(seed.genome.genealogy());
+    if (_ptreeActive) _ptree.unregisterCandidate(seed.genome.genealogy());
 
   postInsertionCleanup(newborns);
 }
@@ -671,7 +673,7 @@ void Simulation::step (void) {
   _stats = Stats{};
   _stats.start = clock::now();
 
-  _ptree.resetStats();
+  if (_ptreeActive) _ptree.resetStats();
   _env.stepStart();
 
   Plant::Seeds seeds;
@@ -698,10 +700,11 @@ void Simulation::step (void) {
   if (!seeds.empty()) plantSeeds(seeds);
 #endif
 
-  _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
-              [] (const Plants::value_type &pair) {
-    return pair.second->species();
-  });
+  if (_ptreeActive)
+    _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
+                [] (const Plants::value_type &pair) {
+      return pair.second->species();
+    });
 
   updateGenStats();
   logToFiles();
@@ -729,17 +732,19 @@ void Simulation::atEnd(void) {
     logToFiles();
   }
 
-  _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
-              [] (const Plants::value_type &pair) {
-    return pair.second->species();
-  });
+  if (_ptreeActive) {
+    _ptree.step(_env.time().toTimestamp(), _plants.begin(), _plants.end(),
+                [] (const Plants::value_type &pair) {
+      return pair.second->species();
+    });
 
-  stdfs::path ptreePath = dataFolder() / "phylogeny.ptree.json";
-  std::ofstream ptreeFile (ptreePath, openMode);
-  if (!ptreeFile.is_open())
-    utils::doThrow<std::invalid_argument>(
-      "Unable to open ptree file ", ptreePath);
-  _ptree.saveTo(ptreeFile);
+    stdfs::path ptreePath = dataFolder() / "phylogeny.ptree.json";
+    std::ofstream ptreeFile (ptreePath, openMode);
+    if (!ptreeFile.is_open())
+      utils::doThrow<std::invalid_argument>(
+        "Unable to open ptree file ", ptreePath);
+    _ptree.saveTo(ptreeFile);
+  }
 
   if (Config::verbosity() > 0) {
     std::cout << "Simulation ";

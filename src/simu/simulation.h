@@ -54,7 +54,7 @@ public:
   }
 
   void abort (void) { _aborted = true; }
-  bool finished (void) const {
+  virtual bool finished (void) const {
     return _aborted || extinct() || _env.endTime() <= _env.time();
   }
 

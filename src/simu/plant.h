@@ -221,6 +221,7 @@ public:
 
   float heatEfficiency (float T) const;
 
+  bool starvedSeed (void) const;
   bool spontaneousDeath (void) const;
   void autopsy (void) const;
 

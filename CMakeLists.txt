@@ -130,7 +130,6 @@ endif()
 add_executable(
     naturalisation
     $<TARGET_OBJECTS:SIMU_OBJS>
-    "src/naturalisation/types.hpp"
     "src/naturalisation/simulation.h"
     "src/naturalisation/simulation.cpp"
     "src/naturalisation/main.cpp")

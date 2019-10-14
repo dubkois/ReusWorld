@@ -148,6 +148,13 @@ float Plant::age (void) const {
   return _age / float(SConfig::stepsPerDay());
 }
 
+bool Plant::starvedSeed(void) const {
+  for (Organ *s: _nonTerminals)
+    if (s->requiredBiomass() > 0)
+      return true;
+  return false;
+}
+
 bool Plant::spontaneousDeath(void) const {
   if (config::Simulation::DEBUG_NO_METABOLISM())  return false;
 
@@ -161,11 +168,18 @@ bool Plant::spontaneousDeath(void) const {
 }
 
 void Plant::autopsy(void) const {
-  bool spontaneous = spontaneousDeath();
-  std::cerr << PlantID(this) << " Deleted."
-            << " Death was " << (spontaneous ? "spontaneous" : "forced");
-  if (spontaneous) {
-    std::cerr << "\n\tReserves:";
+  std::cerr << PlantID(this) << " Deleted. Death cause was ";
+  if (starvedSeed()) {
+    std::cerr << "starved seed\n"
+              << "\tIncrimited non-terminals:";
+    for (Organ *s: _nonTerminals)
+      if (s->requiredBiomass() > 0)
+        std::cerr << " " << OrganID(s);
+    std::cerr << "\n" << std::endl;
+
+  } else if (spontaneousDeath()) {
+    std::cerr << "spontaneous\n"
+              << "\n\tReserves:";
 
     using PL = EnumUtils<Plant::Layer>;
     using PE = EnumUtils<Plant::Element>;
@@ -177,9 +191,9 @@ void Plant::autopsy(void) const {
     std::cerr << "\n\tAge: " << age() << " / " << _genome.dethklok
               << "\n\tOrgans: " << _organs.size()
               << " (" << _sinks.size() << " of which are sinks)"
-              << std::endl;
+              << "\n" << std::endl;
   } else
-    std::cerr << std::endl;
+    std::cerr << " forced" << std::endl;
 }
 
 template <typename F = std::function<bool(const Organ*)>>
@@ -1044,11 +1058,7 @@ uint Plant::step(Environment &env) {
               << std::endl;
 
   // Check if there is still enough resources to grow the first rules
-  if (isInSeedState()) {
-    bool starvedOut = false;
-    for (Organ *s: _nonTerminals) starvedOut |= (s->requiredBiomass() > 0);
-    if (starvedOut) kill();
-  }
+  if (isInSeedState() && starvedSeed()) kill();
 
   uint derived = 0;
   if ((SConfig::DEBUG_NO_METABOLISM() || _age % SConfig::stepsPerDay() == 0)

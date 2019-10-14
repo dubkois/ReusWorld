@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  Simulation *s;
+  Simulation *s = nullptr;
 
   switch (ntype) {
   case NType::ARTIFICIAL:
@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
   }
 
   s->setDataFolder(subfolder, overwrite);
-  s->setDuration(simu::Environment::DurationSetType::APPEND, 10);
+  s->setDuration(simu::Environment::DurationSetType::APPEND, 100);
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";
@@ -121,21 +121,20 @@ int main(int argc, char *argv[]) {
 //  if (configFile.empty()) config::Simulation::printConfig("");
 
   std::ofstream nstats (subfolder / "naturalisation.dat");
-  nstats << "date lhs rhs hyb\n";
+  nstats << Simulation::StatsHeader{} << "\n";
+  nstats << Simulation::Stats{*s} << "\n";
 
-  static const auto writeStats = [] (std::ofstream &ofs, const Simulation &s) {
-    ofs << s.time();
-    for (NTag tag: EnumUtils<NTag>::iterator())
-      ofs << " " << s.counts(tag);
-    ofs << "\n";
-  };
+  std::cout << "Initial counts: "
+            << s->counts(NTag::LHS) << " (lhs), "
+            << s->counts(NTag::RHS) << " (rhs), "
+            << s->counts(NTag::HYB) << " (hyb)\n"
+            << "L/R ratio: " << s->ratio() << std::endl;
 
-  writeStats(nstats, *s);
   if (!s->time().isStartOfYear()) s->printStepHeader();
   while (!s->finished()) {
     if (s->time().isStartOfYear()) s->printStepHeader();
     s->step();
-    writeStats(nstats, *s);
+    nstats << Simulation::Stats{*s} << "\n";
   }
   s->atEnd();
 
