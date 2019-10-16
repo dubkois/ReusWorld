@@ -395,7 +395,8 @@ Plant* Simulation::addPlant(const PGenome &g, float x, float biomass) {
       while (x < -_env.xextent())  x += _env.width();
       while (x >  _env.xextent())  x -= _env.width();
 
-    } else  insertionAborted = true; // Reject
+    } else
+      insertionAborted = true; // Reject
   }
 
   if (!insertionAborted) { // Is there room left in the main container? (should be)
@@ -545,6 +546,8 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
   std::vector<Plant::Seed> unplanted;
   std::vector<Plant*> newborns;
 
+  uint pfails = 0;
+
   for (const Plant::Seed &seed: rng::randomIterator(seeds, _env.dice())) {
     if (seed.biomass <= 0) {
       unplanted.push_back(seed);
@@ -648,6 +651,7 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
     // First insert regardless of space
     Plant *p = addPlant(seed.genome, x, seed.biomass);
     if (p)  newborns.push_back(p);
+    else  pfails++;
   }
 
   for (const Plant::Seed &seed: unplanted)
@@ -1072,7 +1076,9 @@ void Simulation::save (stdfs::path file) const {
     Plant::save(jp_, *p.second);
     jp.push_back(jp_);
   }
-  PTree::toJson(jt, _ptree);
+
+  if (_ptreeActive)
+    PTree::toJson(jt, _ptree);
 
   json j;
   j["config"] = jc;

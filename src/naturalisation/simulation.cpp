@@ -1,5 +1,6 @@
 #include "kgd/random/random_iterator.hpp"
 
+#include "collidingenvironments.h"
 #include "simulation.h"
 
 namespace simu {
@@ -21,7 +22,7 @@ void NatSimulation::step (void) {
   if (_env.time().isStartOfYear()) {
     float newratio = ratio();
 
-    float dratio = _prevratio - newratio;
+    float dratio = newratio - _prevratio;
     _stable = (std::fabs(dratio) < 1e-3) || newratio == 1 || newratio == 0;
 
     std::cout << StatsHeader{} << "\n" << Stats{*this} << "\n";
@@ -113,6 +114,17 @@ void NatSimulation::updateRatios (void) {
   assert(std::fabs(_ratios[NTag::LHS] + _ratios[NTag::RHS] - 1) < 1e-3);
 }
 
+struct TaggedPlant {
+  Plant* plant;
+  NTag tag;
+};
+using TaggedPlants = std::vector<TaggedPlant>;
+
+Plant* pclone (const Plant *p) {
+  std::map<const Plant*, std::map<const Organ*, Organ*>> olookups;
+  return Plant::clone(*p, olookups);
+}
+
 NatSimulation*
 NatSimulation::artificialNaturalisation (Parameters &params) {
 
@@ -122,16 +134,7 @@ NatSimulation::artificialNaturalisation (Parameters &params) {
   Simulation::load(params.lhsSimulationFile, lhs,
                    params.loadConstraints, "!ptree");
 
-  struct TaggedPlant {
-    Plant* plant;
-    NTag tag;
-  };
-  std::vector<TaggedPlant> plants;
-
-  static const auto clone = [] (const Plant *p) {
-    std::map<const Plant*, std::map<const Organ*, Organ*>> olookups;
-    return Plant::clone(*p, olookups);
-  };
+  TaggedPlants plants;
 
   static const auto extract =
     [] (NatSimulation &s, auto &plants, NTag tag) {
@@ -153,10 +156,12 @@ NatSimulation::artificialNaturalisation (Parameters &params) {
       s._pendingSeeds[seed.genome.id()] = Ratios::fromTag(tag);
     s.plantSeeds(newseeds);
 
+    // Copy all remaining plants and delete from source
     s._pendingSeeds.clear();
     while (!s._plants.empty()) {
       Plant *p = s._plants.begin()->second.get();
-      plants.push_back({clone(p), tag});
+      assert(p->isInSeedState());
+      if (!p->starvedSeed())  plants.push_back({pclone(p), tag});
       s.Simulation::delPlant(*p, newseeds);
     }
   };
@@ -168,7 +173,10 @@ NatSimulation::artificialNaturalisation (Parameters &params) {
   {
     NatSimulation rhs;
     Simulation::load(params.rhsSimulationFile, rhs,
-                     params.loadConstraints, "!ptree,!env");
+                     params.loadConstraints, "!ptree");
+
+    assert(lhs._env.width() == rhs._env.width());
+    assert(lhs._env.height() == rhs._env.height());
 
     std::cout<< "Extracting plants for RHS\r" << std::flush;
     extract(rhs, plants, NTag::RHS);
@@ -208,9 +216,36 @@ NatSimulation::artificialNaturalisation (Parameters &params) {
 }
 
 NatSimulation*
-NatSimulation::naturalNaturalisation (Parameters &/*params*/) {
-  utils::doThrow<std::logic_error>("Natural naturalisation not implemented");
-  return nullptr;
+NatSimulation::naturalNaturalisation (Parameters &params) {
+  NatSimulation *s = new NatSimulation();
+
+  TaggedPlants plants;
+  Environment elhs, erhs;
+
+  static const auto extract =
+      [] (auto file, auto constraints, auto &plants, Environment &e, NTag tag) {
+
+    NatSimulation tmp;
+    Simulation::load(file, tmp, constraints, "!ptree");
+
+    Plant::Seeds discardedseeds;
+    while(!tmp._plants.empty()) {
+      Plant *p = tmp._plants.begin()->second.get();
+      plants.push_back({pclone(p), tag});
+      tmp.delPlant(*p, discardedseeds);
+    }
+
+    e.clone(tmp._env, {}, {});
+  };
+
+  // Extract both environments and populations
+  extract(params.lhsSimulationFile, params.loadConstraints, plants, elhs, NTag::LHS);
+  extract(params.rhsSimulationFile, params.loadConstraints, plants, erhs, NTag::RHS);
+
+  // Create two sided environment
+  CollidingEnvironments *ce = CollidingEnvironments::create(elhs, erhs);
+
+  return s;
 }
 
 } // end of namespace naturalisation
