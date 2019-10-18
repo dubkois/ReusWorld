@@ -28,6 +28,7 @@ int main(int argc, char *argv[]) {
   NType ntype = NType::ARTIFICIAL;
   stdfs::path subfolder = "tmp/naturalisation_test/";
   char coverwrite;
+  uint stepDuration = 4;
 
   cxxopts::Options options("ReusWorld (naturalisation test)",
                            "Resilience assertion through naturalisation tests");
@@ -52,6 +53,8 @@ int main(int argc, char *argv[]) {
     ("ntype", "Naturalisation type (ARTIFICIAL or NATURAL)."
               " Defaults to the first",
      cxxopts::value(ntype))
+    ("step", "Number of years per epoch for the evolved controllers",
+     cxxopts::value(stepDuration))
     ;
 
   auto result = options.parse(argc, argv);
@@ -111,7 +114,7 @@ int main(int argc, char *argv[]) {
   }
 
   s->setDataFolder(subfolder, overwrite);
-  s->setDuration(simu::Environment::DurationSetType::APPEND, 100);
+  s->setDuration(simu::Environment::DurationSetType::APPEND, stepDuration);
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";
@@ -131,10 +134,15 @@ int main(int argc, char *argv[]) {
             << "L/R ratio: " << s->ratio() << std::endl;
 
   if (!s->time().isStartOfYear()) s->printStepHeader();
+
+  uint epochs = 0;
   while (!s->finished()) {
     if (s->time().isStartOfYear()) s->printStepHeader();
     s->step();
     nstats << Simulation::Stats{*s} << "\n";
+
+    if (s->timeout() && epochs++ < 25)
+      s->setDuration(simu::Environment::DurationSetType::APPEND, stepDuration);
   }
   s->atEnd();
 

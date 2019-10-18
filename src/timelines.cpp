@@ -774,7 +774,7 @@ void exploreTimelines (Parameters parameters,
   };
 
   const auto logEnvController = [] (const Simulation &s) {
-    const genotype::Environment g = s.environment().genome();
+    const genotype::Environment g = s.environment().genomes().front();
     g.toFile(s.dataFolder() / "controller");
 
     std::ofstream ofs (s.dataFolder() / "controller.tex");

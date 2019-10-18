@@ -1019,6 +1019,12 @@ void Plant::updateRequirements(void) {
   }
 }
 
+void Plant::updatePosition (float newx) {
+  _pos.x = newx;
+  for (Organ *o: _organs) o->updateGlobalTransformation();
+  updateGeometry();
+}
+
 void Plant::updateAltitude(Environment &env, float h) {
   _pos.y = h;
 

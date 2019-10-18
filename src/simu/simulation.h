@@ -53,9 +53,13 @@ public:
     return _plants.empty();
   }
 
+  bool timeout (void) const {
+    return _env.endTime() <= _env.time();
+  }
+
   void abort (void) { _aborted = true; }
   virtual bool finished (void) const {
-    return _aborted || extinct() || _env.endTime() <= _env.time();
+    return _aborted || extinct() || timeout();
   }
 
   void printStepHeader (void) const;

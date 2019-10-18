@@ -128,6 +128,7 @@ public:
 
   bool isDirty (State s) const {  return _dirty.test(s);  }
 
+  void updatePosition (float newx);
   void updateAltitude (Environment &env, float h);
   void updateGeometry (void);
   void update (Environment &env);

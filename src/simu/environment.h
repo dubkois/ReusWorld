@@ -21,7 +21,12 @@ struct Branch;
 ///  - biotic (inter-plant collisions)
 class Environment {
   using Genome = genotype::Environment;
-  Genome _genome;
+  std::vector<Genome> _genomes;
+
+  float _totalWidth, _depth;
+  float _minTemperature, _maxTemperature;
+
+  uint _voxels;
 
   rng::FastDice _dice;
 
@@ -49,26 +54,28 @@ public:
   ~Environment(void);
 
   void init (const Genome &g);
+  void initFrom (const std::vector<Environment*> &these);
+
   void destroy (void);
 
-  const auto& genome (void) const {
-    return _genome;
+  const auto& genomes (void) const {
+    return _genomes;
   }
 
   auto width (void) const {
-    return _genome.width;
+    return _totalWidth;
   }
 
   auto height (void) const {
-    return 2. * _genome.depth;
+    return 2 * _depth;
   }
 
   auto xextent (void) const {
-    return .5 * _genome.width;
+    return .5 * _totalWidth;
   }
 
   auto yextent (void) const {
-    return _genome.depth;
+    return _depth;
   }
 
   auto insideXRange (float x) const {
@@ -84,11 +91,11 @@ public:
   }
 
   auto minTemperature (void) const {
-    return _genome.minT;
+    return _minTemperature;
   }
 
   auto maxTemperature (void) const {
-    return _genome.maxT;
+    return _maxTemperature;
   }
 
   auto& dice (void) {
@@ -116,7 +123,7 @@ public:
   }
 
   auto voxelCount (void) const {
-    return _genome.voxels;
+    return _voxels;
   }
 
   const auto& topology (void) const  {
@@ -145,7 +152,10 @@ public:
 
   void setDuration (DurationSetType type, uint duration);
   void mutateController (rng::AbstractDice &dice) {
-    _genome.controller.mutate(dice);
+    if (_genomes.size() != 1)
+      utils::doThrow<std::logic_error>(
+        "Controller mutation is only valid for single-genome environments!");
+    _genomes.front().controller.mutate(dice);
   }
 
   const physics::UpperLayer::Items& canopy(const Plant *p) const;
@@ -189,7 +199,7 @@ public:
 
   friend void swap (Environment &lhs, Environment &rhs) {
     using std::swap;
-    swap(lhs._genome, rhs._genome);
+    swap(lhs._genomes, rhs._genomes);
     swap(lhs._dice, rhs._dice);
     swap(lhs._topology, rhs._topology);
     swap(lhs._temperature, rhs._temperature);
@@ -203,7 +213,10 @@ public:
   }
 
 private:
-  void updateVoxel (float &voxel, float newValue);
+  void initInternal (void);
+  void updateInternals (void);
+
+  void updateVoxel (const Genome &g, float &voxel, float newValue);
 
   float interpolate (const Voxels &voxels, float x) const;
 

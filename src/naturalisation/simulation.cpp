@@ -1,6 +1,5 @@
 #include "kgd/random/random_iterator.hpp"
 
-#include "collidingenvironments.h"
 #include "simulation.h"
 
 namespace simu {
@@ -44,7 +43,7 @@ Plant* NatSimulation::addPlant (const PGenome &g, float x, float biomass) {
   auto tag = it->second;
 
   updateCounts(tag, +1);
-  assert(counts(tag) < _plants.size());
+//  assert(counts(tag) < _plants.size());
 
   _populations[p] = tag;
   _pendingSeeds.erase(it);
@@ -62,8 +61,8 @@ void NatSimulation::delPlant (Plant &p, Plant::Seeds &seeds) {
       "Could not find plant ", p.id(), " in population list");
 
   auto tag = it->second;
-  assert(0 < counts(tag));
-  assert(counts(tag) <= _plants.size());
+//  assert(0 < counts(tag));
+//  assert(counts(tag) <= _plants.size());
   updateCounts(tag, -1);
   _populations.erase(it);
 
@@ -232,7 +231,7 @@ NatSimulation::naturalNaturalisation (Parameters &params) {
     while(!tmp._plants.empty()) {
       Plant *p = tmp._plants.begin()->second.get();
       plants.push_back({pclone(p), tag});
-      tmp.delPlant(*p, discardedseeds);
+      tmp.Simulation::delPlant(*p, discardedseeds);
     }
 
     e.clone(tmp._env, {}, {});
@@ -243,7 +242,35 @@ NatSimulation::naturalNaturalisation (Parameters &params) {
   extract(params.rhsSimulationFile, params.loadConstraints, plants, erhs, NTag::RHS);
 
   // Create two sided environment
-  CollidingEnvironments *ce = CollidingEnvironments::create(elhs, erhs);
+  s->_env.initFrom({&elhs, &erhs});
+
+  // Dump all plants at their (shifted) position
+  for (auto &tp: plants) {
+    float dx = 0;
+    switch (tp.tag) {
+    case NTag::LHS: dx = -elhs.xextent(); break;
+    case NTag::RHS: dx =  erhs.xextent(); break;
+    default:
+      utils::doThrow<std::invalid_argument>("Invalid tag ", tp.tag);
+    }
+
+    tp.plant->updatePosition(tp.plant->pos().x + dx);
+    if (s->_plants.try_emplace(tp.plant->pos().x,
+                              Plant_ptr(tp.plant)).second
+            && s->_env.addCollisionData(tp.plant)) {
+
+      Ratios r = Ratios::fromTag(tp.tag);
+      s->_populations[tp.plant] = r;
+      s->updateCounts(r, +1);
+
+      for (auto f: tp.plant->fruits())
+        for (auto &g: f.second.genomes)
+          s->_pendingSeeds[g.id()] = Ratios::fromTag(tp.tag);
+    }
+  }
+
+  s->updateRatios();
+  s->_prevratio = s->ratio();
 
   return s;
 }
