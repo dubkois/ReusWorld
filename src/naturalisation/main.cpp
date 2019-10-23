@@ -55,6 +55,10 @@ int main(int argc, char *argv[]) {
      cxxopts::value(ntype))
     ("step", "Number of years per epoch for the evolved controllers",
      cxxopts::value(stepDuration))
+    ("stability-threshold", "Stability threshold",
+     cxxopts::value(params.stabilityThreshold))
+    ("stability-steps", "Number of stable steps required for convergence",
+     cxxopts::value(params.stabilitySteps))
     ;
 
   auto result = options.parse(argc, argv);
@@ -131,7 +135,10 @@ int main(int argc, char *argv[]) {
             << s->counts(NTag::LHS) << " (lhs), "
             << s->counts(NTag::RHS) << " (rhs), "
             << s->counts(NTag::HYB) << " (hyb)\n"
-            << "L/R ratio: " << s->ratio() << std::endl;
+            << "L/R ratio: " << s->ratio() << "\n"
+            << "Convergence requires dL/R <= " << params.stabilityThreshold
+            << " for " << params.stabilitySteps << " steps" << std::endl;
+
 
   if (!s->time().isStartOfYear()) s->printStepHeader();
 

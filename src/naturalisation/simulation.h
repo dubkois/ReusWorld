@@ -13,6 +13,9 @@ struct Parameters {
   stdfs::path lhsSimulationFile = "";
   stdfs::path rhsSimulationFile = "";
   std::string loadConstraints = "none";
+
+  float stabilityThreshold = 1e-3;
+  uint stabilitySteps = 3;
 };
 
 struct Ratios {
@@ -74,6 +77,7 @@ public:
   Plant* addPlant (const PGenome &g, float x, float biomass) override;
   void delPlant (Plant &p, Plant::Seeds &seeds) override;
   void newSeed (const Plant *mother, const Plant *father, GID child) override;
+  void stillbornSeed (const Plant::Seed &seed) override;
 
   auto counts (NTag tag) const {
     return _counts[EnumUtils<NTag>::underlying_t(tag)];
@@ -83,11 +87,20 @@ public:
     return _ratios;
   }
 
+  const auto& minXRanges (void) const {
+    return _xmin;
+  }
+
+  const auto& maxXRanges (void) const {
+    return _xmax;
+  }
+
   float ratio (void) const;
 
   struct StatsHeader {
     friend std::ostream& operator<< (std::ostream &os, const StatsHeader &) {
-      return os << "date ratio clhs crhs chyb rlhs rrhs";
+      return os << "date ratio clhs crhs chyb rlhs rrhs"
+                   " xllhs xlrhs xlhyb xrlhs xrrhs xrhyb";
     }
   };
 
@@ -99,27 +112,39 @@ public:
         os << " " << s.s.counts(tag);
       for (auto r: s.s.ratios().data())
         os << " " << r;
+      for (auto x: s.s.minXRanges())
+        os << " " << x;
+      for (auto x: s.s.maxXRanges())
+        os << " " << x;
       return os;
     }
   };
 
-  static NatSimulation* artificialNaturalisation (Parameters &params);
-  static NatSimulation* naturalNaturalisation (Parameters &params);
+  static NatSimulation* artificialNaturalisation (const Parameters &params);
+  static NatSimulation* naturalNaturalisation (const Parameters &params);
 
 private:
   using PID = phylogeny::GID;
   using Counts = std::array<uint, EnumUtils<NTag>::size()>;
+  using Ranges = std::array<float, EnumUtils<NTag>::size()>;
+
+  float _stabilityThreshold;
+  uint _stabilitySteps;
 
   std::map<const Plant*, Ratios> _populations;
   std::map<PID, Ratios> _pendingSeeds;
   Ratios _ratios;
   Counts _counts;
+  Ranges _xmin, _xmax;
 
   float _prevratio;
-  bool _stable;
+  uint _stableSteps;
+
+  void commonInit (const Parameters &params);
 
   void updateCounts (const Ratios &r, int dir);
   void updateRatios (void);
+  void updateRanges (void);
 };
 
 } // end of namespace naturalisation

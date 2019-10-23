@@ -543,7 +543,7 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
   if (debugReproduction && seeds.size() > 0)
     std::cerr << "\tPlanting " << seeds.size() << " seeds" << std::endl;
 
-  std::vector<Plant::Seed> unplanted;
+  Plant::Seeds unplanted;
   std::vector<Plant*> newborns;
 
   uint pfails = 0;
@@ -654,8 +654,10 @@ void Simulation::plantSeeds(const Plant::Seeds &seeds) {
     else  pfails++;
   }
 
-  for (const Plant::Seed &seed: unplanted)
+  for (const Plant::Seed &seed: unplanted) {
     if (_ptreeActive) _ptree.unregisterCandidate(seed.genome.genealogy());
+    stillbornSeed(seed);
+  }
 
   postInsertionCleanup(newborns);
 }

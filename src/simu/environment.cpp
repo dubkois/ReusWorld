@@ -48,7 +48,7 @@ void Environment::initFrom(const std::vector<Environment *> &these) {
     uint stride = _genomes[i].voxels;
 
     const auto copyInto = [&offset, &stride, &first, &last]
-      (const auto src, auto &dst) {
+      (const auto &src, auto &dst) {
         auto beg = src.begin(), end = src.end();
 
         // Left-most voxel is shared, handle manually
@@ -56,6 +56,10 @@ void Environment::initFrom(const std::vector<Environment *> &these) {
 
         // Right-most voxel is shared, handle manually
         if (!last)  end = std::prev(end);
+
+//        std::cout << "Copying [" << !first << ":" << src.size()-!last-1
+//                  << "] into [" << offset+!first << ":"
+//                  << offset+std::distance(beg, end) << "]" << std::endl;
 
         std::copy(beg, end, std::begin(dst)+offset+!first);
 
@@ -92,8 +96,8 @@ void Environment::updateInternals(void) {
     g.controller.prepare();
   }
 
-  if (_genomes.size() > 1)
-    _voxels = _voxels + 1 - _genomes.size();
+//  if (_genomes.size() > 1)
+//    _voxels = _voxels + 1 - _genomes.size();
 }
 
 void Environment::initInternal(void) {
@@ -345,6 +349,14 @@ void Environment::clone (const Environment &e,
                                         std::map<const Organ*,
                                                  Organ*>> &olookups) {
   _genomes = e._genomes;
+
+  _totalWidth = e._totalWidth;
+  _depth = e._depth;
+  _minTemperature = e._minTemperature;
+  _maxTemperature = e._maxTemperature;
+
+  _voxels = e._voxels;
+
   _dice = e._dice;
 
   _topology = e._topology;

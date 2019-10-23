@@ -180,6 +180,7 @@ protected:
   virtual void plantSeeds (const Plant::Seeds &seeds);
   virtual void newSeed (const Plant */*mother*/, const Plant */*father*/,
                         GID /*child*/) {}
+  virtual void stillbornSeed (const Plant::Seed &/*seed*/) {}
 
   virtual void updatePlantAltitude (Plant &p, float h);
 

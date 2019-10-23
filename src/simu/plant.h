@@ -171,6 +171,10 @@ public:
     return _flowers;
   }
 
+  auto& fruits (void) {
+    return _fruits;
+  }
+
   const auto& fruits (void) const {
     return _fruits;
   }
