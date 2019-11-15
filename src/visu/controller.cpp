@@ -218,7 +218,7 @@ Controller::Controller(GraphicSimulation &s, QMainWindow &w, gui::MainView *v)
   connect(savePTree, &QAction::triggered,
           &_simulation, &GraphicSimulation::savePhylogeny);
   connect(saveMorphologies, &QAction::triggered,
-          _view, &gui::MainView::saveMorphologiesAs);
+          _view, &gui::MainView::saveMorphologiesInto);
 
   _speed = 1;
   connect(&_timer, &QTimer::timeout, this, &Controller::step);

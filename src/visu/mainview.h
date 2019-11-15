@@ -76,8 +76,9 @@ public slots:
 
   QPixmap screenshot (QSize size = QSize());
 
-  void saveMorphologiesAs (void);
+  void saveMorphologiesInto (void);
   void saveMorphologies (const QString &dir, int width = 200);
+  void saveMorphologiesWithSpecies (const QString &dir, int width = 200);
 };
 
 } // end of namespace gui

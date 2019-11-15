@@ -374,14 +374,20 @@ void Environment::clone (const Environment &e,
 }
 
 void Environment::save (nlohmann::json &j, const Environment &e) {
-  if (e._genomes.size() > 1) { // Multigenomes save
-    j= {
+  nlohmann::json jd, jc;
+  simu::save(jd, e._dice);
 
+  if (e._genomes.size() > 1) { // Multigenomes save
+    for (uint i=0; i<e._genomes.size(); i++)
+      Genome::CGP::save(jc[i], e._genomes[i].controller);
+    j= {
+      e._genomes, jd,
+      e._topology, e._temperature, e._hygrometry, e._grazing,
+      e._startTime, e._currTime, e._endTime,
+      jc
     };
 
   } else {
-    nlohmann::json jd, jc;
-    simu::save(jd, e._dice);
     Genome::CGP::save(jc, e._genomes.front().controller);
     j = {
       e._genomes.front(), jd,
@@ -395,10 +401,23 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
 void Environment::postLoad(void) {  _physics->postLoad(); }
 
 void Environment::load (const nlohmann::json &j, Environment &e) {
+  uint i=0;
   if (j[0].is_array()) { // got multiple genomes to load
+    e._genomes = j[i++].get<std::vector<Genome>>();
+    simu::load(j[i++], e._dice);
+    e._topology = j[i++].get<Voxels>();
+    e._temperature = j[i++].get<Voxels>();
+    e._hygrometry = j[i++];
+    e._grazing = j[i++].get<Voxels>();
+    e._startTime = j[i++];
+    e._currTime = j[i++];
+    e._endTime = j[i++];
+
+    nlohmann::json jc = j[i++];
+    for (uint j=0; j<e._genomes.size(); j++)
+      Genome::CGP::load(jc[j], e._genomes[j].controller);
 
   } else {
-    uint i=0;
     e._genomes.push_back(j[i++]);
     simu::load(j[i++], e._dice);
     e._topology = j[i++].get<Voxels>();

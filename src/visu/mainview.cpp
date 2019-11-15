@@ -221,22 +221,140 @@ QPixmap MainView::screenshot(QSize size) {
   return pixmap;
 }
 
-void MainView::saveMorphologiesAs(void) {
+void MainView::saveMorphologiesInto(void) {
   QString folder = QFileDialog::getExistingDirectory(this,
                                                      "Save morphologies into");
   if (!folder.isEmpty())  saveMorphologies(folder);
 }
 
+struct FormatP {
+  double v;
+
+  friend std::ostream& operator<< (std::ostream &os, const FormatP &f) {
+    return os << std::setw(7) << std::setprecision(3) << std::setfill('0')
+              << std::fixed << 100.0 * f.v;
+  }
+};
+
+struct FormatA {
+  double v;
+
+  FormatA (const simu::Plant &p)
+    : v(double(p.age()) / p.genome().dethklok) {}
+
+  friend std::ostream& operator<< (std::ostream &os, const FormatA &f) {
+    return os << std::setw(5) << std::setprecision(3) << std::setfill('0')
+              << std::fixed << f.v;
+  }
+};
+
 void MainView::saveMorphologies (const QString &dir, int width) {
+  using Layer = simu::Plant::Layer;
+
+  std::map<std::string, std::pair<gui::Plant*, uint>> map;
+  float total = _plants.size(), plants = 0;
+  float seeds = 0;
+
+  size_t maxw = 0;
+
+  std::cout << "Building nested map\r";
+  for (Plant *p: _plants) {
+    if (p->plant().isInSeedState()) {
+      seeds++;
+      continue;
+    } else
+      plants++;
+
+    std::ostringstream poss;
+    poss << "[+++" << p->plant().toString(Layer::SHOOT)
+         << "][---" << p->plant().toString(Layer::ROOT)
+         << "]";
+
+    std::string phenotype = poss.str();
+    maxw = std::max(maxw, phenotype.size());
+
+    std::cout << simu::PlantID(&p->plant())
+              << ", phenotype: " << phenotype
+              << std::string(maxw, ' ') << "\r";
+
+    auto it = map.find(phenotype);
+    if (it == map.end())
+      map[phenotype] = std::make_pair(p, 1);
+    else
+      it->second.second++;
+  }
+
+  std::map<uint, uint> duplicates;
+
+  for (auto &ppair: map) {
+    uint count = ppair.second.second;
+    uint duplicate = 1;
+
+    auto it = duplicates.find(count);
+    if (it == duplicates.end())
+      duplicates[count] = duplicate;
+    else
+      duplicate = ++it->second;
+
+    Plant *plant = ppair.second.first;
+
+    std::ostringstream oss;
+    oss << dir.toStdString() << "/"
+        << FormatP{count / plants} << "p"
+        << "_" << plant->plant().organs().size() << "o"
+        << "_" << FormatA(plant->plant()) << "a";
+
+    if (duplicate > 1)  oss << "_" << duplicate;
+    std::string basename = oss.str();
+
+    QString isolatedFile = QString::fromStdString(basename) + "_isolated.png";
+    std::cout << "Rendering " << isolatedFile.toStdString()
+              << std::string(maxw, ' ') << "\r";
+    plant->renderTo(isolatedFile, width);
+
+
+    QString inplaceFile = QString::fromStdString(basename) + "_inplace.png";
+    std::cout << "Rendering " << inplaceFile.toStdString()
+              << std::string(maxw, ' ') << "\r";
+
+    QRectF pbounds = plant->boundingRect();
+    QSizeF psize = pbounds.size();
+    int height = width * psize.height() / psize.width();
+    QPixmap image (width, height);
+    image.fill(Qt::transparent);
+
+    QPainter painter (&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    updateSelection(plant);
+    render(&painter, image.rect(),
+           mapFromScene(plant->boundingRect().translated(plant->pos())).boundingRect(),
+           Qt::KeepAspectRatioByExpanding);
+    image.save(inplaceFile);
+  }
+
+  std::cout << "Ignored " << seeds << " (" << FormatP{seeds/total} << "%)"
+            << std::endl;
+}
+
+void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
   using SID = phylogeny::SID;
   using Layer = simu::Plant::Layer;
 
   std::map<SID, std::map<std::string, std::pair<gui::Plant*, uint>>> map;
   std::map<SID, uint> totals;
+  float total = _plants.size(), plants = 0;
+  float seeds = 0;
 
-  std::cerr << "Building nested map                         \r";
+  size_t maxw = 0;
+
+  std::cout << "Building nested map\r";
   for (Plant *p: _plants) {
-    if (p->plant().isInSeedState()) continue;
+    if (p->plant().isInSeedState()) {
+      seeds++;
+      continue;
+    } else
+      plants++;
 
     auto &smap = map[p->species()];
     std::ostringstream poss;
@@ -245,9 +363,11 @@ void MainView::saveMorphologies (const QString &dir, int width) {
          << "]";
 
     std::string phenotype = poss.str();
+    maxw = std::max(maxw, phenotype.size());
 
-    std::cerr << simu::PlantID(&p->plant()) << " from species " << p->species()
-              << ", phenotype: " << phenotype << "                         \r";
+    std::cout << simu::PlantID(&p->plant()) << " from species " << p->species()
+              << ", phenotype: " << phenotype
+              << std::string(maxw, ' ') << "\r";
 
     auto it = smap.find(phenotype);
     if (it == smap.end())
@@ -274,21 +394,25 @@ void MainView::saveMorphologies (const QString &dir, int width) {
       Plant *plant = ppair.second.first;
 
       std::ostringstream oss;
-      oss << dir.toStdString() << "/SID" << spair.first
-          << "_" << std::setw(7) << std::setprecision(3) << std::setfill('0')
-          << std::fixed << 100.0 * count / totals.at(species) << "p";
+      oss << dir.toStdString() << "/"
+          << FormatP{count / plants} << "gp_"
+          << "SID" << spair.first
+          << "_" << FormatP{count / float(totals.at(species))} << "lp"
+          << "_" << plant->plant().organs().size() << "o"
+          << "_" << FormatA(plant->plant()) << "a";
+
       if (duplicate > 1)  oss << "_" << duplicate;
       std::string basename = oss.str();
 
       QString isolatedFile = QString::fromStdString(basename) + "_isolated.png";
-      std::cerr << "Rendering " << isolatedFile.toStdString()
-                << "                         \r";
+      std::cout << "Rendering " << isolatedFile.toStdString()
+                << std::string(maxw, ' ') << "\r";
       plant->renderTo(isolatedFile, width);
 
 
       QString inplaceFile = QString::fromStdString(basename) + "_inplace.png";
-      std::cerr << "Rendering " << inplaceFile.toStdString()
-                << "                         \r";
+      std::cout << "Rendering " << inplaceFile.toStdString()
+                << std::string(maxw, ' ') << "\r";
 
       QRectF pbounds = plant->boundingRect();
       QSizeF psize = pbounds.size();
@@ -307,7 +431,8 @@ void MainView::saveMorphologies (const QString &dir, int width) {
     }
   }
 
-  std::cerr << std::endl;
+  std::cout << "Ignored " << seeds << " (" << FormatP{seeds/total} << "%)"
+            << std::endl;
 }
 
 } // end of namespace gui

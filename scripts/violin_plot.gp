@@ -6,6 +6,11 @@ print "   bandwidth : ", ARG2
 print " output file : ", ARG3
 print "     commands: ", ARG4
 
+if (ARGC == 0) {
+  print "Generates a violin plot from raw data"
+  exit
+}
+
 bwidth=(ARGC>=2)? ARG2 : 1
 # 
 # nsamp = 9000
@@ -98,4 +103,4 @@ plot for [i=1:N] for [j=1:S] tmp_i(i,j) using (i + w*bwidth*$2):1 with filledcur
 
 # print GPVAL_DATA_Y_MIN, ", ", GPVAL_DATA_Y_MAX
 
-system("rm .*.kdensity .*.vp_extracted_points")
+# system("rm .*.kdensity .*.vp_extracted_points")

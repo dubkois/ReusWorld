@@ -59,7 +59,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-//#define CUSTOM_PLANTS -1
+#define CUSTOM_PLANTS 5
 //#define DISTANCE_TEST
 #endif
 
@@ -327,6 +327,44 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
     g.root.rules = { RRULE("S -> A") };
   }
 
+#elif CUSTOM_PLANTS == 5 // Pretty draw test-cases
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> fff")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [-l][fff][+f[l][+fff]][++l]")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [ffff][+llllffff]")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [ff][+ll+l]")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [-l][fff+ff][++l]")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [-ll][f[f][+f][++f]]")
+  };
+
+  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.back().shoot.rules = {
+      SRULE("S -> [--f][-f--f--f]")
+  };
+
+  N = genomes.size();
 
 #else
   N = 1;
@@ -1243,6 +1281,7 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
 
   s._gidManager.setNext(j["nextID"]);
   s._env.postLoad();  /// FIXME Should not be required
+  s._ptreeActive = loadTree;
 
   if (debugSerialization)
     std::cerr << "Deserializing took "
