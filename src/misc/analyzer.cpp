@@ -303,7 +303,7 @@ int main (int argc, char *argv[]) {
   bool doSpeciesRanges = false;
   bool doDensityHistogram = false;
   std::string compatMatrixSIDList;
-  std::string ptreeOutFile;
+  std::string popOutFile, ptreeOutFile;
 
   cxxopts::Options options("ReusWorld (analyzer)",
                            "Performs computation on a saved reus world simulation");
@@ -333,6 +333,8 @@ int main (int argc, char *argv[]) {
     ("compatibility-matrix", "Computes average compatibilities between the "
                              "specified species",
      cxxopts::value(compatMatrixSIDList))
+    ("extract-pop", "Save population to specified location",
+     cxxopts::value(popOutFile))
     ("extract-tree", "Save ptree to specified location",
      cxxopts::value(ptreeOutFile))
     ;
@@ -381,6 +383,14 @@ int main (int argc, char *argv[]) {
 
   if (result.count("compatibility-matrix"))
     compatibilityMatrix(s, compatMatrixSIDList);
+
+  if (!popOutFile.empty()) {
+    std::ofstream ofs (popOutFile);
+    if (!ofs)
+      utils::doThrow<std::invalid_argument>("Unable to open ", popOutFile);
+    ofs << s.serializePopulation();
+    std::cout << "Saved population to " << popOutFile << std::endl;
+  }
 
   if (!ptreeOutFile.empty())  s.phylogeny().saveTo(ptreeOutFile);
 

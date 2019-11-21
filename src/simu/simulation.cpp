@@ -74,39 +74,9 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 }
 #endif
 
-static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
-
-std::map<genotype::cgp::Outputs, stdfs::path> envPaths {
-  { genotype::cgp::Outputs::T, "topology.dat" },
-  { genotype::cgp::Outputs::H, "temperature.dat" },
-  { genotype::cgp::Outputs::W, "hygrometry.dat" },
-  { genotype::cgp::Outputs::G, "grazing.dat" },
-};
-
-Simulation::Simulation (void)
-  : _stats(), _ptreeActive(true), _aborted(false), _dataFolder(".") {}
-
-Simulation::Simulation (Simulation &&that) : Simulation() {
-  swap(*this, that);
-}
-
-bool Simulation::init (const EGenome &env, PGenome plant) {
-  _start = clock::now();
-
-#ifdef INSTRUMENTALISE
-    _env.init(instrumentaliseEnvGenome(env));
-#else
-    _env.init(env);
-#endif
-
-  _gidManager.setNext(plant.id());
-  plant.gdata.setAsPrimordial(_gidManager);
-  if (_ptreeActive) _ptree.addGenome(plant);
-
-  uint N = Config::initSeeds();
-  float dx = .5; // m
-
 #ifdef CUSTOM_PLANTS
+void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
+
   using SRule = genotype::grammar::Rule_t<genotype::LSystemType::SHOOT>;
   using RRule = genotype::grammar::Rule_t<genotype::LSystemType::ROOT>;
   std::vector<PGenome> genomes;
@@ -371,7 +341,6 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
   genomes[0].dethklok = -1;
 #endif
-#endif
 
 #ifdef DISTANCE_TEST
   std::cerr << "Distance matrix:\n\t    ";
@@ -388,6 +357,42 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
   std::cerr << std::endl;
   exit(255);
 #endif
+}
+#else
+void debugInit (std::vector<Plant::Genome>&, uint&, float &);
+#endif
+
+static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
+
+std::map<genotype::cgp::Outputs, stdfs::path> envPaths {
+  { genotype::cgp::Outputs::T, "topology.dat" },
+  { genotype::cgp::Outputs::H, "temperature.dat" },
+  { genotype::cgp::Outputs::W, "hygrometry.dat" },
+  { genotype::cgp::Outputs::G, "grazing.dat" },
+};
+
+Simulation::Simulation (void)
+  : _stats(), _ptreeActive(true), _aborted(false), _dataFolder(".") {}
+
+Simulation::Simulation (Simulation &&that) : Simulation() {
+  swap(*this, that);
+}
+
+bool Simulation::init (const EGenome &env, PGenome plant) {
+  _start = clock::now();
+
+#ifdef INSTRUMENTALISE
+    _env.init(instrumentaliseEnvGenome(env));
+#else
+    _env.init(env);
+#endif
+
+  _gidManager.setNext(plant.id());
+  plant.gdata.setAsPrimordial(_gidManager);
+  if (_ptreeActive) _ptree.addGenome(plant);
+
+  uint N = Config::initSeeds();
+  float dx = .5; // m
 
   std::vector<Plant*> newborns;
   float x0 = - dx * int(N / 2);
@@ -1105,17 +1110,49 @@ std::string field (SimuFields f) {
   return name;
 }
 
+nlohmann::json Simulation::serializePopulation (void) const {
+  nlohmann::json j;
+
+  for (const auto &p: _plants) {
+    json jp;
+    Plant::save(jp, *p.second);
+    j.push_back(jp);
+  }
+
+  return j;
+}
+
+void Simulation::deserializePopulation (const nlohmann::json &j,
+                                        bool updatePTree) {
+  for (const auto &jp: j) {
+    Plant *p = Plant::load(jp);
+
+    _plants.insert({p->pos().x, Plant_ptr(p)});
+
+    _env.addCollisionData(p);
+
+    if (updatePTree) {
+      PStats *pstats = _ptree.getUserData(p->genealogy().self);
+      p->setPStatsPointer(pstats);
+    }
+
+    _env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
+    if (p->sex() == Plant::Sex::FEMALE)
+      for (Organ *o: p->pistils())
+        _env.disseminateGeneticMaterial(o);
+  }
+
+  _env.postLoad();
+  updateGenStats();
+}
+
+
 void Simulation::save (stdfs::path file) const {
   auto startTime = clock::now();
 
-  json jc, je, jp, jt;
+  json jc, je, jt;
   config::Simulation::serialize(jc);
   Environment::save(je, _env);
-  for (const auto &p: _plants) {
-    json jp_;
-    Plant::save(jp_, *p.second);
-    jp.push_back(jp_);
-  }
 
   if (_ptreeActive)
     PTree::toJson(jt, _ptree);
@@ -1123,7 +1160,7 @@ void Simulation::save (stdfs::path file) const {
   json j;
   j["config"] = jc;
   j[field(SimuFields::ENV)] = je;
-  j[field(SimuFields::PLANTS)] = jp;
+  j[field(SimuFields::PLANTS)] = serializePopulation();
   j[field(SimuFields::PTREE)] = jt;
   j["nextID"] = Plant::ID(_gidManager);
 
@@ -1259,28 +1296,10 @@ void Simulation::load (const stdfs::path &file, Simulation &s,
   if (loadTree) PTree::fromJson(j[field(SimuFields::PTREE)], s._ptree);
 
   bool loadPlants = loadf(SimuFields::PLANTS);
-  if (loadPlants) {
-    for (const auto &jp: j[field(SimuFields::PLANTS)]) {
-      Plant *p = Plant::load(jp);
-
-      s._plants.insert({p->pos().x, Plant_ptr(p)});
-
-      s._env.addCollisionData(p);
-
-      if (loadTree) {
-        PStats *pstats = s._ptree.getUserData(p->genealogy().self);
-        p->setPStatsPointer(pstats);
-      }
-
-      s._env.updateCollisionDataFinal(p); /// FIXME Update after all plants have been inserted
-      if (p->sex() == Plant::Sex::FEMALE)
-        for (Organ *o: p->pistils())
-          s._env.disseminateGeneticMaterial(o);
-    }
-  }
+  if (loadPlants)
+    s.deserializePopulation(j[field(SimuFields::PLANTS)], loadTree);
 
   s._gidManager.setNext(j["nextID"]);
-  s._env.postLoad();  /// FIXME Should not be required
   s._ptreeActive = loadTree;
 
   if (debugSerialization)

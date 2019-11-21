@@ -11,6 +11,7 @@ DEFINE_SUBCONFIG(genotype::Environment::config_t, configGenotypeEnvironment)
 DEFINE_SUBCONFIG(Dependencies, configDependencies)
 
 DEFINE_PARAMETER(int, verbosity, 1)
+DEFINE_PARAMETER(bool, allowEmptySimulation, false)
 
 DEFINE_PARAMETER(uint, saveEvery, 1)
 

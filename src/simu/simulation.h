@@ -50,7 +50,7 @@ public:
   void atEnd (void);
 
   bool extinct (void) const {
-    return _plants.empty();
+    return !config::Simulation::allowEmptySimulation() && _plants.empty();
   }
 
   bool timeout (void) const {
@@ -118,6 +118,9 @@ public:
     oss << "y" << year << ".save";
     return folder / oss.str();
   }
+
+  nlohmann::json serializePopulation (void) const;
+  void deserializePopulation (const nlohmann::json &j, bool updatePTree);
 
   void save (stdfs::path file) const;
   static void load (const stdfs::path &file, Simulation &s,

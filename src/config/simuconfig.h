@@ -15,6 +15,7 @@ struct CONFIG_FILE(Simulation) {
   DECLARE_SUBCONFIG(Dependencies, configDependencies)
 
   DECLARE_PARAMETER(int, verbosity)
+  DECLARE_PARAMETER(bool, allowEmptySimulation)
 
   DECLARE_PARAMETER(uint, initSeeds)
   DECLARE_PARAMETER(uint, saveEvery)

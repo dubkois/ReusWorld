@@ -93,6 +93,8 @@ public:
 
   void updateMousePosition (const QPointF &pos);
 
+  void step (void);
+
 public slots:
   void play (bool b);
 
@@ -111,7 +113,6 @@ private:
 
   void updateDisplays (void);
 
-  void step (void);
   void playInternal (bool b);
 };
 

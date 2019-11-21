@@ -75,6 +75,7 @@ public slots:
   }
 
   QPixmap screenshot (QSize size = QSize());
+  QPixmap fullScreenShot (void);
 
   void saveMorphologiesInto (void);
   void saveMorphologies (const QString &dir, int width = 200);

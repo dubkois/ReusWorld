@@ -221,6 +221,30 @@ QPixmap MainView::screenshot(QSize size) {
   return pixmap;
 }
 
+QPixmap MainView::fullScreenShot(void) {
+  QSize size = QSize(1680,1050);
+
+  QRect src = sceneRect().toRect();
+
+  if (!size.isValid() || size.isNull())
+    size = src.size();
+
+  else {
+    if (size.width() > size.height())
+      size.setHeight(size.width() * src.height() / src.width());
+    else
+      size.setWidth(size.height() * src.width() / src.height());
+  }
+
+  QPixmap pixmap (size);
+  QPainter painter (&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+
+  scene()->render(&painter, pixmap.rect(), src);
+
+  return pixmap;
+}
+
 void MainView::saveMorphologiesInto(void) {
   QString folder = QFileDialog::getExistingDirectory(this,
                                                      "Save morphologies into");

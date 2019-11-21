@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QMainWindow>
+#include <QSettings>
 
 #include "kgd/external/cxxopts.hpp"
 
@@ -31,7 +32,7 @@ int main(int argc, char *argv[]) {
 
   std::string loadSaveFile, loadConstraints, loadFields;
 
-  std::string morphologiesSaveFolder;
+  std::string morphologiesSaveFolder, screenshotSaveFile;
 
   int speed = 0;
   bool autoQuit = false;
@@ -72,6 +73,9 @@ int main(int argc, char *argv[]) {
      cxxopts::value(autoQuit))
     ("collect-morphologies", "Save morphologies in the provided folder",
      cxxopts::value(morphologiesSaveFolder))
+    ("screenshot", "Save simulation state after initialisation/loading in"
+                   "specified file",
+     cxxopts::value(screenshotSaveFile))
     ;
 
   auto result = options.parse(argc, argv);
@@ -117,6 +121,8 @@ int main(int argc, char *argv[]) {
 
   QApplication a(argc, argv);
   setlocale(LC_NUMERIC,"C");
+
+  QSettings settings ("kgd", "ReusWorld");
 
   visu::GraphicSimulation s;
 
@@ -164,7 +170,8 @@ int main(int argc, char *argv[]) {
 
   } else {
     visu::GraphicSimulation::load(loadSaveFile, s, loadConstraints, loadFields);
-    config::Simulation::printConfig();
+    if (verbosity != Verbosity::QUIET)
+      config::Simulation::printConfig();
   }
 
   if (!outputFolder.empty())
@@ -183,12 +190,29 @@ int main(int argc, char *argv[]) {
     s.setDuration(simu::Environment::DurationSetType(duration[0]), dvalue);
   }
 
-  if (morphologiesSaveFolder.empty()) { // Regular simulation
+  // Load settings
+  w->setGeometry(settings.value("geometry").toRect());
+
+  int ret = 0;
+  if (!morphologiesSaveFolder.empty()) {
+    v->saveMorphologies(QString::fromStdString(morphologiesSaveFolder));
+
+  } else if (!screenshotSaveFile.empty()) {
+    auto img = v->fullScreenShot();
+    img.save(QString::fromStdString(screenshotSaveFile));
+    std::cout << "Saved img of size " << img.width() << "x" << img.height()
+              << " into " << screenshotSaveFile << std::endl;
+
+  } else {  // Regular simulation
     w->setAttribute(Qt::WA_QuitOnClose);
     w->show();
 
     c.nextPlant();
     c.setAutoQuit(autoQuit);
+
+    // Setup debug config
+    if (config::Simulation::DEBUG_NO_METABOLISM())
+      c.step();
 
     if (speed != 0) {
       QTimer::singleShot(500, [&c, speed] {
@@ -197,15 +221,16 @@ int main(int argc, char *argv[]) {
       });
     }
 
-    auto ret = a.exec();
+    ret = a.exec();
 
     s.abort();
     s.step();
-
-    return ret;
-
-  } else {
-    v->saveMorphologies(QString::fromStdString(morphologiesSaveFolder));
-    return 0;
   }
+
+  if (w->geometry().isValid()) {
+//    std::cerr << "Saving " <<
+    settings.setValue("geometry", w->geometry());
+  }
+
+  return ret;
 }

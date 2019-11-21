@@ -44,7 +44,7 @@ bool GraphicSimulation::init(const EGenome &env, PGenome plant) {
 }
 
 void GraphicSimulation::graphicalStep (uint speed) {
-  for (uint i=0; i<speed; i++) {
+  for (uint i=0; i<speed && !finished(); i++) {
     step();
     QCoreApplication::processEvents();  // A bit ugly but what the hell
   }

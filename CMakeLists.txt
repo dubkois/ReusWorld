@@ -128,12 +128,20 @@ if (OPENMP_FOUND)
 endif()
 
 add_executable(
-    naturalisation
+    pve
     $<TARGET_OBJECTS:SIMU_OBJS>
     "src/naturalisation/simulation.h"
     "src/naturalisation/simulation.cpp"
-    "src/naturalisation/main.cpp")
-target_link_libraries(naturalisation ${APOGeT_LIBRARIES})
+    "src/naturalisation/pve.cpp")
+target_link_libraries(pve ${APOGeT_LIBRARIES})
+
+add_executable(
+    pvp
+    $<TARGET_OBJECTS:SIMU_OBJS>
+    "src/naturalisation/simulation.h"
+    "src/naturalisation/simulation.cpp"
+    "src/naturalisation/pvp.cpp")
+target_link_libraries(pvp ${APOGeT_LIBRARIES})
 
 ################################################################################
 ## Targets (other)

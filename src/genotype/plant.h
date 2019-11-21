@@ -173,7 +173,7 @@ public:
     os << gdata << "\n";
   }
 
-  void equalExtension (const Plant &that, bool &ok) {
+  void equalExtension (const Plant &that, bool &ok) const override {
     ok &= (this->gdata == that.gdata);
   }
 

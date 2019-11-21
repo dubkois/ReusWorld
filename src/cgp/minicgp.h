@@ -1045,7 +1045,7 @@ CGP<IE,N,OE,A>::latexFormatters {
   FMT(  lt,          PRINT("("),   PRINT("<"), PRINT(")")),
   FMT(  eq,          PRINT("("),  PRINT("=="), PRINT(")")),
 
-  FMT( add,          PRINT("("), PRINT(" + "), PRINT(")")),
+  FMT( add,       PRINT("avg("),  PRINT(", "), PRINT(")")),
   FMT(mult,          PRINT("("), PRINT(" * "), PRINT(")")),
 #undef NOOP
 #undef PRINT

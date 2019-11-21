@@ -92,19 +92,19 @@ then
   echo
 fi
 
-pfdsFile=$folder/pt_dynamics_summary.png
-[ ! -f $pfdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Plants;Plants-Seeds;Seeds;Time:y2" -o $pfdsFile
-
-otdsFile=$folder/ot_dynamics_summary.png
-[ ! -f $otdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Organs/Plants;Time:y2" -o $otdsFile
-
-stdsFile=$folder/st_dynamics_summary.png
-[ ! -f $stdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "ASpecies;CSpecies;Time:y2" -o $stdsFile
+# pfdsFile=$folder/pt_dynamics_summary.png
+# [ ! -f $pfdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Plants;Plants-Seeds;Seeds;Time:y2" -o $pfdsFile
+# 
+# otdsFile=$folder/ot_dynamics_summary.png
+# [ ! -f $otdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "Organs/Plants;Time:y2" -o $otdsFile
+# 
+# stdsFile=$folder/st_dynamics_summary.png
+# [ ! -f $stdsFile ] && ./scripts/plant_dynamics.sh -q -f $folder/global.dat -c "ASpecies;CSpecies;Time:y2" -o $stdsFile
 
 if [ -z "$agg" -a ! -f $folder/controller_tex.png ]
 then
   ./scripts/controller_to_pdf.sh $folder/controller.tex
-#   dot -Tpng $folder/controller.dot -o $folder/controller_dot.png
+  dot -Tpng $folder/controller.dot -o $folder/controller_dot.png
 fi
 
 declare -A lranges=( [topology]=-25 [temperature]=-20 [hygrometry]=0 )

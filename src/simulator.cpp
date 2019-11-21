@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
   std::string configFile = "auto";  // Default to auto-config
   Verbosity verbosity = Verbosity::SHOW;
 
-  std::string envGenomeArg, plantGenomeArg;
+  stdfs::path envGenomeArg, plantGenomeArg;
   genotype::Environment envGenome;
   genotype::Plant plantGenome;
 
@@ -134,16 +134,16 @@ int main(int argc, char *argv[]) {
     if (result.count("env-seed")) envGenome.rngSeed = envOverrideSeed;
     envGenome.toFile("last", 2);
 
-    if (!isValidSeed(plantGenomeArg)) {
-      std::cout << "Reading plant genome from input file '"
-                << plantGenomeArg << "'" << std::endl;
-      plantGenome = genotype::Plant::fromFile(plantGenomeArg);
-
-    } else {
+    if (isValidSeed(plantGenomeArg)) {
       rng::FastDice dice (std::stoi(plantGenomeArg));
       std::cout << "Generating plant genome from rng seed "
                 << dice.getSeed() << std::endl;
       plantGenome = genotype::Plant::random(dice);
+
+    } else {
+      std::cout << "Reading plant genome from input file '"
+                << plantGenomeArg << "'" << std::endl;
+      plantGenome = genotype::Plant::fromFile(plantGenomeArg);
     }
 
     plantGenome.toFile("last", 2);
@@ -168,14 +168,14 @@ int main(int argc, char *argv[]) {
 
   simu::Simulation s;
 
-  if (loadSaveFile.empty()) {
+  if (!loadSaveFile.empty()) {  // Full load init
+    simu::Simulation::load(loadSaveFile, s, loadConstraints, loadFields);
+    if (verbosity != Verbosity::QUIET)  config::Simulation::printConfig();
+
+  } else {  // Regular init
     s.init(envGenome, plantGenome);
 //    s.periodicSave(); /// FIXME Carefull with this things might, surprisingly,
     /// not be all that initialized
-
-  } else {
-    simu::Simulation::load(loadSaveFile, s, loadConstraints, loadFields);
-    config::Simulation::printConfig();
   }
 
   if (!outputFolder.empty())
@@ -183,14 +183,17 @@ int main(int argc, char *argv[]) {
 
   genotype::Plant::printMutationRates(std::cout, 2);
 
-  std::ofstream ofs (s.dataFolder() / "controller.last.tex");
-  ofs << "\\documentclass[preview]{standalone}\n"
-         "\\usepackage{amsmath}\n"
-         "\\begin{document}\n"
-      << envGenome.controller.toTex()
-      << "\\end{document}\n";
-  ofs.close();
+  {
+    std::ofstream ofs (s.dataFolder() / "controller.last.tex");
+    ofs << "\\documentclass[preview]{standalone}\n"
+           "\\usepackage{amsmath}\n"
+           "\\begin{document}\n"
+        << envGenome.controller.toTex()
+        << "\\end{document}\n";
+    ofs.close();
 
+    envGenome.controller.toDot(s.dataFolder() / "controller.last.dot");
+  }
 
   if (!duration.empty()) {
     if (duration.size() < 2)
