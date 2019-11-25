@@ -130,16 +130,20 @@ endif()
 add_executable(
     pve
     $<TARGET_OBJECTS:SIMU_OBJS>
-    "src/naturalisation/simulation.h"
-    "src/naturalisation/simulation.cpp"
+    "src/naturalisation/common.h"
+    "src/naturalisation/common.cpp"
+    "src/naturalisation/pvesimulation.h"
+    "src/naturalisation/pvesimulation.cpp"
     "src/naturalisation/pve.cpp")
 target_link_libraries(pve ${APOGeT_LIBRARIES})
 
 add_executable(
     pvp
     $<TARGET_OBJECTS:SIMU_OBJS>
-    "src/naturalisation/simulation.h"
-    "src/naturalisation/simulation.cpp"
+    "src/naturalisation/common.h"
+    "src/naturalisation/common.cpp"
+    "src/naturalisation/pvpsimulation.h"
+    "src/naturalisation/pvpsimulation.cpp"
     "src/naturalisation/pvp.cpp")
 target_link_libraries(pvp ${APOGeT_LIBRARIES})
 

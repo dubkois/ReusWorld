@@ -1,19 +1,19 @@
 #include "kgd/random/random_iterator.hpp"
 
-#include "simulation.h"
+#include "pvpsimulation.h"
 
 namespace simu {
 namespace naturalisation {
 
 static constexpr bool debug = false;
 
-NatSimulation::NatSimulation (void) {
+PVESimulation::PVESimulation (void) {
   _counts.fill(0);
   _stableSteps = 0;
   _ptreeActive = false;
 }
 
-void NatSimulation::step (void) {
+void PVESimulation::step (void) {
   Simulation::step();
 
   updateRatios();
@@ -38,12 +38,12 @@ void NatSimulation::step (void) {
   }
 }
 
-Plant* NatSimulation::addPlant (const PGenome &g, float x, float biomass) {
+Plant* PVESimulation::addPlant (const PGenome &g, float x, float biomass) {
   Plant *p = Simulation::addPlant(g, x, biomass);
 
   auto it = _pendingSeeds.find(g.id());
   if (it == _pendingSeeds.end())
-    utils::doThrow<std::logic_error>("Could not find ntag for seed ", g.id());
+    utils::doThrow<std::logic_error>("Could not find PVPTag for seed ", g.id());
 
   if (p) {
     auto tag = it->second;
@@ -67,7 +67,7 @@ Plant* NatSimulation::addPlant (const PGenome &g, float x, float biomass) {
   return p;
 }
 
-void NatSimulation::delPlant (Plant &p, Plant::Seeds &seeds) {
+void PVESimulation::delPlant (Plant &p, Plant::Seeds &seeds) {
   auto it = _populations.find(&p);
   if (it == _populations.end())
     utils::doThrow<std::logic_error>(
@@ -85,7 +85,7 @@ void NatSimulation::delPlant (Plant &p, Plant::Seeds &seeds) {
   Simulation::delPlant(p, seeds);
 }
 
-void NatSimulation::newSeed(const Plant *mother, const Plant *father, GID child) {
+void PVESimulation::newSeed(const Plant *mother, const Plant *father, GID child) {
   auto mtag = _populations.at(mother), ftag = _populations.at(father),
        tag = Ratios::fromRatios(mtag, ftag);
 
@@ -97,11 +97,11 @@ void NatSimulation::newSeed(const Plant *mother, const Plant *father, GID child)
   Simulation::newSeed(mother, father, child);
 }
 
-void NatSimulation::stillbornSeed(const Plant::Seed &seed) {
+void PVESimulation::stillbornSeed(const Plant::Seed &seed) {
   _pendingSeeds.erase(seed.genome.id());
 }
 
-bool NatSimulation::finished(void) const {
+bool PVESimulation::finished(void) const {
   float r = ratio();
   bool stable = _stableSteps >= _stabilitySteps || r == 0 || r == 1;
   if (stable)
@@ -109,36 +109,36 @@ bool NatSimulation::finished(void) const {
   return stable || Simulation::finished();
 }
 
-float NatSimulation::ratio(void) const {
-//  return counts(NTag::LHS) / float(counts(NTag::LHS) + counts(NTag::RHS));
-//  return counts(NTag::LHS) / float(_plants.size());
-  return _ratios[NTag::LHS];
+float PVESimulation::ratio(void) const {
+//  return counts(PVPTag::LHS) / float(counts(PVPTag::LHS) + counts(PVPTag::RHS));
+//  return counts(PVPTag::LHS) / float(_plants.size());
+  return _ratios[PVPTag::LHS];
 }
 
-NTag tagFromRatio (const Ratios &r) {
-  if (r[NTag::LHS] == 1)      return NTag::LHS;
-  else if (r[NTag::RHS] == 1) return NTag::RHS;
-  else                        return NTag::HYB;
+PVPTag tagFromRatio (const Ratios &r) {
+  if (r[PVPTag::LHS] == 1)      return PVPTag::LHS;
+  else if (r[PVPTag::RHS] == 1) return PVPTag::RHS;
+  else                        return PVPTag::HYB;
 }
 
-void NatSimulation::updateCounts(const Ratios &r, int dir) {
-  using ut = EnumUtils<NTag>::underlying_t;
+void PVESimulation::updateCounts(const Ratios &r, int dir) {
+  using ut = EnumUtils<PVPTag>::underlying_t;
   _counts[ut(tagFromRatio(r))] += dir;
 }
 
-void NatSimulation::updateRatios (void) {
+void PVESimulation::updateRatios (void) {
   _ratios.fill(0);
   for (const auto &pair: _populations)
     _ratios += pair.second;
   _ratios /= _populations.size();
-  assert(std::fabs(_ratios[NTag::LHS] + _ratios[NTag::RHS] - 1) < 1e-3);
+  assert(std::fabs(_ratios[PVPTag::LHS] + _ratios[PVPTag::RHS] - 1) < 1e-3);
 }
 
-void NatSimulation::updateRanges(void) {
+void PVESimulation::updateRanges(void) {
   _xmin.fill( _env.xextent());
   _xmax.fill(-_env.xextent());
 
-  using ut = EnumUtils<NTag>::underlying_t;
+  using ut = EnumUtils<PVPTag>::underlying_t;
   for (const auto &pair: _populations) {
     auto tag = ut(tagFromRatio(pair.second));
     float x = pair.first->pos().x;
@@ -146,7 +146,7 @@ void NatSimulation::updateRanges(void) {
     _xmax[tag] = std::max(_xmax[tag], x);
   }
 
-  for (auto t: EnumUtils<NTag>::iteratorUValues()) {
+  for (auto t: EnumUtils<PVPTag>::iteratorUValues()) {
     if (_counts[t] == 0) {
       _xmin[t] = NAN;
       _xmax[t] = NAN;
@@ -156,26 +156,21 @@ void NatSimulation::updateRanges(void) {
 
 struct TaggedPlant {
   Plant* plant;
-  NTag tag;
+  PVPTag tag;
 };
 using TaggedPlants = std::vector<TaggedPlant>;
 
-Plant* pclone (const Plant *p) {
-  std::map<const Plant*, std::map<const Organ*, Organ*>> olookups;
-  return Plant::clone(*p, olookups);
-}
-
-void NatSimulation::commonInit(const Parameters &params) {
+void PVESimulation::commonInit(const Parameters &params) {
   _stabilityThreshold = params.stabilityThreshold;
   _stabilitySteps = params.stabilitySteps;
   _stableSteps = 0;
 }
 
-NatSimulation*
-NatSimulation::artificialNaturalisation (const Parameters &params) {
+PVESimulation*
+PVESimulation::artificialNaturalisation (const Parameters &params) {
 
-  NatSimulation *s = new NatSimulation();
-  NatSimulation &lhs = *s;
+  PVESimulation *s = new PVESimulation();
+  PVESimulation &lhs = *s;
 
   Simulation::load(params.lhsSimulationFile, lhs,
                    params.loadConstraints, "!ptree");
@@ -185,7 +180,7 @@ NatSimulation::artificialNaturalisation (const Parameters &params) {
   TaggedPlants plants;
 
   static const auto extract =
-    [] (NatSimulation &s, auto &plants, NTag tag) {
+    [] (PVESimulation &s, auto &plants, PVPTag tag) {
 
     Plant::Seeds newseeds;
     std::vector<Plant*> germinated;
@@ -215,11 +210,11 @@ NatSimulation::artificialNaturalisation (const Parameters &params) {
   };
 
   std::cout<< "Extracting plants for LHS\r" << std::flush;
-  extract(lhs, plants, NTag::LHS);
+  extract(lhs, plants, PVPTag::LHS);
   uint lhsPC = plants.size();
 
   {
-    NatSimulation rhs;
+    PVESimulation rhs;
     Simulation::load(params.rhsSimulationFile, rhs,
                      params.loadConstraints, "!ptree");
 
@@ -227,7 +222,7 @@ NatSimulation::artificialNaturalisation (const Parameters &params) {
     assert(lhs._env.height() == rhs._env.height());
 
     std::cout<< "Extracting plants for RHS\r" << std::flush;
-    extract(rhs, plants, NTag::RHS);
+    extract(rhs, plants, PVPTag::RHS);
   }
 
   uint rhsPC = plants.size() - lhsPC;
@@ -253,7 +248,7 @@ NatSimulation::artificialNaturalisation (const Parameters &params) {
     }
   }
 
-  assert(lhs.plants().size() == lhs.counts(NTag::LHS) + lhs.counts(NTag::RHS));
+  assert(lhs.plants().size() == lhs.counts(PVPTag::LHS) + lhs.counts(PVPTag::RHS));
 
   lhs.updateRatios();
   lhs._prevratio = lhs.ratio();
@@ -265,9 +260,9 @@ NatSimulation::artificialNaturalisation (const Parameters &params) {
   return s;
 }
 
-NatSimulation*
-NatSimulation::naturalNaturalisation (const Parameters &params) {
-  NatSimulation *s = new NatSimulation();
+PVESimulation*
+PVESimulation::naturalNaturalisation (const Parameters &params) {
+  PVESimulation *s = new PVESimulation();
 
   s->commonInit(params);
 
@@ -277,9 +272,9 @@ NatSimulation::naturalNaturalisation (const Parameters &params) {
 
   static const auto extract =
       [] (auto file, auto constraints, auto &plants,
-      Environment &e, GID &gid, NTag tag) {
+      Environment &e, GID &gid, PVPTag tag) {
 
-    NatSimulation tmp;
+    PVESimulation tmp;
     Simulation::load(file, tmp, constraints, "!ptree");
 
     Plant::Seeds discardedseeds;
@@ -295,21 +290,21 @@ NatSimulation::naturalNaturalisation (const Parameters &params) {
 
   // Extract both environments and populations
   extract(params.lhsSimulationFile, params.loadConstraints, plants,
-          elhs, gidlhs, NTag::LHS);
+          elhs, gidlhs, PVPTag::LHS);
 
   extract(params.rhsSimulationFile, params.loadConstraints, plants,
-          erhs, gidrhs, NTag::RHS);
+          erhs, gidrhs, PVPTag::RHS);
 
   // Create two sided environment
-  s->_env.initFrom({&elhs, &erhs});
+  s->_env.initFrom({&elhs, &erhs}, params.noTopology);
   s->_gidManager.setNext(std::max(gidlhs, gidrhs));
 
   // Dump all plants at their (shifted) position
   for (auto &tp: plants) {
     float dx = 0;
     switch (tp.tag) {
-    case NTag::LHS: dx = -elhs.xextent(); break;
-    case NTag::RHS: dx =  erhs.xextent(); break;
+    case PVPTag::LHS: dx = -elhs.xextent(); break;
+    case PVPTag::RHS: dx =  erhs.xextent(); break;
     default:
       utils::doThrow<std::invalid_argument>("Invalid tag ", tp.tag);
     }

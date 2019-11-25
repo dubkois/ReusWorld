@@ -59,7 +59,7 @@ static constexpr bool debug = false
 
 #ifndef NDEBUG
 //#define CUSTOM_ENVIRONMENT
-#define CUSTOM_PLANTS 5
+//#define CUSTOM_PLANTS 5
 //#define DISTANCE_TEST
 #endif
 
@@ -75,13 +75,14 @@ auto instrumentaliseEnvGenome (genotype::Environment g) {
 #endif
 
 #ifdef CUSTOM_PLANTS
-void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
+void debugInit(auto &gidManager, const Plant::Genome &plant,
+               std::vector<Plant::Genome> &genomes,
+               uint &N, float &dx) {
 
   using SRule = genotype::grammar::Rule_t<genotype::LSystemType::SHOOT>;
   using RRule = genotype::grammar::Rule_t<genotype::LSystemType::ROOT>;
-  std::vector<PGenome> genomes;
 
-  PGenome modifiedPrimordialPlant = plant;
+  Plant::Genome modifiedPrimordialPlant = plant;
 
   config::Simulation::DEBUG_NO_METABOLISM.ref() = true;
 
@@ -93,7 +94,7 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 
   modifiedPrimordialPlant.dethklok = 15;
   modifiedPrimordialPlant.shoot.recursivity = 10;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
 
   uint i=0;
 
@@ -147,34 +148,34 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 //  };
 
   // (C1) Overlap
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> s[l][l]")
   };
 
   // (C1) Diamond overlap
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> Af"),
     SRULE("A -> [-l++l][+l--l]"),
   };
 
   // (C2) Two step overlap
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> [Al][-l]"),
     SRULE("A -> -"),
   };
 
   // (C3) Diamond overlap (branch end)
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> A-l++l"),
     SRULE("A -> [+l--l]"),
   };
 
   // (C3) Diamond overlap (two rules)
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> [-Al][+Bl]"),
     SRULE("A -> l++"),
@@ -183,14 +184,14 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 
 
   // Two step without overlap
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
     SRULE("S -> [Al][-Al]"),
     SRULE("A -> -"),
   };
 
 //  // Multi-layered flower
-//  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+//  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
 //  genomes.back().shoot.rules = {
 //  genomes.back().shoot.recursivity = 5;
 //    SRULE("S -> [f][A][B]"),
@@ -254,7 +255,7 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
   N = 3;
   uint m = N/2;
   dx = .1;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
 
   genomes[0].shoot.rules = {
     SRULE("S -> -l")
@@ -285,7 +286,7 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 #elif CUSTOM_PLANTS == 4  // Pistils detection
   N = 9;
   for (uint i=0; i<N; i++)
-    genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+    genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
 
   rng::FastDice dice (1);
   for (uint i=0; i<N; i++) {
@@ -299,37 +300,37 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 
 #elif CUSTOM_PLANTS == 5 // Pretty draw test-cases
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> fff")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [-l][fff][+f[l][+fff]][++l]")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [ffff][+llllffff]")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [ff][+ll+l]")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [-l][fff+ff][++l]")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [-ll][f[f][+f][++f]]")
   };
 
-  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes.back().shoot.rules = {
       SRULE("S -> [--f][-f--f--f]")
   };
@@ -338,7 +339,7 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
 
 #else
   N = 1;
-  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(_gidManager));
+  for (uint i=0; i<N; i++)  genomes.push_back(modifiedPrimordialPlant.clone(gidManager));
   genomes[0].dethklok = -1;
 #endif
 
@@ -358,8 +359,6 @@ void debugInit(std::vector<PGenome> &genomes, uint &N, float &dx) {
   exit(255);
 #endif
 }
-#else
-void debugInit (std::vector<Plant::Genome>&, uint&, float &);
 #endif
 
 static constexpr auto openMode = std::ofstream::out | std::ofstream::trunc;
@@ -393,6 +392,10 @@ bool Simulation::init (const EGenome &env, PGenome plant) {
 
   uint N = Config::initSeeds();
   float dx = .5; // m
+
+#ifdef CUSTOM_PLANTS
+  debugInit(_gidManager, plant, genomes, N, dx);
+#endif
 
   std::vector<Plant*> newborns;
   float x0 = - dx * int(N / 2);

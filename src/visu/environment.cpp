@@ -115,7 +115,7 @@ void debugPaintLeaves (QPainter *painter, const ULItems &items,
 
 void Environment::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWidget *) {
   // Draw slightly more on the right to hide the junction lines
-  static constexpr float OVERDRAW = .05;
+  static constexpr float OVERDRAW = 0;
 
   const auto voxels = _object.voxelCount();
   const auto voxelWidth = _object.width() / voxels;

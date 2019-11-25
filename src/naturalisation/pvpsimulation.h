@@ -1,10 +1,10 @@
 #ifndef NAT_SIMULATION_H
 #define NAT_SIMULATION_H
 
-#include "../simu/simulation.h"
+#include "common.h"
 
-DEFINE_PRETTY_ENUMERATION(NType, NATURAL, ARTIFICIAL, TYPE3)
-DEFINE_PRETTY_ENUMERATION(NTag, LHS, RHS, HYB)
+DEFINE_PRETTY_ENUMERATION(PVPType, NATURAL, ARTIFICIAL, TYPE3)
+DEFINE_PRETTY_ENUMERATION(PVPTag, LHS, RHS, HYB)
 
 namespace simu {
 namespace naturalisation {
@@ -13,6 +13,8 @@ struct Parameters {
   stdfs::path lhsSimulationFile = "";
   stdfs::path rhsSimulationFile = "";
   std::string loadConstraints = "none";
+
+  bool noTopology = true;
 
   float stabilityThreshold = 1e-3;
   uint stabilitySteps = 3;
@@ -26,11 +28,11 @@ struct Ratios {
   auto& data (void) {   return _data;   }
   const auto& data (void) const {   return _data;   }
 
-  const float& operator[] (NTag tag) const {
-    return _data[EnumUtils<NTag>::underlying_t(tag)];
+  const float& operator[] (PVPTag tag) const {
+    return _data[EnumUtils<PVPTag>::underlying_t(tag)];
   }
 
-  float& operator[] (NTag tag) {
+  float& operator[] (PVPTag tag) {
     return const_cast<float&>(const_cast<const Ratios*>(this)->operator [](tag));
   }
 
@@ -46,7 +48,7 @@ struct Ratios {
     return *this;
   }
 
-  static Ratios fromTag (NTag tag) {
+  static Ratios fromTag (PVPTag tag) {
     Ratios r;
     r._data.fill(0);
     r[tag] = 1;
@@ -55,20 +57,20 @@ struct Ratios {
 
   static Ratios fromRatios (const Ratios &lhs, const Ratios &rhs) {
     Ratios r;
-    for (NTag t: {NTag::LHS, NTag::RHS})
+    for (PVPTag t: {PVPTag::LHS, PVPTag::RHS})
       r[t] = (lhs[t] + rhs[t]) / 2.f;
     return r;
   }
 
   friend std::ostream& operator<< (std::ostream &os, const Ratios &r) {
-    return os << "{LHS:" << r[NTag::LHS] << ",RHS:" << r[NTag::RHS] << "}";
+    return os << "{LHS:" << r[PVPTag::LHS] << ",RHS:" << r[PVPTag::RHS] << "}";
   }
 };
 
-class NatSimulation : public Simulation {
+class PVESimulation : public Simulation {
 public:
-  NatSimulation(void);
-  virtual ~NatSimulation (void) = default;
+  PVESimulation(void);
+  virtual ~PVESimulation (void) = default;
 
   bool finished (void) const override;
 
@@ -79,8 +81,8 @@ public:
   void newSeed (const Plant *mother, const Plant *father, GID child) override;
   void stillbornSeed (const Plant::Seed &seed) override;
 
-  auto counts (NTag tag) const {
-    return _counts[EnumUtils<NTag>::underlying_t(tag)];
+  auto counts (PVPTag tag) const {
+    return _counts[EnumUtils<PVPTag>::underlying_t(tag)];
   }
 
   const auto& ratios (void) const {
@@ -105,10 +107,10 @@ public:
   };
 
   struct Stats {
-    const NatSimulation &s;
+    const PVESimulation &s;
     friend std::ostream& operator<< (std::ostream &os, const Stats &s) {
       os << s.s.time() << " " << s.s.ratio();
-      for (NTag tag: EnumUtils<NTag>::iterator())
+      for (PVPTag tag: EnumUtils<PVPTag>::iterator())
         os << " " << s.s.counts(tag);
       for (auto r: s.s.ratios().data())
         os << " " << r;
@@ -120,13 +122,13 @@ public:
     }
   };
 
-  static NatSimulation* artificialNaturalisation (const Parameters &params);
-  static NatSimulation* naturalNaturalisation (const Parameters &params);
+  static PVESimulation* artificialNaturalisation (const Parameters &params);
+  static PVESimulation* naturalNaturalisation (const Parameters &params);
 
 private:
   using PID = phylogeny::GID;
-  using Counts = std::array<uint, EnumUtils<NTag>::size()>;
-  using Ranges = std::array<float, EnumUtils<NTag>::size()>;
+  using Counts = std::array<uint, EnumUtils<PVPTag>::size()>;
+  using Ranges = std::array<float, EnumUtils<PVPTag>::size()>;
 
   float _stabilityThreshold;
   uint _stabilitySteps;

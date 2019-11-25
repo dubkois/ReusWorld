@@ -6,11 +6,11 @@
 
 #include "kgd/external/cxxopts.hpp"
 
-#include "simulation.h"
+#include "pvpsimulation.h"
 #include "../config/dependencies.h"
 
 using Plant = simu::Plant;
-using Simulation = simu::naturalisation::NatSimulation;
+using Simulation = simu::naturalisation::PVESimulation;
 using Parameters = simu::naturalisation::Parameters;
 
 int main(int argc, char *argv[]) {
@@ -23,9 +23,9 @@ int main(int argc, char *argv[]) {
 //  std::string configFile = "auto";  // Default to auto-config
 //  Verbosity verbosity = Verbosity::SHOW;
 
-  Parameters params;
+  Parameters params {};
 
-  NType ntype = NType::ARTIFICIAL;
+  PVPType ntype = PVPType::ARTIFICIAL;
   stdfs::path subfolder = "tmp/naturalisation_test/";
   char coverwrite;
   uint stepDuration = 4;
@@ -53,6 +53,8 @@ int main(int argc, char *argv[]) {
     ("ntype", "Naturalisation type (ARTIFICIAL or NATURAL)."
               " Defaults to the first",
      cxxopts::value(ntype))
+    ("no-topology", "Whether to deactivate topology output.",
+     cxxopts::value(params.noTopology))
     ("step", "Number of years per epoch for the evolved controllers",
      cxxopts::value(stepDuration))
     ("stability-threshold", "Stability threshold",
@@ -84,7 +86,7 @@ int main(int argc, char *argv[]) {
     utils::doThrow<std::invalid_argument>("No rhs simulation provided");
 
   if (!result.count("folder"))
-    subfolder /= EnumUtils<NType>::getName(ntype);
+    subfolder /= EnumUtils<PVPType>::getName(ntype);
 
   if (result.count("overwrite"))
     overwrite = simu::Simulation::Overwrite(coverwrite);
@@ -108,17 +110,19 @@ int main(int argc, char *argv[]) {
   Simulation *s = nullptr;
 
   switch (ntype) {
-  case NType::ARTIFICIAL:
+  case PVPType::ARTIFICIAL:
     s = Simulation::artificialNaturalisation(params);
     break;
 
-  case NType::NATURAL:
+  case PVPType::NATURAL:
     s = Simulation::naturalNaturalisation(params);
     break;
   }
 
   s->setDataFolder(subfolder, overwrite);
   s->setDuration(simu::Environment::DurationSetType::APPEND, stepDuration);
+
+  config::Simulation::saveEvery.ref() = 1;
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";
@@ -132,9 +136,9 @@ int main(int argc, char *argv[]) {
   nstats << Simulation::Stats{*s} << "\n";
 
   std::cout << "Initial counts: "
-            << s->counts(NTag::LHS) << " (lhs), "
-            << s->counts(NTag::RHS) << " (rhs), "
-            << s->counts(NTag::HYB) << " (hyb)\n"
+            << s->counts(PVPTag::LHS) << " (lhs), "
+            << s->counts(PVPTag::RHS) << " (rhs), "
+            << s->counts(PVPTag::HYB) << " (hyb)\n"
             << "L/R ratio: " << s->ratio() << "\n"
             << "Convergence requires dL/R <= " << params.stabilityThreshold
             << " for " << params.stabilitySteps << " steps" << std::endl;

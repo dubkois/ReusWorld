@@ -39,6 +39,7 @@ class Environment {
   Voxels _grazing;
 
   bool _updatedTopology;
+  bool _noTopology;
 
   Time _startTime, _currTime, _endTime;
 
@@ -54,7 +55,8 @@ public:
   ~Environment(void);
 
   void init (const Genome &g);
-  void initFrom (const std::vector<Environment*> &these);
+  void initFrom (const std::vector<Environment*> &these,
+                 bool noTopology, float totalWidth = -1);
 
   void destroy (void);
 
@@ -140,6 +142,10 @@ public:
 
   const auto& grazing (void) const {
     return _grazing;
+  }
+
+  bool noTopology (void) const {
+    return _noTopology;
   }
 
   void stepStart (void);

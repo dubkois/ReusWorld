@@ -192,7 +192,8 @@ int main(int argc, char *argv[]) {
         << "\\end{document}\n";
     ofs.close();
 
-    envGenome.controller.toDot(s.dataFolder() / "controller.last.dot");
+    envGenome.controller.toDot(s.dataFolder() / "controller.last.dot",
+                               genotype::Environment::CGP::DotOptions::SHOW_DATA);
   }
 
   if (!duration.empty()) {

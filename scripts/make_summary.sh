@@ -23,7 +23,7 @@ OPTIND=1         # Reset in case getopts has been used previously in the shell.
 while getopts "h?f:s:d:p" opt; do
   case "$opt" in
   h|\?)
-      show_help
+      usage
       exit 0
       ;;
   f)  folder=$OPTARG

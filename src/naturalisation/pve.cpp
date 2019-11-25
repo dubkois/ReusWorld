@@ -6,11 +6,11 @@
 
 #include "kgd/external/cxxopts.hpp"
 
-#include "simulation.h"
+#include "pvesimulation.h"
 #include "../config/dependencies.h"
 
 using Plant = simu::Plant;
-using Simulation = simu::naturalisation::NatSimulation;
+using Simulation = simu::naturalisation::PVESimulation;
 using Parameters = simu::naturalisation::Parameters;
 
 int main(int argc, char *argv[]) {
@@ -23,10 +23,10 @@ int main(int argc, char *argv[]) {
 //  std::string configFile = "auto";  // Default to auto-config
 //  Verbosity verbosity = Verbosity::SHOW;
 
-  Parameters params;
+  Parameters params {};
 
-  NType ntype = NType::ARTIFICIAL;
-  stdfs::path subfolder = "tmp/naturalisation_test/";
+  PVEType type = PVEType::TYPE1;
+  stdfs::path subfolder = "tmp/pvp_test/";
   char coverwrite;
   uint stepDuration = 4;
 
@@ -48,11 +48,14 @@ int main(int argc, char *argv[]) {
      cxxopts::value(params.loadConstraints))
     ("lhs", "Left hand side simulation",
      cxxopts::value(params.lhsSimulationFile))
-    ("rhs", "Right hand side simulation",
-     cxxopts::value(params.rhsSimulationFile))
-    ("ntype", "Naturalisation type (ARTIFICIAL or NATURAL)."
-              " Defaults to the first",
-     cxxopts::value(ntype))
+    ("env", "Environment for the right hand side",
+     cxxopts::value(params.environmentFile))
+    ("no-topology", "Whether to deactivate topology output.",
+     cxxopts::value(params.noTopology)
+     ->default_value("true")->implicit_value("true"))
+    ("total-width", "Total width of combined environment",
+     cxxopts::value(params.totalWidth)->default_value("100"))
+    ("type", "PVE type (unused).", cxxopts::value(type))
     ("step", "Number of years per epoch for the evolved controllers",
      cxxopts::value(stepDuration))
     ("stability-threshold", "Stability threshold",
@@ -66,13 +69,10 @@ int main(int argc, char *argv[]) {
   if (result.count("help")) {
     std::cout << options.help()
               << "\n\nInterpretation of the parameters depend on the value the "
-                 "naturalisation type (ntype):\n"
-                 "\tARTIFICIAL: lhs is the \"at home\" simulation whose"
-                 " environmental controller and values will be used. rhs is the"
-                 " invader. The population is created by taking the seeds of"
-                 " both sides.\n"
-                 "\t   NATURAL: Simulations are put side-by-side allowing for"
-                 " passive invasion. lhs is on the left.\n"
+                 "pve type (type):\n"
+                 "\tTYPE1: lhs is placed on the left with an empty environment"
+                 "controlled by env. Success is measured by the capability to"
+                 "colonize the right hand side.\n"
               << std::endl;
     return 0;
   }
@@ -80,11 +80,11 @@ int main(int argc, char *argv[]) {
   if (params.lhsSimulationFile.empty())
     utils::doThrow<std::invalid_argument>("No lhs simulation provided");
 
-  if (params.rhsSimulationFile.empty())
+  if (params.environmentFile.empty())
     utils::doThrow<std::invalid_argument>("No rhs simulation provided");
 
   if (!result.count("folder"))
-    subfolder /= EnumUtils<NType>::getName(ntype);
+    subfolder /= EnumUtils<PVEType>::getName(type);
 
   if (result.count("overwrite"))
     overwrite = simu::Simulation::Overwrite(coverwrite);
@@ -107,18 +107,19 @@ int main(int argc, char *argv[]) {
 
   Simulation *s = nullptr;
 
-  switch (ntype) {
-  case NType::ARTIFICIAL:
-    s = Simulation::artificialNaturalisation(params);
-    break;
-
-  case NType::NATURAL:
-    s = Simulation::naturalNaturalisation(params);
+  switch (type) {
+  case PVEType::TYPE1:
+    s = Simulation::type1PVE(params);
     break;
   }
 
   s->setDataFolder(subfolder, overwrite);
   s->setDuration(simu::Environment::DurationSetType::APPEND, stepDuration);
+
+  config::Simulation::saveEvery.ref() = 1;
+
+  std::cout << "Topology is: "
+            << (params.noTopology ? "deactivated" : "active") << std::endl;
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";
@@ -127,23 +128,21 @@ int main(int argc, char *argv[]) {
 //  config::Simulation::verbosity.ref() = 0;
 //  if (configFile.empty()) config::Simulation::printConfig("");
 
-  std::ofstream nstats (subfolder / "naturalisation.dat");
+  std::ofstream nstats (subfolder / "evaluation.dat");
   nstats << Simulation::StatsHeader{} << "\n";
   nstats << Simulation::Stats{*s} << "\n";
 
-  std::cout << "Initial counts: "
-            << s->counts(NTag::LHS) << " (lhs), "
-            << s->counts(NTag::RHS) << " (rhs), "
-            << s->counts(NTag::HYB) << " (hyb)\n"
-            << "L/R ratio: " << s->ratio() << "\n"
+  std::cout << "Initial score: " << s->score() << "\n"
             << "Convergence requires dL/R <= " << params.stabilityThreshold
             << " for " << params.stabilitySteps << " steps" << std::endl;
-
 
   if (!s->time().isStartOfYear()) s->printStepHeader();
 
   uint epochs = 0;
   while (!s->finished()) {
+    if (!s->environment().topology()[0] == 0)
+      throw std::logic_error("nope");
+
     if (s->time().isStartOfYear()) s->printStepHeader();
     s->step();
     nstats << Simulation::Stats{*s} << "\n";

@@ -22,9 +22,13 @@ void Environment::init (const Genome &genome) {
   _genomes = {genome};
   updateInternals();
   initInternal();
+  _noTopology = false;
 }
 
-void Environment::initFrom(const std::vector<Environment *> &these) {
+void Environment::initFrom(const std::vector<Environment *> &these,
+                           bool noTopology, float totalWidth) {
+  _noTopology = noTopology;
+
   // Prepare genomes container
   uint t = 0;
   for (const Environment *e: these) {
@@ -36,6 +40,7 @@ void Environment::initFrom(const std::vector<Environment *> &these) {
   // Prepare internal variables
   updateInternals();
   initInternal();
+  if (totalWidth != -1) _totalWidth = totalWidth;
 
   _startTime = _currTime = _endTime = Time::fromTimestamp(t);
 
@@ -67,7 +72,7 @@ void Environment::initFrom(const std::vector<Environment *> &these) {
         if (!last)  dst[offset+stride] = .5 * src.back();
     };
 
-    copyInto(e._topology, _topology);
+    if (!_noTopology) copyInto(e._topology, _topology);
     copyInto(e._temperature, _temperature);
     copyInto(e._hygrometry[SHALLOW], _hygrometry[SHALLOW]);
     copyInto(e._grazing, _grazing);
@@ -162,7 +167,7 @@ void Environment::cgpStep (void) {
 
   const auto baselineWater = config::Simulation::baselineShallowWater();
 
-  _updatedTopology =
+  _updatedTopology = !_noTopology &&
     (_currTime.toTimestamp() % config::Simulation::updateTopologyEvery()) == 0;
 
   inputs[I::D] = sin(2 * M_PI * _currTime.timeOfYear());
@@ -223,13 +228,9 @@ void Environment::cgpStep (void) {
         }
 
         // Keep 10% of space
-        if (_updatedTopology)
-          updateVoxel(g, A, A_);
-
+        if (_updatedTopology) updateVoxel(g, A, A_);
         updateVoxel(g, T, T_);
-
         updateVoxel(g, H, H_);
-
         updateVoxel(g, G, G_);
       }
     }
