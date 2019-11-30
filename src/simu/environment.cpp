@@ -381,12 +381,16 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
   if (e._genomes.size() > 1) { // Multigenomes save
     for (uint i=0; i<e._genomes.size(); i++)
       Genome::CGP::save(jc[i], e._genomes[i].controller);
-    j= {
+    j = {
       e._genomes, jd,
       e._topology, e._temperature, e._hygrometry, e._grazing,
       e._startTime, e._currTime, e._endTime,
       jc
     };
+
+    uint totalWidth = 0;
+    for (const Genome &g: e._genomes) totalWidth += g.width;
+    if (totalWidth != e._totalWidth)  j[j.size()] = e._totalWidth;
 
   } else {
     Genome::CGP::save(jc, e._genomes.front().controller);
@@ -402,6 +406,7 @@ void Environment::save (nlohmann::json &j, const Environment &e) {
 void Environment::postLoad(void) {  _physics->postLoad(); }
 
 void Environment::load (const nlohmann::json &j, Environment &e) {
+  float totalWidth = -1;
   uint i=0;
   if (j[0].is_array()) { // got multiple genomes to load
     e._genomes = j[i++].get<std::vector<Genome>>();
@@ -417,6 +422,9 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
     nlohmann::json jc = j[i++];
     for (uint j=0; j<e._genomes.size(); j++)
       Genome::CGP::load(jc[j], e._genomes[j].controller);
+
+    if (j.size() >= i) // got a total width -> use it
+      totalWidth = j[i++];
 
   } else {
     e._genomes.push_back(j[i++]);
@@ -434,6 +442,8 @@ void Environment::load (const nlohmann::json &j, Environment &e) {
 
   e.updateInternals();
   e._updatedTopology = false;
+
+  if (totalWidth != -1) e._totalWidth = totalWidth;
 
   if (debugEnvCTRL) e.showVoxelsContents();
 }

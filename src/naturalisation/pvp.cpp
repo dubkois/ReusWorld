@@ -54,7 +54,8 @@ int main(int argc, char *argv[]) {
               " Defaults to the first",
      cxxopts::value(ntype))
     ("no-topology", "Whether to deactivate topology output.",
-     cxxopts::value(params.noTopology))
+     cxxopts::value(params.noTopology)
+     ->default_value("true")->implicit_value("true"))
     ("step", "Number of years per epoch for the evolved controllers",
      cxxopts::value(stepDuration))
     ("stability-threshold", "Stability threshold",
@@ -123,6 +124,10 @@ int main(int argc, char *argv[]) {
   s->setDuration(simu::Environment::DurationSetType::APPEND, stepDuration);
 
   config::Simulation::saveEvery.ref() = 1;
+
+  std::cout << "Topology is: "
+            << (params.noTopology ? "deactivated" : "active")
+            << std::endl;
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";

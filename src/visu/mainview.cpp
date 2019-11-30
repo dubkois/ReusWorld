@@ -263,8 +263,7 @@ struct FormatP {
 struct FormatA {
   double v;
 
-  FormatA (const simu::Plant &p)
-    : v(double(p.age()) / p.genome().dethklok) {}
+  FormatA (float age, uint dethklok) : v(age / dethklok) {}
 
   friend std::ostream& operator<< (std::ostream &os, const FormatA &f) {
     return os << std::setw(5) << std::setprecision(3) << std::setfill('0')
@@ -272,10 +271,26 @@ struct FormatA {
   }
 };
 
+struct PlantData {
+  gui::Plant *sample;
+  float age;
+  uint count;
+
+  PlantData (gui::Plant *p)
+    : sample(p), age(0), count(0) {
+    addPlant(p);
+  }
+
+  void addPlant (gui::Plant *p) {
+    age += p->plant().age();
+    count++;
+  }
+};
+
 void MainView::saveMorphologies (const QString &dir, int width) {
   using Layer = simu::Plant::Layer;
 
-  std::map<std::string, std::pair<gui::Plant*, uint>> map;
+  std::map<std::string, PlantData> map;
   float total = _plants.size(), plants = 0;
   float seeds = 0;
 
@@ -303,15 +318,16 @@ void MainView::saveMorphologies (const QString &dir, int width) {
 
     auto it = map.find(phenotype);
     if (it == map.end())
-      map[phenotype] = std::make_pair(p, 1);
+      map.emplace(phenotype, PlantData(p));
     else
-      it->second.second++;
+      it->second.addPlant(p);
   }
 
   std::map<uint, uint> duplicates;
 
   for (auto &ppair: map) {
-    uint count = ppair.second.second;
+    const PlantData &data = ppair.second;
+    uint count = data.count;
     uint duplicate = 1;
 
     auto it = duplicates.find(count);
@@ -320,13 +336,14 @@ void MainView::saveMorphologies (const QString &dir, int width) {
     else
       duplicate = ++it->second;
 
-    Plant *plant = ppair.second.first;
+    Plant *plant = data.sample;
 
     std::ostringstream oss;
     oss << dir.toStdString() << "/"
         << FormatP{count / plants} << "p"
         << "_" << plant->plant().organs().size() << "o"
-        << "_" << FormatA(plant->plant()) << "a";
+        << "_" << FormatA(data.age / count, plant->plant().genome().dethklok)
+        << "a";
 
     if (duplicate > 1)  oss << "_" << duplicate;
     std::string basename = oss.str();
@@ -365,7 +382,7 @@ void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
   using SID = phylogeny::SID;
   using Layer = simu::Plant::Layer;
 
-  std::map<SID, std::map<std::string, std::pair<gui::Plant*, uint>>> map;
+  std::map<SID, std::map<std::string, PlantData>> map;
   std::map<SID, uint> totals;
   float total = _plants.size(), plants = 0;
   float seeds = 0;
@@ -395,9 +412,9 @@ void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
 
     auto it = smap.find(phenotype);
     if (it == smap.end())
-      smap[phenotype] = std::make_pair(p, 1);
+      smap.emplace(phenotype, PlantData(p));
     else
-      it->second.second++;
+      it->second.addPlant(p);
     totals[p->species()]++;
   }
 
@@ -406,7 +423,8 @@ void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
     std::map<uint, uint> duplicates;
 
     for (auto &ppair: spair.second) {
-      uint count = ppair.second.second;
+      const PlantData &data = ppair.second;
+      uint count = data.count;
       uint duplicate = 1;
 
       auto it = duplicates.find(count);
@@ -415,7 +433,7 @@ void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
       else
         duplicate = ++it->second;
 
-      Plant *plant = ppair.second.first;
+      Plant *plant = data.sample;
 
       std::ostringstream oss;
       oss << dir.toStdString() << "/"
@@ -423,7 +441,8 @@ void MainView::saveMorphologiesWithSpecies (const QString &dir, int width) {
           << "SID" << spair.first
           << "_" << FormatP{count / float(totals.at(species))} << "lp"
           << "_" << plant->plant().organs().size() << "o"
-          << "_" << FormatA(plant->plant()) << "a";
+          << "_" << FormatA(data.age / count, plant->plant().genome().dethklok)
+          << "a";
 
       if (duplicate > 1)  oss << "_" << duplicate;
       std::string basename = oss.str();

@@ -119,7 +119,9 @@ int main(int argc, char *argv[]) {
   config::Simulation::saveEvery.ref() = 1;
 
   std::cout << "Topology is: "
-            << (params.noTopology ? "deactivated" : "active") << std::endl;
+            << (params.noTopology ? "deactivated" : "active") << "\n"
+            << "Requested total width is: " << params.totalWidth
+            << std::endl;
 
 //  if (result.count("auto-config") && result["auto-config"].as<bool>())
 //    configFile = "auto";

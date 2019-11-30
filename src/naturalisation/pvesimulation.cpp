@@ -116,8 +116,11 @@ PVESimulation* PVESimulation::type1PVE (const Parameters &params) {
 //    p->updatePosition(.5 * (p->pos().x + -lhs._env.xextent()));
     p->updatePosition(s->_env.xextent() * ((p->pos().x / lhs._env.width()) - .5));
 
-    if (s->_plants.try_emplace(p->pos().x, Plant_ptr(p)).second
+    if (s->_plants.find(p->pos().x) == s->_plants.end()
         && s->_env.addCollisionData(p)) {
+
+      s->_plants.emplace(p->pos().x, Plant_ptr(p));
+
       if (params.noTopology)  p->updateAltitude(s->_env, 0);
       assert(!p->isDead());
     }

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 d=results/timelines/pve/
+H="0.00 0.25 0.50 0.75 1.00"
 
 for e in $d*/evaluation.dat
 do
@@ -8,97 +9,74 @@ do
   printf "%s " $f
   tail -n 1 $e | sed 's/y1\(.*\)d.* \(.*\)/\1 \2/'
 done | \
-awk -vN=25 -vT=.2 -vO="$d/paretos.data" '
-function isDominated (lhs, rhs,      i) {
-  better = false; 
-  for (i=1; i<=2; i++) {
-    if (lhs[i] < rhs[i])  return false;
-    better = better || (rhs[i] < lhs[i]);
-  }
-  return better;
-}
-
+awk -vT=.2 -vD="$d" -vHH="$H" -vWH="$H" '
 {
-  counts[$1]++;
-  i=counts[$1];
-  data[$1][i][1] = substr($2, 2);
-  data[$1][i][2] = substr($3, 2);
+  h = substr($2, 2);
+  w = substr($3, 2);
+  y = $4;
+  s = 100 * $5;
   
-  for (j=4; j<=NF; j++)
-    data[$1][i][j-1] = $j;
+  data[$1][h][w][1] = y;
+  data[$1][h][w][2] = s;
+  
+  agg[$1][1] += y;
+  agg[$1][2] += s;
 }
 
 END {
-#   for (r in counts) {
-#     printf "%s:\n", r;
-#     for (a in data[r]) {
-#       printf "\t%s:\n", a;
-#       for (i in data[r][a]) {
-#         printf "\t\t%d: %s\n", i, data[r][a][i];
-#       }
-#     }
-#   }
-#     
+  split(HH, his)
+  for (i in his) hi[his[i]] = 1
+  
+  split(WH, wis)
+  for (i in wis) wi[wis[i]] = 1
 
+  N = length(hi) * length(wi);
+
+  A = D"/aggregate.dat";
+  
   PROCINFO["sorted_in"] = "@ind_str_asc"
-  for (r in counts) {
-    if (counts[r] < N) continue;
-    printf "Computing pareto front for %s\n", r;
-    printf "\tCandidates:\n";
-
-    delete front;
-    frontSize=0;
+  for (r in data) {
+    yO = D"/"r".times.dat"
+    sO = D"/"r".scores.dat"
     
-    delete fdata;
-
-    n=1;
-    for (i=1; i<=N; i++) {
-      if (data[r][i][4] < T)  continue;
-      for (j in data[r][i]) fdata[r][n][j] = data[r][i][j];
-      n++;
+    printf "%s %.1f %+07.2f\n", r, agg[r][1] / N, agg[r][2] / N > A
+    
+    printf "%04d", 0 > yO;
+    printf "%04d", 0 > sO;
+    for (w in wi) {
+      printf " %s", w > yO;
+      printf " %s", w > sO;
     }
+    printf "\n" > yO
+    printf "\n" > sO
     
-    delete data[r];
-    
-    for (i=1; i<n; i++) {
-      printf "\t\t%2d:", i;
-      for (f in fdata[r][i]) printf " %s", fdata[r][i][f];
-      printf "\n";
-    
-      dominated = false;
+    for (h in hi) {
+      printf "%s", h > yO;
+      printf "%s", h > sO;
       
-      for (j in front) {
-#         printf "dominated = isDominated(fdata[%s][front[%s]], fdata[%s][%s])\n", r, j, r, i;
-        dominated = isDominated(fdata[r][front[j]], fdata[r][i])
-        if (dominated)  break;
-      }
-
-      if (!dominated) {
-        for (j=i+1; j<n; j++) {
-#           printf "dominated = isDominated(fdata[%s][%s], fdata[%s][%s])\n", r, j, r, i;
-          dominated = isDominated(fdata[r][j], fdata[r][i])
-          if (dominated)  break;
-        }
+      for (w in wi) {
+        printf " %03d", data[r][h][w][1] > yO
+        printf " %+07.2f", data[r][h][w][2] > sO
+#         printf "%s %s %s: %d %.2f\n", r, h, w, data[r][h][w][1], data[r][h][w][2] > "/dev/stderr";
       }
       
-      if (!dominated)
-        front[frontSize++] = i;
+      printf "\n" > yO
+      printf "\n" > sO
     }
-    
-    printf "\t%d items in front\n", length(front);
-    for (p in front) {
-      printf "\t\t%2d", p;
-      printf "%s %02d", r, p > O;
-      printf ":";
-      for (i in fdata[r][front[p]]) {
-        printf " %s", fdata[r][front[p]][i];
-        printf " %s", fdata[r][front[p]][i] > O;
-      }
-      printf "\n";
-      printf "\n" > O;
-    }
-    printf "\n";
   }
 }'
 
-cat $d/paretos.data
+for data in $d/*.{times,scores}.dat
+do
+  o=$(dirname $data)/$(basename $data .dat).png
+  
+  gnuplot -e "
+  set term pngcairo size 1050,1050;
+  set output '$o';
+  set style textbox opaque noborder;
+  set xlabel 'Water variation';
+  set ylabel 'Temperature variation';
+  plot '$data' matrix rowheaders columnheaders with image notitle, \
+       '' matrix rowheaders columnheaders using 1:2:(\$3 != \$3 ? '' : sprintf(\"% 5.1f\",\$3)) with labels boxed notitle;"
+#   break
+done

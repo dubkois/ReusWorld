@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-DEFINE_PRETTY_ENUMERATION(PVPType, NATURAL, ARTIFICIAL, TYPE3)
+DEFINE_PRETTY_ENUMERATION(PVPType, NATURAL, ARTIFICIAL)
 DEFINE_PRETTY_ENUMERATION(PVPTag, LHS, RHS, HYB)
 
 namespace simu {
@@ -14,7 +14,7 @@ struct Parameters {
   stdfs::path rhsSimulationFile = "";
   std::string loadConstraints = "none";
 
-  bool noTopology = true;
+  bool noTopology = false;
 
   float stabilityThreshold = 1e-3;
   uint stabilitySteps = 3;

@@ -315,6 +315,7 @@ PVESimulation::naturalNaturalisation (const Parameters &params) {
         && s->_env.addCollisionData(tp.plant)) {
 
       s->_plants.emplace(tp.plant->pos().x, Plant_ptr(tp.plant));
+      if (params.noTopology)  tp.plant->updateAltitude(s->_env, 0);
 
       Ratios r = Ratios::fromTag(tp.tag);
       s->_populations[tp.plant] = r;

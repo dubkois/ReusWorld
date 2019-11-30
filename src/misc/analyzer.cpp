@@ -287,6 +287,58 @@ void compatibilityMatrix (const Simulation &simu, const std::string &sidList) {
   std::cout << std::endl;
 }
 
+void computeFlowerRobustnessScore (const Simulation &s, char /*type*/) {
+  using Organ = simu::Organ;
+  using SSizes = std::map<const Organ*, uint>;
+  using SSizesLamda = std::function<uint(SSizes&, const Organ*)>;
+  static const SSizesLamda computeSubtreesSize =
+    [] (SSizes &ssize, const Organ *o) {
+    uint sum = 0;
+    for (const Organ *c: o->children())
+      sum += computeSubtreesSize(ssize, c);
+    ssize[o] = sum;
+    return sum + o->isFlower();
+  };
+
+  using Scores = std::array<float, 2>;
+  Scores globalScores {0};
+  uint validPlants = 0;
+
+  for (auto &ppair: s.plants()) {
+    const simu::Plant &p = *ppair.second;
+
+    if (p.isInSeedState())    continue;
+    if (p.flowers().empty())  continue;
+    if (!p.fruits().empty())  continue;
+
+    SSizes subtreesSize;
+    for (const Organ *o: p.organs())
+      if (!o->parent() && o->layer() == simu::Plant::Layer::SHOOT)
+        computeSubtreesSize(subtreesSize, o);
+
+    uint flowers = p.flowers().size();
+
+    float score = 0;
+    for (const Organ *f: p.flowers()) {
+      float fscore = (flowers - subtreesSize.at(f)) / float(flowers);
+      score += fscore;
+
+//      std::cout << simu::OrganID(f) << ": ("
+//                << flowers << " - " << subtreesSize.at(f) << ") / " << flowers
+//                << " = " << fscore << "\n";
+    }
+
+    globalScores[0] += score;
+    globalScores[1] += score / flowers;
+    validPlants++;
+//    std::cout << simu::PlantID(&p) << ": " << score << "\n";
+  }
+
+  std::cout << "FlowerRobustness:";
+  for (float s: globalScores) std::cout << " " << s / validPlants;
+  std::cout << std::endl;
+}
+
 int main (int argc, char *argv[]) {
   // ===========================================================================
   // == Command line arguments parsing
@@ -303,6 +355,7 @@ int main (int argc, char *argv[]) {
   bool doSpeciesRanges = false;
   bool doDensityHistogram = false;
   std::string compatMatrixSIDList;
+  char flowerMarkingType = '\0';
   std::string popOutFile, ptreeOutFile;
 
   cxxopts::Options options("ReusWorld (analyzer)",
@@ -333,6 +386,10 @@ int main (int argc, char *argv[]) {
     ("compatibility-matrix", "Computes average compatibilities between the "
                              "specified species",
      cxxopts::value(compatMatrixSIDList))
+    ("flower-robustness", "Computes the flower robustness score"
+                          " (flower count weighted by probability of causing"
+                          " cascading organ loss)",
+     cxxopts::value(flowerMarkingType))
     ("extract-pop", "Save population to specified location",
      cxxopts::value(popOutFile))
     ("extract-tree", "Save ptree to specified location",
@@ -383,6 +440,9 @@ int main (int argc, char *argv[]) {
 
   if (result.count("compatibility-matrix"))
     compatibilityMatrix(s, compatMatrixSIDList);
+
+  if (flowerMarkingType != '\0')
+    computeFlowerRobustnessScore(s, flowerMarkingType);
 
   if (!popOutFile.empty()) {
     std::ofstream ofs (popOutFile);
