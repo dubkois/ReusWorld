@@ -109,9 +109,9 @@ int main(int argc, char *argv[]) {
         " or load a previous simulation");
   }
 
-  if (!morphologiesSaveFolder.empty() && loadSaveFile.empty())
-    utils::doThrow<std::invalid_argument>(
-        "Generating morphologies is only meaningful when loading a simulation");
+//  if (!morphologiesSaveFolder.empty() && loadSaveFile.empty())
+//    utils::doThrow<std::invalid_argument>(
+//        "Generating morphologies is only meaningful when loading a simulation");
 
   if (result.count("auto-config") && result["auto-config"].as<bool>())
     configFile = "auto";
@@ -195,6 +195,16 @@ int main(int argc, char *argv[]) {
 
   int ret = 0;
   if (!morphologiesSaveFolder.empty()) {
+    if (!stdfs::exists(morphologiesSaveFolder)) {
+      stdfs::create_directories(morphologiesSaveFolder);
+      std::cout << "Created folder(s) " << morphologiesSaveFolder
+                << " for morphologies storage" << std::endl;
+    }
+
+    // If just initialised, let it have one step to show its morphology
+    if (loadSaveFile.empty())
+      c.step();
+
     v->saveMorphologies(QString::fromStdString(morphologiesSaveFolder));
 
   } else if (!screenshotSaveFile.empty()) {

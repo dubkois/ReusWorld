@@ -1,22 +1,29 @@
 #!/bin/sh
 
 usage(){
-  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-l v] [-u v] [-p]"
-  echo "       -d for whether to plot as 3d of projected map (2d)"
-  echo "       -p for whether to keep the graph interactive"
+  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-l v] [-u v] [-e ext] [-H] [-p]"
+  echo "       -d Plot as 3d or projected map (2d)"
+  echo "       -p Keep the graph interactive"
+  echo "       -e Output file type (if not interactive)"
+  echo "       -H Use horizontal time instead of default vertical"
   echo "       -l,-u set the lower and upper bounds of the graph, respectively"
 }
 
 file=""
 dim=2
+ext="png"
 persist=""
 lower="*"
 upper="*"
 
+margs="1:2:3"
+Y="y"
+X="x"
+
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?f:d:l:u:p" opt; do
+while getopts "h?f:d:l:u:e:pH" opt; do
   case "$opt" in
   h|\?)
       show_help
@@ -26,9 +33,15 @@ while getopts "h?f:d:l:u:p" opt; do
       ;;
   d)  dim=$OPTARG
       ;;
+  e)  ext=$OPTARG
+      ;;
   l)  lower=$OPTARG
       ;;
   u)  upper=$OPTARG
+      ;;
+  H)  margs="2:1:3"
+      Y="x"
+      X="y"
       ;;
   p)  persist="-"
   esac
@@ -36,6 +49,7 @@ done
 
 if [ ! -f "$file" ]
 then
+  echo "'$file' does not exist"
   usage
   exit 1
 fi
@@ -48,27 +62,38 @@ then
 fi
 
 map=""
-[ "$dim" -eq 2 ] && map="set pm3d map;"
+# [ "$dim" -eq 2 ] && map="set pm3d map;"
 
 if [ -z "$persist" ]
 then
+  case "$ext" in
+    pdf)  term="pdfcairo size 11.2,7;"
+          ;;
+      
+    *)  term="pngcairo size 1680,1050;"
+        ext="png"
+        ;;
+  esac
   output="
-  set term pngcairo size 1680,1050;
-  set output '$(dirname $file)/$(basename $file .dat)_${dim}D.png';"
+  set term $term;
+  set output '$(dirname $file)/$(basename $file .dat)_${dim}D.$ext';"
 fi
 
 rows=$(wc -l $file | cut -d ' ' -f 1)
 stride=$(($rows / 5))
-ytics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
-
+tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
+tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
+  
 gnuplot -e "
-  set xlabel 'X';
-  set ylabel 'Time';
-  set ytics ($ytics);
-  set title '$(basename $file .dat)';
+  set ${X}label 'X';
+  set ${Y}label 'Time';
+  set ${Y}tics ($tics);
+  set tics nomirror out;
   set zrange [$lower:$upper];
   set cbrange [$lower:$upper];
+  set autoscale fix;
   $output
   $map
-  splot '< cut -d \" \" -f2- $file' matrix with pm3d notitle " -p $persist
+  plot '< cut -d \" \" -f2- $file' using $margs matrix with image notitle " -p $persist
   
+#   set title '$(basename $file .dat)';

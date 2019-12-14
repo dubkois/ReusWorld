@@ -116,8 +116,7 @@ fi
 
 [ -z "$verbose" ] && echo "columns: '$columns'"
 
-lines=$(($(wc -l $file | cut -d ' ' -f 1) - 1))
-tics=8
+tics=6
 
 cmd="  set datafile separator ' ';
   set ytics nomirror;
@@ -139,15 +138,28 @@ then
 $output"
 else
   cmd="$cmd
-  loop(x) = 'while (1) { linesPerTic=ticsEvery(0); replot; pause '.x.'; };';"
+  loop(x) = 'while (1) { eval(setupXTics(0)); replot; pause '.x.'; };';"
 fi
 
-cmd="$cmd
-  xticsCount=$tics;
-  ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
-  linesPerTic=ticsEvery(0);
-  plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
+# rows=$(wc -l $file | cut -d ' ' -f 1)
+# stride=$(($rows / 5))
+# tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
+# tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
 
+cmd="$cmd
+  rows(x) = system('cat $file | wc -l');
+  stride(x) = rows(x) / ($tics - 1);
+  computeXTics(x) = system('cut -d \" \" -f 1 $file | awk -v s='.stride(0).' \"NR % s == 2 { print \\\$0, NR } END { print \\\"y1000d00h0\\\", NR-2 }\"');
+  setupXTics(x) = 'tics=computeXTics('.x.'); set for [i=1:words(tics):2] xtics (word(tics, i) word(tics, i+1));';
+  eval(setupXTics(0));
+  plot '$file' using (0/0):(0/0) notitle"
+
+# cmd="$cmd
+#   xticsCount=$tics;
+#   ticsEvery(x) = (system(\"wc -l $file | cut -d ' ' -f 1\") - 1) / xticsCount;
+#   linesPerTic=ticsEvery(0);
+#   plot '$file' using (0/0):xtic(int(\$0)%linesPerTic == 0 ? stringcolumn(1) : 0/0) notitle"
+  
 [ -z "$verbose" ] && printf "\nreading columns specifications\n"
 IFS=';' read -r -a columnsArray <<< $columns
 for elt in "${columnsArray[@]}"

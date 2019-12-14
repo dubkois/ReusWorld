@@ -358,103 +358,106 @@ do
   field=$(get $f field)
   outfile=$(get $f outfile)
   title=$(get $f title)
-  persist=$(get $f persist)
+  persist=$(get $f persist) # Ignored
   
   globalworkfile=$(datafile $field global)
   
-  printf "\n%80s\n" " " | tr ' ' '-'
-  printf "Generating graph for field $field\n"
+  $(dirname $0)/plot_field_dynamics.sh -f $field -i $globalworkfile -o $outfile -t $title
   
-  globalmin=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -g | head -1)
-  [ -z "$verbose" ] && echo "global min: $globalmin"
-
-  globalmax=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -gr | head -1)
-  [ -z "$verbose" ] && echo "global max: $globalmax"
-
-  offset=0
-  ytics=""
-  if awk "BEGIN {exit !($globalmin < 0)}"
-  then
-    offset=$(awk "BEGIN { print -1*$globalmin }" )
-    [ -z "$verbose" ] && echo "Offsetting by $offset"
-    
-    # Compute un-offsetted ytics
-    # Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
-    ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
-      function floor (x) { return int(x); }
-      function ceil (x) { return int(x+1); }
-      BEGIN {
-        r=max-min;
-        power=10**floor(log(r)/log(10));
-        xnorm = r / power;
-        posns = 20 / xnorm;
-        
-        if (posns > 40)       tics=.05;
-        else if (posns > 20)  tics=.1;
-        else if (posns > 10)  tics=.2;
-        else if (posns > 4)   tics=.5;
-        else if (posns > 2)   tics=1;
-        else if (posns > .5)  tics=2;
-        else                  tics=ceil(xnorm);
-        
-        ticstep = tics * power;
-        
-        start=ticstep * floor(min / ticstep);
-        end=ticstep * ceil(max / ticstep);
-        
-        for (s=start; s<=end; s+=ticstep) {
-          if (s == 0) s = 0;  # To make sure zero is zero (remove negative zero)
-          printf "\"%g\" %g\n", s, s-min
-        }
-      }' | paste -sd,)
-    [ -z "$verbose" ] && echo "     ytics: $ytics"
-  fi
-
-  boxwidth=$dyear
-  [ -z "$verbose" ] && echo "  boxwidth: $boxwidth"
-
-  cmd="set style fill solid 1 noborder;
-  set autoscale fix;" 
-
-  cmd="$cmd
-  set format y \"%5.2g\";
-  set ytics ($ytics);
-  set xlabel 'Years';
-  set ylabel '$field';"
-
-  if [ "$outfile" ]
-  then
-    cmd="$cmd
-  $(get $f term)
-  $(get $f output)"
-  fi
-
-  if [ "$title" ]
-  then
-    cmd="$cmd
-  set title '$title';"
-  fi
-
-  cmd="$cmd
-  icolor(r) = int((1-r)*255);
-  color(r) = icolor(r) * 65536 + icolor(r) * 256 + 255;
-  plot '$globalworkfile' using 1:(\$2+$offset):($boxwidth):(color(\$3)) with boxes lc rgb variable notitle;"
-
-  if [ -z "$verbose" ]
-  then
-    printf "\nGnuplot script:\n%s\n\n" "$cmd"
-  else
-    printf "Plotting timeseries histogram from '$folder' for '$field'"
-    [ ! -z "$outfile" ] && printf " into '$outfile'"
-    printf "\n"
-  fi
-
-  gnuplot -e "$cmd" --persist $persist
-
-  if [ "$outfile" ]
-  then
-    echo "Generated $outfile"
-  fi
+#   
+#   printf "\n%80s\n" " " | tr ' ' '-'
+#   printf "Generating graph for field $field\n"
+#   
+#   globalmin=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -g | head -1)
+#   [ -z "$verbose" ] && echo "global min: $globalmin"
+# 
+#   globalmax=$(cut -d ' ' -f 2 $globalworkfile | LC_ALL=C sort -gr | head -1)
+#   [ -z "$verbose" ] && echo "global max: $globalmax"
+# 
+#   offset=0
+#   ytics=""
+#   if awk "BEGIN {exit !($globalmin < 0)}"
+#   then
+#     offset=$(awk "BEGIN { print -1*$globalmin }" )
+#     [ -z "$verbose" ] && echo "Offsetting by $offset"
+#     
+#     # Compute un-offsetted ytics
+#     # Inspired by gnuplot/axis.c:678 quantize_normal_tics (yes it is kind of ugly. But! It works!!!)
+#     ytics=$(awk -vmin=$globalmin -vmax=$globalmax -vtics=8 '
+#       function floor (x) { return int(x); }
+#       function ceil (x) { return int(x+1); }
+#       BEGIN {
+#         r=max-min;
+#         power=10**floor(log(r)/log(10));
+#         xnorm = r / power;
+#         posns = 20 / xnorm;
+#         
+#         if (posns > 40)       tics=.05;
+#         else if (posns > 20)  tics=.1;
+#         else if (posns > 10)  tics=.2;
+#         else if (posns > 4)   tics=.5;
+#         else if (posns > 2)   tics=1;
+#         else if (posns > .5)  tics=2;
+#         else                  tics=ceil(xnorm);
+#         
+#         ticstep = tics * power;
+#         
+#         start=ticstep * floor(min / ticstep);
+#         end=ticstep * ceil(max / ticstep);
+#         
+#         for (s=start; s<=end; s+=ticstep) {
+#           if (s == 0) s = 0;  # To make sure zero is zero (remove negative zero)
+#           printf "\"%g\" %g\n", s, s-min
+#         }
+#       }' | paste -sd,)
+#     [ -z "$verbose" ] && echo "     ytics: $ytics"
+#   fi
+# 
+#   boxwidth=$dyear
+#   [ -z "$verbose" ] && echo "  boxwidth: $boxwidth"
+# 
+#   cmd="set style fill solid 1 noborder;
+#   set autoscale fix;" 
+# 
+#   cmd="$cmd
+#   set format y \"%5.2g\";
+#   set ytics ($ytics);
+#   set xlabel 'Years';
+#   set ylabel '$field';"
+# 
+#   if [ "$outfile" ]
+#   then
+#     cmd="$cmd
+#   $(get $f term)
+#   $(get $f output)"
+#   fi
+# 
+#   if [ "$title" ]
+#   then
+#     cmd="$cmd
+#   set title '$title';"
+#   fi
+# 
+#   cmd="$cmd
+#   icolor(r) = int((1-r)*255);
+#   color(r) = icolor(r) * 65536 + icolor(r) * 256 + 255;
+#   plot '$globalworkfile' using 1:(\$2+$offset):($boxwidth):(color(\$3)) with boxes lc rgb variable notitle;"
+# 
+#   if [ -z "$verbose" ]
+#   then
+#     printf "\nGnuplot script:\n%s\n\n" "$cmd"
+#   else
+#     printf "Plotting timeseries histogram from '$folder' for '$field'"
+#     [ ! -z "$outfile" ] && printf " into '$outfile'"
+#     printf "\n"
+#   fi
+# 
+#   gnuplot -e "$cmd" --persist $persist
+# 
+#   if [ "$outfile" ]
+#   then
+#     echo "Generated $outfile"
+#   fi
 
   [ "$clean" == "yes" ] && rm $superverbose $globalworkfile
 done

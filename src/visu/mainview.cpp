@@ -290,11 +290,15 @@ struct PlantData {
 void MainView::saveMorphologies (const QString &dir, int width) {
   using Layer = simu::Plant::Layer;
 
+
   std::map<std::string, PlantData> map;
   float total = _plants.size(), plants = 0;
   float seeds = 0;
 
   size_t maxw = 0;
+  auto pacPadding = [&maxw] (auto other) {
+    return std::string(std::max(int(maxw) - int(other.size()), 0), ' ');
+  };
 
   std::cout << "Building nested map\r";
   for (Plant *p: _plants) {
@@ -314,7 +318,7 @@ void MainView::saveMorphologies (const QString &dir, int width) {
 
     std::cout << simu::PlantID(&p->plant())
               << ", phenotype: " << phenotype
-              << std::string(maxw, ' ') << "\r";
+              << pacPadding(phenotype) << "\r";
 
     auto it = map.find(phenotype);
     if (it == map.end())
@@ -350,13 +354,13 @@ void MainView::saveMorphologies (const QString &dir, int width) {
 
     QString isolatedFile = QString::fromStdString(basename) + "_isolated.png";
     std::cout << "Rendering " << isolatedFile.toStdString()
-              << std::string(maxw, ' ') << "\r";
+              << pacPadding(isolatedFile) << "\r";
     plant->renderTo(isolatedFile, width);
 
 
     QString inplaceFile = QString::fromStdString(basename) + "_inplace.png";
     std::cout << "Rendering " << inplaceFile.toStdString()
-              << std::string(maxw, ' ') << "\r";
+              << pacPadding(inplaceFile) << "\r";
 
     QRectF pbounds = plant->boundingRect();
     QSizeF psize = pbounds.size();
