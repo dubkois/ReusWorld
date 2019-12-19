@@ -288,8 +288,9 @@ struct PlantData {
 };
 
 void MainView::saveMorphologies (const QString &dir, int width) {
-  using Layer = simu::Plant::Layer;
-
+  using VPlant = gui::Plant;
+  using SPlant = simu::Plant;
+  using Layer = SPlant::Layer;
 
   std::map<std::string, PlantData> map;
   float total = _plants.size(), plants = 0;
@@ -301,7 +302,7 @@ void MainView::saveMorphologies (const QString &dir, int width) {
   };
 
   std::cout << "Building nested map\r";
-  for (Plant *p: _plants) {
+  for (VPlant *p: _plants) {
     if (p->plant().isInSeedState()) {
       seeds++;
       continue;
@@ -340,13 +341,34 @@ void MainView::saveMorphologies (const QString &dir, int width) {
     else
       duplicate = ++it->second;
 
-    Plant *plant = data.sample;
+    VPlant *vplant = data.sample;
+    const SPlant &p = vplant->plant();
+
+    uint terminals = 0, fruits = 0;
+    std::array<uint, EnumUtils<Layer>::size()> aorgans, aterminals;
+    aorgans.fill(0);
+    aterminals.fill(0);
+
+    for (const simu::Organ *o: p.organs()) {
+      aorgans[o->layer()]++;
+      if (!o->isNonTerminal()) {
+        terminals++;
+        aterminals[o->layer()]++;
+      }
+      if (o->isFruit()) fruits++;
+    }
 
     std::ostringstream oss;
     oss << dir.toStdString() << "/"
         << FormatP{count / plants} << "p"
-        << "_" << plant->plant().organs().size() << "o"
-        << "_" << FormatA(data.age / count, plant->plant().genome().dethklok)
+        << "_" << p.organs().size() << "o"
+        << "_" << terminals << "t"
+        << "_" << fruits << "f"
+        << "_" << aorgans[Layer::SHOOT] << "so"
+        << "_" << aorgans[Layer::ROOT] << "ro"
+        << "_" << aterminals[Layer::SHOOT] << "st"
+        << "_" << aterminals[Layer::ROOT] << "rt"
+        << "_" << FormatA(data.age / count, p.genome().dethklok)
         << "a";
 
     if (duplicate > 1)  oss << "_" << duplicate;
@@ -355,14 +377,14 @@ void MainView::saveMorphologies (const QString &dir, int width) {
     QString isolatedFile = QString::fromStdString(basename) + "_isolated.png";
     std::cout << "Rendering " << isolatedFile.toStdString()
               << pacPadding(isolatedFile) << "\r";
-    plant->renderTo(isolatedFile, width);
+    vplant->renderTo(isolatedFile, width);
 
 
     QString inplaceFile = QString::fromStdString(basename) + "_inplace.png";
     std::cout << "Rendering " << inplaceFile.toStdString()
               << pacPadding(inplaceFile) << "\r";
 
-    QRectF pbounds = plant->boundingRect();
+    QRectF pbounds = vplant->boundingRect();
     QSizeF psize = pbounds.size();
     int height = width * psize.height() / psize.width();
     QPixmap image (width, height);
@@ -371,9 +393,9 @@ void MainView::saveMorphologies (const QString &dir, int width) {
     QPainter painter (&image);
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    updateSelection(plant);
+    updateSelection(vplant);
     render(&painter, image.rect(),
-           mapFromScene(plant->boundingRect().translated(plant->pos())).boundingRect(),
+           mapFromScene(vplant->boundingRect().translated(vplant->pos())).boundingRect(),
            Qt::KeepAspectRatioByExpanding);
     image.save(inplaceFile);
   }
