@@ -83,7 +83,7 @@ void plotSpeciesRanges (const Simulation &simu, const stdfs::path &savefile) {
   std::ofstream ofs (datafile);
   ofs << "SID Center Population Width\n";
   for (const auto &pair: sortedRanges) {
-    if (i++ > 15) break;
+//    if (i++ > 15) break;
     const Range &r = pair.second;
     ofs << pair.first << " " << (r.max + r.min) / 2.f << " " << r.count
         << " " << (r.max - r.min) << "\n";
