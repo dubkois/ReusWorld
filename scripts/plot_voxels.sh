@@ -61,8 +61,16 @@ then
   exit 2
 fi
 
-map=""
-# [ "$dim" -eq 2 ] && map="set pm3d map;"
+if [ "$dim" -eq 2 ]
+then  
+  map="set pm3d map;"
+  plot="plot"
+  pstyle="image"
+else
+  map=""
+  plot="splot"
+  pstyle="pm3d"
+fi
 
 if [ -z "$persist" ]
 then
@@ -82,7 +90,7 @@ fi
 rows=$(wc -l $file | cut -d ' ' -f 1)
 stride=$(($rows / 5))
 tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
-tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
+# tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
   
 gnuplot -e "
   set ${X}label 'X';
@@ -94,6 +102,6 @@ gnuplot -e "
   set autoscale fix;
   $output
   $map
-  plot '< cut -d \" \" -f2- $file' using $margs matrix with image notitle " -p $persist
+  $plot '< cut -d \" \" -f2- $file' using $margs matrix with $pstyle notitle " -p $persist
   
 #   set title '$(basename $file .dat)';
