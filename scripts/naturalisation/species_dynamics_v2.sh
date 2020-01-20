@@ -23,8 +23,11 @@ fi
 
 # folder=tmp
 
+files=$(find $folder -name "y*.save.ubjson")
+echo "$(echo $files | wc -w) save files found"
+
 printf "Generating species data\r"
-for save in $(find $folder -name "y*.save.ubjson")
+for save in $files
 do
   if [ ! -f ${save%save.ubjson}ranges.dat ]
   then
@@ -33,11 +36,11 @@ do
   fi
 done
 
-minYear=$(ls -v $folder/y*.save.ubjson | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
-maxYear=$(ls -vr $folder/y*.save.ubjson | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
+minYear=$(ls -v $files | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
+maxYear=$(ls -vr $files | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
 
 printf "Extracting Species list\r"
-species=$(ls $folder/*ranges.dat | xargs -I {} cut -d ' ' -f 1 {} | grep -v "SID" | sort -g | uniq)
+species=$(find $folder -name "*ranges.dat" | xargs -I {} cut -d ' ' -f 1 {} | grep -v "SID" | sort -g | uniq)
 speciesCount=$(echo $species | wc -w)
 
 total=$(awk '{ print $1 * ($3 - $2) }' <<< "$speciesCount $minYear $maxYear")
