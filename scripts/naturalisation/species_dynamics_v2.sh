@@ -12,6 +12,15 @@ then
   echo "ERROR: '$folder' is not a valid folder. Aborting."
 fi
 
+[ -z "$BUILD_DIR" ] && BUILD_DIR=./build_release
+analyzer=$BUILD_DIR/analyzer
+if [ ! -f $analyzer ]
+then
+  echo "Unable to find analyzer program at '$analyzer'."
+  echo "Make sure you specified BUILD_DIR correctly and retry"
+  exit 1
+fi
+
 # folder=tmp
 
 printf "Generating species data\r"
