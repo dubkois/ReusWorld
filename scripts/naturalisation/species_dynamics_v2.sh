@@ -29,7 +29,7 @@ do
   if [ ! -f ${save%save.ubjson}ranges.dat ]
   then
     printf "Processing $save\r"
-    ./build_release/analyzer -l $save --species-ranges --load-constraints none --load-fields '!ptree'
+    $analyzer -l $save --species-ranges --load-constraints none --load-fields '!ptree'
   fi
 done
 
