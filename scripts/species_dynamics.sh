@@ -2,7 +2,7 @@
 
 if [ $# -ne 2 ]
 then
-  echo "Usage: $0 -f <folder> <n-champions>"
+  echo "Usage: $0 <folder> <n-champions>"
   exit 10
 fi
 

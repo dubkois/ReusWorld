@@ -1,7 +1,7 @@
 #!/bin/sh
 
 usage(){
-  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-l v] [-u v] [-e ext] [-H] [-p]"
+  echo "Usage: $0 -f <voxels.dat> [-d=2|-d=3] [-l v] [-u v] [-e ext] [-H] [-p] [-g gnuplot-commands]"
   echo "       -d Plot as 3d or projected map (2d)"
   echo "       -p Keep the graph interactive"
   echo "       -e Output file type (if not interactive)"
@@ -23,7 +23,7 @@ X="x"
 # A POSIX variable
 OPTIND=1         # Reset in case getopts has been used previously in the shell.
 
-while getopts "h?f:d:l:u:e:pH" opt; do
+while getopts "h?f:d:l:u:e:g:pH" opt; do
   case "$opt" in
   h|\?)
       show_help
@@ -38,6 +38,8 @@ while getopts "h?f:d:l:u:e:pH" opt; do
   l)  lower=$OPTARG
       ;;
   u)  upper=$OPTARG
+      ;;
+  g)  gcommands=$OPTARG
       ;;
   H)  margs="2:1:3"
       Y="x"
@@ -102,6 +104,7 @@ gnuplot -e "
   set autoscale fix;
   $output
   $map
+  $gcommands;
   $plot '< cut -d \" \" -f2- $file' using $margs matrix with $pstyle notitle " -p $persist
   
 #   set title '$(basename $file .dat)';

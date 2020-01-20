@@ -117,6 +117,7 @@ fi
 [ -z "$verbose" ] && echo "columns: '$columns'"
 
 tics=6
+[ ! -z ${TICS+x} ] && tics=$TICS
 
 cmd="  set datafile separator ' ';
   set ytics nomirror;
@@ -146,10 +147,13 @@ fi
 # tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
 # tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
 
+lasttick=""
+[ ! -z ${LAST_TICK+x} ] && lasttick="END { print \\\"$LAST_TICK\\\", NR-2 }"
+
 cmd="$cmd
   rows(x) = system('cat $file | wc -l');
   stride(x) = rows(x) / ($tics - 1);
-  computeXTics(x) = system('cut -d \" \" -f 1 $file | awk -v s='.stride(0).' \"NR % s == 2 { print \\\$0, NR } END { print \\\"y1000d00h0\\\", NR-2 }\"');
+  computeXTics(x) = system('cut -d \" \" -f 1 $file | awk -v s='.stride(0).' \"NR % s == 2 { print \\\$0, NR } $lasttick\"');
   setupXTics(x) = 'tics=computeXTics('.x.'); set for [i=1:words(tics):2] xtics (word(tics, i) word(tics, i+1));';
   eval(setupXTics(0));
   plot '$file' using (0/0):(0/0) notitle"
