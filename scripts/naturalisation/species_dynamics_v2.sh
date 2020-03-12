@@ -36,14 +36,14 @@ do
   fi
 done
 
-minYear=$(ls -v $files | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
-maxYear=$(ls -vr $files | head -1 | sed 's/.*y\(.*\).save.ubjson/\1/')
+years=$(ls $files | sed 's/.*y\(.*\).save.ubjson/\1/')
+yearsCount=$(wc -l <<< "$years")
 
 printf "Extracting Species list\r"
 species=$(find $folder -name "*ranges.dat" | xargs -I {} cut -d ' ' -f 1 {} | grep -v "SID" | sort -g | uniq)
 speciesCount=$(echo $species | wc -w)
 
-total=$(awk '{ print $1 * ($3 - $2) }' <<< "$speciesCount $minYear $maxYear")
+total=$($speciesCount $yearsCount)
 i=1
 
 # set -x

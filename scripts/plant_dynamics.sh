@@ -148,7 +148,12 @@ fi
 # tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
 
 lasttick=""
-[ ! -z ${LAST_TICK+x} ] && lasttick="END { print \\\"$LAST_TICK\\\", NR-2 }"
+if [ ! -z ${LAST_TICK+x} ]
+then
+  last_tick_expr='\"$LAST_TICK\"'
+  [ -z $LAST_TICK ] && last_tick_expr='\$0'
+  lasttick="END { print $last_tick_expr, NR-2 }"
+fi
 
 cmd="$cmd
   rows(x) = system('cat $file | wc -l');

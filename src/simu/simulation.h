@@ -115,7 +115,8 @@ public:
 
   static stdfs::path periodicSaveName(const stdfs::path &folder, uint year) {
     std::ostringstream oss;
-    oss << "y" << year << ".save";
+    oss << "y" << year;
+    oss << ".save";
     return folder / oss.str();
   }
 

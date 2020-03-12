@@ -772,8 +772,8 @@ void Simulation::step (void) {
 
   _env.stepEnd();
 
-  if (_env.time().isStartOfYear()
-    && (_env.time().year() % Config::saveEvery()) == 0)
+//  if (_env.time().isStartOfYear()
+//    && (_env.time().year() % Config::saveEvery()) == 0)
     save(periodicSaveName());
 }
 
