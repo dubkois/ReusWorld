@@ -124,19 +124,19 @@ then
 fi
 
 cmd="$cmd
-set format x \"y%.0fd00h0\";
-set xtics add ('y0d00h0' 4);
 set format y \"%5.2g\";
-set ytics ($ytics);
-set xlabel 'Time';
+set ytics ($ytics) nomirror;
+set xtics nomirror;
+set xlabel 'Year';
+set ylabel 'Value';
 set style fill solid 1.0 noborder;
 $output"
 
-if [ "$title" ]
-then
-  cmd="$cmd
-set title '$title';"
-fi
+# if [ "$title" ]
+# then
+#   cmd="$cmd
+# set title '$title';"
+# fi
 
 cmd="$cmd
 icolor(r) = int((1-r)*255);

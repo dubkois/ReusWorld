@@ -161,7 +161,10 @@ cmd="$cmd
   computeXTics(x) = system('cut -d \" \" -f 1 $file | awk -v s='.stride(0).' \"NR % s == 2 { print \\\$0, NR } $lasttick\"');
   setupXTics(x) = 'tics=computeXTics('.x.'); set for [i=1:words(tics):2] xtics (word(tics, i) word(tics, i+1));';
   eval(setupXTics(0));
+  set xlabel 'Years';
   plot '$file' using (0/0):(0/0) notitle"
+
+#   set xtics ('200' 2000, '400' 4000, '600' 6000, '800' 8000, '1000' 10000-1);
 
 # cmd="$cmd
 #   xticsCount=$tics;

@@ -26,7 +26,7 @@ OPTIND=1         # Reset in case getopts has been used previously in the shell.
 while getopts "h?f:d:l:u:e:g:pH" opt; do
   case "$opt" in
   h|\?)
-      show_help
+      usage
       exit 0
       ;;
   f)  file=$OPTARG
@@ -91,7 +91,8 @@ fi
 
 rows=$(wc -l $file | cut -d ' ' -f 1)
 stride=$(($rows / 5))
-tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
+tics="'200' 2000, '400' 4000, '600' 6000, '800' 8000, '1000' 10000-1"
+# tics=$(cut -d ' ' -f 1 $file | awk -v s=$stride 'NR % s == 1 { printf "\"%s\" %d\n", $0, NR }' | paste -sd "," -)
 # tics="$tics, \"y1000d00h0\" $(cat $file | wc -l)-1" # That's ugly but what the hell...
   
 gnuplot -e "
